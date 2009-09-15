@@ -1,0 +1,94 @@
+LLA stands for Lisp Linear Algebra, and aims to provide a convenient
+and fast library for matrix operations in Common Lisp, by binding to
+LAPACK and other libraries.
+
+** LLA aims to conform to the following design principles:
+
+1. High level, user-friendly interface.
+
+(solve a b) should return X from AX=B, regardless of whether A is a
+dense matrix, an LU decomposition, or something else; similarly, X
+should be a vector/matrix when B is.  Users should not need to
+memorize names like DGESV, especially when CLOS makes it so easy to
+deal with these things.  Also, you don't need to make sure that all
+arguments are of the same type (eg complex-double): LLA will find the
+common supertype for elements and convert if necessary.
+
+2. Keeping it simple, no premature optimization.  
+
+Providing views (eg slices) belongs to packages like xarray -- LLA
+provides an xarray interface, so you can use slices and views much
+more complex than what you would get in, for example, Fortran.
+However, eventually these will result in copies (using take) as LLA
+does NOT handle strides etc.  If you find that this is a bottleneck,
+please provide some real-life example code, but I would be highly
+surprised at this.  There has to be some trade-off between complexity
+and speed, and I would be unwilling to sacrifice the simplicity (and
+more importantly, maintainability) of the implementation.
+
+3. Stay in Lisp and expose the innards of the objects as much as
+possible.
+
+LLA aims to take advantage of CL's high level facilities such as CLOS
+and memory management.  Data is kept in Lisp arrays instead of foreign
+arrays, so you can access it directly if you want that.  You also
+benefit from garbage collection and all the clever stuff that comes
+with the GC.  If you need more memory, just increase the heap size.
+
+Currently, this means that only SBCL is supported.  Support for other
+CL implementations is perfectly possible and will be done on demand
+once the interface stabilizes.  It may not be super-fast (could
+require copying), if your implementation does not have something like
+SBCL's array pinning.  But you would hardly use such an implementation
+for numerical calculations and expect it to be fast, would you?
+
+
+** Acknowledgements
+
+LLA was inspired by packages written by AJ Rossini, Rif, Mark Hoemmen
+and others.  I have borrowed code and ideas freely from all of them.
+
+
+** Roadmap
+
+1. Define basic structure, vectors, matrices and macros (with-nv-*)
+for interfacing with Fortran.
+
+2. Define some functions, even to learn what to abstract into macros
+(see 4.)
+
+[Currently, we are here.]
+
+3. Provide basic matrix operations which don't require LAPACK (eg
+elementwise addition, identity matrix, etc).  Also write a method of
+the generic function xarray:take, specializing on matrix types (eg
+dense-matrix, etc).
+
+4. Write a DSL for generating these functions from simple
+descriptions.  For example, the body of solve for gesv could look
+something like this:
+
+(with-lapack-wrapper (procedure gesv)
+  ((a :input-copied dense-matrix :common n n) ; for repeated symbols, verify equality
+   (b :input-output dense-matrix :common n nrhs :into x)
+   (ipiv :work n :integer))
+  ;; common type found, scalars etc bound to pointer% names, info checked
+  (funcall procedure n% nrhs% a% n% ipiv% b% n% info%)
+  ;; output automatically bound to x
+  x)
+
+I am still thinking about the syntax, but it is easily doable.  Other
+features: automatically query workspace size when needed.
+
+5. Implement driver and computational functions at least for dense
+matrices.
+
+6. Proceed based on usage patterns and efficiency/optimization
+considerations of users.
+
+I am now using LLA for my econometric computations, so missing feaures
+should be noticed quickly.
+
+Comments are very welcome.
+
+Tamas Papp <tkpapp@gmail.com>
