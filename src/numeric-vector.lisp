@@ -27,11 +27,12 @@
   ((data :type (simple-array * (*))
 	 :initarg :data :reader numeric-vector-data)))
 
-(defun numeric-vector-class (lla-type)
-  "Return the name of the numeric vector class corresponding to the
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun numeric-vector-class (lla-type)
+    "Return the name of the numeric vector class corresponding to the
 LLA type."
-  (check-type lla-type symbol)
-  (make-symbol* 'numeric-vector- lla-type))
+    (check-type lla-type symbol)
+    (make-symbol* 'numeric-vector- lla-type)))
 
 ;;;;
 ;;;; printing and element-type
@@ -79,10 +80,10 @@ LLA type."
 ;;;; xdims* and xref-writable-p are taken care of with the default.
 
 (defmethod xref ((nv numeric-vector) &rest subscripts)
-  (nv-ref nv (first subscripts)))
+  (aref (numeric-vector-data nv) (first subscripts)))
 
 (defmethod (setf xref) (value (nv numeric-vector) &rest subscripts)
-  (setf (nv-ref nv (first subscripts))
+  (setf (aref (numeric-vector-data nv) (first subscripts))
 	value))
 
 ;;;; 

@@ -29,12 +29,15 @@
     "basics"
     :pathname #P"src/"
     :depends-on ("package-init")
+    :serial t
     :components
     ((:file "load-libs")
      (:file "lapack-cffi")
+     (:file "utilities")
      (:file "types")
      (:file "scalar")
      (:file "numeric-vector")
+     (:file "matrix")
      (:file "fortran-call")
 ;; !! include these when they stabilize
      )))

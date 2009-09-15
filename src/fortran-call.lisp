@@ -81,7 +81,7 @@ afterwards, signalling an lapack-error condition if info is nonzero."
 
 (defmethod lu ((a dense-matrix))
   (bind (((:slots-read-only (m nrow) (n ncol) (a-data data)) a)
-	 (type (element-lla-type a-data))
+	 (type (nv-element-type a-data))
 	 (procedure (lapack-procedure-name 'getrf type)))
     (with-nv-input-output (a-data lu-data a% type)
       (with-nv-output (ipiv (min m n) ipiv% :integer)
@@ -101,7 +101,7 @@ afterwards, signalling an lapack-error condition if info is nonzero."
 (defmethod solve ((a dense-matrix) (b dense-matrix))
   (bind (((:slots-read-only (n nrow) (n2 ncol) (a-data data)) a)
 	 ((:slots-read-only (n3 nrow) (nrhs ncol) (b-data data)) b)
-	 (common-type (smallest-common-target-type (mapcar #'element-lla-type (list a-data b-data))))
+	 (common-type (smallest-common-target-type (mapcar #'nv-element-type (list a-data b-data))))
 	 (procedure (lapack-procedure-name 'gesv common-type)))
     (assert (= n n2 n3))
     (with-nv-input-copied (a-data a% common-type) ; LU decomposition discarded
@@ -117,7 +117,7 @@ afterwards, signalling an lapack-error condition if info is nonzero."
 (defmethod solve ((lu lu) (b dense-matrix))
   (bind (((:slots-read-only (n nrow) (n2 ncol) ipiv (lu-data data)) lu)
 	 ((:slots-read-only (n3 nrow) (nrhs ncol) (b-data data)) b)
-	 (common-type (smallest-common-target-type (mapcar #'element-lla-type (list lu-data b-data))))
+	 (common-type (smallest-common-target-type (mapcar #'nv-element-type (list lu-data b-data))))
 	 (procedure (lapack-procedure-name 'getrs common-type)))
     (assert (= n n2 n3))
     (with-nv-input (lu-data lu% common-type)
@@ -138,7 +138,7 @@ afterwards, signalling an lapack-error condition if info is nonzero."
   (bind (((:slots-read-only (m nrow) (k ncol) (a-data data)) a)
 	 ((:slots-read-only (k2 nrow) (n ncol) (b-data data)) b)
 	 (common-type (smallest-common-target-type
-		       (mapcar #'element-lla-type (list a-data b-data))))
+		       (mapcar #'nv-element-type (list a-data b-data))))
 	 (procedure (lapack-procedure-name 'gemm common-type)))
     (assert (= k k2))
     (with-nv-input (a-data a% common-type)

@@ -16,45 +16,83 @@
 ;;;; cases, eg complex types with mem-aref* and (2) I would need to
 ;;;; define a very complex DSL for possible coercions. -- Tamas
 
-(defun lla-types-list ()
-  "Return a list of LLA types.  For internal use only, NOT EXPORTED."
-  ;; Why a function? +defconstant+ is not kosher with lists. -- Tamas
-  '(:single :double :complex-single :complex-double :integer))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (define-symbol-macro lla-types-list 
+      ;;  Return a list of LLA types.  For internal use only, NOT EXPORTED."
+      '(:single :double :complex-single :complex-double :integer)))
 
-(deftype lla-type ()
-  "All LLA types."
-  `(member ,@(lla-types-list)))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (deftype lla-type ()
+    "All LLA types."
+    `(member ,@'#.lla-types-list))
 
-;; ?? maybe don't need to define the types below, -p functions should
-;; be enough -- Tamas
+  ;; ?? maybe don't need to define the types below, -p functions should
+  ;; be enough -- Tamas
+  
+  (deftype lla-complex-type ()
+    "All LLA complex (float) types."
+    '(member :complex-single :complex-double))
+  
+  (defun lla-complex-p (lla-type)
+    "Non-nil iff complex type."
+    (check-type lla-type lla-type)
+    (typep lla-type 'lla-complex-type))
+  
+  (deftype lla-double-type ()
+    "All LLA double float types (real and complex)."
+    '(member :double :complex-double))
+  
+  (defun lla-double-p (lla-type)
+    "Non-nil iff double-precision type."
+    (check-type lla-type lla-type)
+    (typep lla-type 'lla-double-type)))
 
-(deftype lla-complex-type ()
-  "All LLA complex (float) types."
-  '(member :complex-single :complex-double))
 
-(defun lla-complex-p (lla-type)
-  "Non-nil iff complex type."
-  (check-type lla-type lla-type)
-  (typep lla-type 'lla-complex-type))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun coercible-p (lla-source-type lla-target-type)
+    "Permitted coercions for LLA types.  It is guaranteed that CL:COERCE
+can perform these coercions on the corresponding lisp types.
 
-(deftype lla-double-type ()
-  "All LLA double float types (real and complex)."
-  '(member :double :complex-double))
+Basic summary:
 
-(defun lla-double-p (lla-type)
-  "Non-nil iff double-precision type."
-  (check-type lla-type lla-type)
-  (typep lla-type 'lla-double-type))
+- integers can be coerced to anything
+- single<->double precision coercions are possible both ways
+- real floats can be upgraded to complex."
+    (check-type lla-source-type lla-type)
+    (check-type lla-target-type lla-type)
+    (cond
+      ;; always valid
+      ((eq lla-source-type :integer) t)
+      ;; nothing else can be converted to integer
+      ((eq lla-target-type :integer) nil)
+      ;; no complex->real
+      ((and (lla-complex-p lla-source-type)
+	    (not (lla-complex-p lla-target-type)))
+       nil)
+      ;; all the rest should be possible
+      (t t)))
+  
+  (defun coercible-pairs-list ()
+      ;;   "Generate the list of all LLA (source target) pairs for which
+      ;; coercible-p holds.  For internal use only, NOT EXPORTED."
+      (let ((lla-types lla-types-list)
+	    coercible)
+	(dolist (source lla-types)
+	  (dolist (target lla-types)
+	    (when (coercible-p source target)
+	      (push (list source target) coercible))))
+	;; reverse only for cosmetic purposes
+	(nreverse coercible))))
 
 (defun lisp-type->lla-type (lisp-type)
   (match lisp-type
-         ('single-float :single)
-         ('double-float :double)
-         ((list 'complex 'single-float) :complex-single)
-         ((list 'complex 'double-float) :complex-double)
-         ((list 'unsigned-byte 32) :integer)
+	 ('single-float :single)
+	 ('double-float :double)
+	 ((list 'complex 'single-float) :complex-single)
+	 ((list 'complex 'double-float) :complex-double)
+	 ((list 'unsigned-byte 32) :integer)
 	 ;; !! should define & use conditions -- Tamas
-         (_ (error "~a is not recognized as corresponding to a valid ~
+	 (_ (error "~a is not recognized as corresponding to a valid ~
   LLA type" lisp-type))))
 
 (defun lla-type->lisp-type (lla-type)
@@ -67,40 +105,6 @@
     ;; !! should define & use conditions -- Tamas
     (otherwise (error "~a is not a valid LLA type" lla-type))))
 
-(defun coercible-p (lla-source-type lla-target-type)
-  "Permitted coercions for LLA types.  It is guaranteed that CL:COERCE
-can perform these coercions on the corresponding lisp types.
-
-Basic summary:
-
-- integers can be coerced to anything
-- single<->double precision coercions are possible both ways
-- real floats can be upgraded to complex."
-  (check-type lla-source-type lla-type)
-  (check-type lla-target-type lla-type)
-  (cond
-    ;; always valid
-    ((eq lla-source-type :integer) t)
-    ;; nothing else can be converted to integer
-    ((eq lla-target-type :integer) nil)
-    ;; no complex->real
-    ((and (lla-complex-p lla-source-type)
-	  (not (lla-complex-p lla-target-type)))
-     nil)
-    ;; all the rest should be possible
-    (t t)))
-
-(defun coercible-pairs-list ()
-  "Generate the list of all LLA (source target) pairs for which
-coercible-p holds.  For internal use only, NOT EXPORTED."
-  (let ((lla-types (lla-types-list))
-	coercible)
-    (dolist (source lla-types)
-      (dolist (target lla-types)
-	(when (coercible-p source target)
-	  (push (list source target) coercible))))
-    ;; reverse only for cosmetic purposes
-    (nreverse coercible)))
 
 (defmacro for-coercible-pairs ((source target) form)
   "Replace source and target with corresponding coercible pairs

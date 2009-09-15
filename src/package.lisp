@@ -9,9 +9,34 @@
 	:cl-match
 	:xarray)
   (:shadowing-import-from :iterate :collecting :collect)
-  
-  ;;; !!! export stuff. once things stabilize. -- Tamas
-)
+  (:export 
+   ;; !! exported interface should/will be refined and changed,
+   ;; !! currently it is just a sketch
+
+   ;; types
+   
+   ;; scalar
+   
+   mem-aref* foreign-size* with-fortran-scalar with-fortran-scalars
+   
+   ;; numeric-vector
+   
+   numeric-vector numeric-vector-data numeric-vector-integer
+   numeric-vector-single numeric-vector-double
+   numeric-vector-complex-single numeric-vector-complex-double
+   nv-element-type make-numeric-vector nv-copy element-lla-type
+
+   ;; matrix
+   
+   matrix nrow ncol data *pring-matrix-aligned* *print-matrix-padding*
+   *print-matrix-precision* dense-matrix make-matrix vector->matrix-col
+   vector->matrix-row matrix->vector lu ipiv
+   
+   ;; fortran-call
+   
+   lu solve mm
+
+   ))
 
 (defpackage #:lla-unit-tests
   (:documentation "Unit, validation, and regression testing for lla")

@@ -12,8 +12,8 @@
 	 contents is implementation-dependent.")))
 
 ;;; LLA element type, from the type of data
-(defmethod element-lla-type ((matrix matrix))
-  (element-lla-type (data matrix)))
+(defmethod nv-element-type ((matrix matrix))
+  (nv-element-type (data matrix)))
 
 ;;; Some of the xarray interface, rest defined for specific subclasses
 
@@ -104,7 +104,7 @@ aligns output."
       ;; print dimensions and numeric type, as we are not dispatching
       ;; on it here
       (format stream "~a x ~a ~a elements~&" (nrow matrix) (ncol matrix)
-	      (element-lla-type matrix))
+	      (nv-element-type matrix))
       ;; print elements
       (print-matrix matrix stream)))
 
@@ -120,8 +120,8 @@ aligns output."
   ()
   (:documentation "Dense matrix, elements stored in column-major order."))
 
-(declaim (inline cm-index))
-(defun cm-index (nrow row col)
+(declaim (inline cm-index2))
+(defun cm-index2 (nrow row col)
   "Calculate column-major index, without error checking.  Inlined."
   (+ (* nrow col) row))
 
@@ -132,14 +132,14 @@ aligns output."
     (with-slots (nrow ncol data) matrix
       (check-index row nrow)
       (check-index col ncol)
-      (xref data (cm-index nrow row col)))))
+      (xref data (cm-index2 nrow row col)))))
 
 (defmethod (setf xref) (value (matrix dense-matrix) &rest subscripts)
   (bind (((row col) subscripts))
     (with-slots (nrow ncol data) matrix
       (check-index row nrow)
       (check-index col ncol)
-      (setf (xref data (cm-index nrow row col))
+      (setf (xref data (cm-index2 nrow row col))
 	    value))))
 
 ;;;; matrix creation
@@ -156,7 +156,7 @@ list of elements, given in row-major order."
       (for index :from 0)
       (for elt :in elt-list)
       (bind (((:values row col) (floor index ncol))) ; row major
-	(setf (aref data (cm-index nrow row col))	     ; column major
+	(setf (aref data (cm-index2 nrow row col))	     ; column major
 	      (coerce elt lisp-type))))
     (make-numeric-vector size lla-type data)))
 
@@ -206,7 +206,7 @@ length n.  May share structure with the argument.")
     ;; fallback method, relies on xref
     (bind (((:slots-read-only nrow ncol) matrix)
 	   (vector (make-numeric-vector (max nrow ncol)
-					(element-lla-type matrix))))
+					(nv-element-type matrix))))
       (cond
 	((= 1 nrow)			; column matrix
 	 (dotimes (i ncol)
