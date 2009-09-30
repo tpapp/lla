@@ -153,3 +153,80 @@ afterwards, signalling an lapack-error condition if info is nonzero."
 	      (funcall procedure trans% trans% m% n% k% u% a% m% b% k%
 		       z% c% m%)))
 	  (make-instance 'dense-matrix :nrow m :ncol n :data c-data))))))
+
+(defmacro with-lwork-query ((lwork work lla-type) &body body)
+  "Call body twice with the given parameters, querying the size for
+the workspace area.  NOTE: abstraction leaks (body is there twice),
+but it should not be a problem in practice."
+  (check-type lwork symbol)
+  (check-type work symbol)
+  (with-unique-names (work-size foreign-size)
+    (once-only (lla-type)
+      `(with-foreign-object (,lwork :int32 1)
+         (let ((,foreign-size (foreign-size* ,lla-type))
+               ,work-size)
+           ;; query workspace size
+           (setf (mem-ref ,lwork :int32) -1)
+           (with-foreign-pointer (,work ,foreign-size)
+             ,@body
+             (setf ,work-size (floor (mem-aref* ,work ,lla-type))
+                   (mem-ref ,lwork :int32) ,work-size))
+           ;; allocate and use workspace
+           (with-foreign-pointer (,work (* ,foreign-size ,work-size))
+             ,@body))))))
+
+(defun eigen-dense-matrix-double (a &key vectors-p check-real-p)
+  "Eigenvalues and vectors for dense, double matrices."
+  (bind (((:slots-read-only (n nrow) (n2 ncol) (a-data data)) a)
+	 (procedure (lapack-procedure-name 'geev :double)))
+    (assert (= n n2))
+    (with-nv-input-copied (a-data a% :double) ; A is overwritten
+      (with-work-area (w% :double (* 2 n))     ; eigenvalues, will be zipped
+        (let ((wi% (inc-pointer w% (* n (foreign-type-size :double))))) ; imaginary part
+          (with-fortran-scalar (n n% :integer)
+            (with-characters ((#\N n-char)
+                              (#\V v-char))
+              (if vectors-p
+                  (with-nv-output (vr-data (* n n) vr% :double)
+                    (with-lwork-query (lwork work :double)
+                      (with-info-check (geev info%)
+                        (funcall procedure n-char v-char n% a% n% 
+                                 w% wi%                   ; eigenvalues
+                                 (null-pointer) n% vr% n% ; eigenvectors
+                                 work lwork info%)))
+                    (values (nv-zip-complex-double w% n check-real-p)
+                            (make-instance 'dense-matrix :nrow n :ncol n
+                                           :data vr-data)))
+                  (with-lwork-query (lwork work :double)
+                    (with-info-check (geev info%)
+                      (funcall procedure n-char n-char n% a% n% 
+                             w% wi%                              ; eigenvalues
+                             (null-pointer) n% (null-pointer) n% ; eigenvectors
+                             work lwork info%)
+                      (nv-zip-complex-double w% n check-real-p)))))))))))
+
+
+
+(defun eigen-dense-matrix-complex-double (a &key vectors-p check-real-p)
+  "Eigenvalues and vectors for dense, double matrices."
+  (declare (ignore a vectors-p check-real-p))
+  (error "this function needs to be written"))
+
+
+(defgeneric eigen (a &key vectors-p check-real-p &allow-other-keys)
+  (:documentation "Calculate the eigenvalues and optionally the right
+eigenvectors of a matrix.  Return (values eigenvalues eigenvectors).
+If check-real-p, eigenvalues of real matrices are checked for an
+imaginary part and returned with the appropriate type (compex or
+not)."))
+
+(defmethod eigen ((a dense-matrix) &key vectors-p check-real-p)
+  ;; The current approach is: convert to double precision (complex or
+  ;; real), so we just need two functions.  Unfortunately, the LAPACK
+  ;; interface for real and complex cases is different.
+  (case (nv-element-type (data a))
+    ((:integer :single :double)
+       (eigen-dense-matrix-double a :vectors-p vectors-p :check-real-p check-real-p))
+    ((:complex-single :complex-double)
+       (eigen-dense-matrix-complex-double a :vectors-p vectors-p :check-real-p check-real-p))))
+

@@ -39,26 +39,6 @@
 (defvar *print-matrix-paddig* 1
   "Number of spaces between columns.")
 
-(defvar *print-matrix-precision* 3
-  "number of digits after the decimal point when printing numeric matrices")
-
-(defun standard-numeric-formatter (x)
-  "Standard formatter for matrix printing.  Respects
-*print-matrix-precision*, formats complex numbers as, for example,
-0.0+1.0i."
-  ;; ?? do we want a complex numbers to be aligned on the +, like R? I
-  ;; am not sure I like that very much, and for a lot of data, I would
-  ;; visualize it graphically anyhow (I hate tables of 7+ numbers in
-  ;; general).  -- Tamas, 2009-sep-13
-  (typecase x
-    (integer (format nil "~d" x))
-    (real (format nil "~,vf" *print-matrix-precision* x))
-    (complex (format nil "~,vf+~,vfi"
-		     *print-matrix-precision* (realpart x)
-		     *print-matrix-precision* (imagpart x)))
-    (t (format nil "~a" x))))
-
-
 (defun print-matrix (matrix stream &key 
 		     (formatter #'standard-numeric-formatter))
   "Format and print the elements of matrix to stream, using

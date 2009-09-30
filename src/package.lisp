@@ -34,7 +34,7 @@
    
    ;; fortran-call
    
-   lu solve mm
+   lu solve mm eigen
 
    ))
 

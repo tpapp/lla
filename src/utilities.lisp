@@ -68,3 +68,27 @@ constraint is binding."
      ,@body))
 
 (with-multiple-bindings with-character)
+
+
+;;;;
+;;;;  Printing and formatting
+;;;;
+
+(defvar *print-lla-precision* 5
+  "number of digits after the decimal point when printing numeric matrices")
+
+(defun standard-numeric-formatter (x)
+  "Standard formatter for matrix printing.  Respects
+*print-lla-precision*, formats complex numbers as, for example,
+0.0+1.0i."
+  ;; ?? do we want a complex numbers to be aligned on the +, like R? I
+  ;; am not sure I like that very much, and for a lot of data, I would
+  ;; visualize it graphically anyhow (I hate tables of 7+ numbers in
+  ;; general).  -- Tamas, 2009-sep-13
+  (typecase x
+    (integer (format nil "~d" x))
+    (real (format nil "~,vf" *print-lla-precision* x))
+    (complex (format nil "~,vf+~,vfi"
+		     *print-lla-precision* (realpart x)
+		     *print-lla-precision* (imagpart x)))
+    (t (format nil "~a" x))))

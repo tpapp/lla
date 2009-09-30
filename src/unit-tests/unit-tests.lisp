@@ -87,10 +87,27 @@ are LLA-types.  Random integers ensure that all coercions are valid."
 
 
 
-
-		       
 (defparameter *a* (make-matrix 2 2 :double :initial-contents '(1 2 3 4)))
 (defparameter *x* (make-matrix 2 1 :single :initial-contents '(5 6)))
+
+(eigen *a* :check-real-p t :vectors-p t)
+
+
+;;;;
+;;;; output from R
+;;;;
+;; > a <- matrix(1:4,2,2,byrow=TRUE)
+;; > a
+;;      [,1] [,2]
+;; [1,]    1    2
+;; [2,]    3    4
+;; > eigen(a)
+;; $values
+;; [1]  5.3722813 -0.3722813
+;; $vectors
+;;            [,1]       [,2]
+;; [1,] -0.4159736 -0.8245648
+;; [2,] -0.9093767  0.5657675
 
 (defparameter *b* (mm *a* *x*))
 (solve *a* *b*)

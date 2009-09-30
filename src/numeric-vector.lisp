@@ -49,13 +49,13 @@ LLA type."
 	     (truncated-length (min *print-length* length)))
 	(format stream "of ~a elements: " length)
 	(dotimes (i truncated-length)
-	  (princ (aref data i) stream)
+	  (princ (standard-numeric-formatter (aref data i)) stream)
 	  (when (< (1+ i) truncated-length)
 	    (princ #\space stream)))
 	(when (< truncated-length length)
 	  (princ " ..." stream))))))
 
-;;;; generic xref interface !!!! TODO
+;;;; generic xref interface
 ;;;;
 ;;;; !! also check for speed? -- Tamas
 
@@ -77,8 +77,6 @@ LLA type."
 (defmethod xdims ((nv numeric-vector))
   (list (xsize nv)))
 
-;;;; xdims* and xref-writable-p are taken care of with the default.
-
 (defmethod xref ((nv numeric-vector) &rest subscripts)
   (aref (numeric-vector-data nv) (first subscripts)))
 
@@ -93,14 +91,29 @@ LLA type."
 (defmacro def-numeric-vector-class (lla-type)
   "!!! documentation"
   (check-type lla-type symbol)
-  (let ((class-name (numeric-vector-class lla-type)))
+  (let* ((class-name (numeric-vector-class lla-type))
+         (lisp-type (lla-type->lisp-type lla-type))
+         (array-type `(simple-array ,lisp-type (*))))
   `(progn
      (defclass ,class-name (numeric-vector)
-       ((data :type (simple-array ,(lla-type->lisp-type lla-type) (*))))
+       ((data :type ,array-type))
        (:documentation ,(format nil "numeric vector of type ~a"
 				lla-type)))
      (defmethod nv-element-type ((numeric-vector ,class-name))
-       ',lla-type))))
+       ',lla-type)
+     (defmethod take ((vector vector) (class (eql ',class-name)) &key function 
+                      force-copy-p &allow-other-keys)
+       (make-instance ',class-name :data
+                      (if (and (eq (array-element-type vector)
+                                   (upgraded-array-element-type ',lisp-type))
+                               (not function)
+                               (not force-copy-p))
+                          vector
+                          (map ',array-type 
+                               (if function
+                                   (lambda (x) (coerce (funcall function x) ',lisp-type))
+                                   (lambda (x) (coerce x ',lisp-type)))
+                               vector)))))))
 
 (def-numeric-vector-class :single)
 (def-numeric-vector-class :double)
@@ -262,3 +275,32 @@ assigning the pointer to pointer."
   `(with-foreign-pointer (,pointer 
 			  (* ,size (foreign-size* ,lla-type)))
      ,@body))
+
+
+;;;; 
+;;;;  Some LAPACK routines return real and imaginary parts of vectors
+;;;;  separately, we have to assemble them.
+;;;;
+
+(defun nv-zip-complex-double (pointer n &optional check-real-p)
+  "Return the complex numbers stored at pointer (n real parts,
+followed by n imaginary parts) as a numeric vector (either double or
+complex-double).  If check-real-p, then check if the imaginary part is
+0 and if so, return a numeric-vector-double, otherwise always return a
+complex-double one."
+  (let ((real-p (and check-real-p 
+                     (iter
+                       (for i :from 0 :below n)
+                       (always (zerop (mem-aref pointer :double (+ n i))))))))
+    (if real-p
+        (let ((data (make-array n :element-type 'double-float)))
+          (iter
+            (for i :from 0 :below n)
+            (setf (aref data i) (mem-aref pointer :double i)))
+          (make-instance 'numeric-vector-double :data data))
+        (let ((data (make-array n :element-type '(complex double-float))))
+          (iter
+            (for i :from 0 :below n)
+            (setf (aref data i) (complex (mem-aref pointer :double i)
+                                         (mem-aref pointer :double (+ n i)))))
+          (make-instance 'numeric-vector-complex-double :data data)))))
