@@ -101,7 +101,7 @@ LLA type."
 				lla-type)))
      (defmethod nv-element-type ((numeric-vector ,class-name))
        ',lla-type)
-     (defmethod take ((vector vector) (class (eql ',class-name)) &key function 
+     (defmethod take ((class (eql ',class-name)) (vector vector) &key function 
                       force-copy-p &allow-other-keys)
        (make-instance ',class-name :data
                       (if (and (eq (array-element-type vector)
