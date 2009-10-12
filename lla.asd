@@ -31,6 +31,7 @@
     :serial t
     :components
     ((:file "load-libs")
+     (:file "blas-cffi")
      (:file "lapack-cffi")
      (:file "utilities")
      (:file "types")

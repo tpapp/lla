@@ -230,3 +230,32 @@ not)."))
     ((:complex-single :complex-double)
        (eigen-dense-matrix-complex-double a :vectors-p vectors-p :check-real-p check-real-p))))
 
+(defgeneric least-square (a b)
+  (:documentation "Return argmin_x L2norm( b-Ax ), solving a least
+squares problem.  b can have multiple columns, in which case x will
+have the same number of columns, each corresponding to a different
+column of b."))
+
+(defmethod least-squares ((a dense-matrix) (b dense-matrix))
+  (bind (((:slots-read-only (m nrow) (n ncol) (a-data data)) a)
+	 ((:slots-read-only (m2 nrow) (nrhs ncol) (b-data data)) b)
+	 (common-type (smallest-common-target-type (mapcar #'nv-element-type (list a-data b-data))))
+	 (procedure (lapack-procedure-name 'gels common-type)))
+    (assert (= m m2))
+    (unless (<= n m)
+      (error "A doesn't have enough columns for least squares"))
+    (with-nv-input-output (a-data qr-data a% common-type) ; output: QR decomposition
+      (with-nv-input-output (b-data x-data b% common-type) ; output: 
+        (with-character (#\N n-char)
+	  (with-fortran-scalars ((n n% :integer)
+                                 (m m% :integer)
+				 (nrhs nrhs% :integer))
+            (with-lwork-query (lwork% work% :double)
+              (with-info-check (gels info%)
+                (funcall procedure n-char m% n% nrhs% a% m% b% m% work% lwork% info%)))
+            (values 
+              (matrix-from-first-rows x-data m nrhs n)
+              (make-instance 'qr :nrow m :ncol n
+                             :data qr-data))))))))
+
+(%dgels trans m n nrhs a lda b ldb work lwork info)

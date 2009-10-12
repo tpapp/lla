@@ -113,3 +113,5 @@ are LLA-types.  Random integers ensure that all coercions are valid."
 (solve *a* *b*)
 
 (solve (lu *a*) *b*)
+
+(least-squares *a* *b*)

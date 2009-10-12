@@ -157,6 +157,39 @@ flat list of elements."
 			 (list (initial-contents-from-row-major-list
 				nrow ncol lla-type initial-contents)))))
 
+(defmethod take ((class (eql 'dense-matrix)) object &key lla-type)
+  (bind ((dims (xdims object)))
+    (unless (= (length dims) 2)
+      (error "OBJECT needs to have 2 dimensions for conversion into matrix."))
+    (bind (((nrow ncol) dims)
+           (contents (make-array (* nrow ncol) :element-type (lla-type->lisp-type lla-type)))
+           (index 0))
+      (dotimes (col ncol)
+        (dotimes (row nrow)
+          (setf (aref contents index) (xref object row col))
+          (incf index)))
+      (make-matrix nrow ncol lla-type :initial-contents contents :type 'dense-matrix))))
+
+(defmethod xcreate ((class (eql 'dense-matrix)) dimensions &key (lla-type :double))
+  (unless (= (length dimensions) 2)
+    (error "Exactly 2 dimensions are needed for a matrix."))
+  (bind (((nrow ncol) dimensions))
+    (make-matrix nrow ncol lla-type :type 'dense-matrix)))
+
+(defun matrix-from-first-rows (nv m nrhs n)
+  "Extract & return (as a dense-matrix) the first n rows of an m x
+nrhs matrix, stored in nv in column-major view.  NOTE: needed to
+interface to LAPACK routines like xGELS."
+  (let* ((data (numeric-vector-data nv))
+         (result (make-array (* n nrhs) :element-type (array-element-type data))))
+    (dotimes (col nrhs)
+      (iter
+        (repeat n)
+        (for data-index :from (* col m))
+        (for result-index :from (* col n))
+        (setf (aref result result-index) (aref data data-index))))
+    (make-matrix n nrhs (nv-element-type nv) :initial-contents result)))
+  
 ;;;; matrix<->vector conversions
 ;;;;
 ;;;; IMPORTANT: results MAY share data with the original.  When
@@ -202,13 +235,12 @@ length n.  May share structure with the argument.")
 	(error 'matrix-not-column-or-row-vector))
       data)))
 
-
 ;;;;
 ;;;;  LU factorizations
 ;;;;
 
 (defclass lu ()
-  ;; lu is not a subclass of matrix, as it is technically two matrices
+  ;; LU is not a subclass of matrix, as it is technically two matrices
   ;; (+ pivot indices).
   ;;
   ;; ?? different naming scheme for special matrix types, eg lu would
@@ -230,4 +262,23 @@ length n.  May share structure with the argument.")
 ;;;; integrate nicely into xarray.  Let's keep this semi-opauque
 ;;;; (those who really want it can access ipiv and data and interpret
 ;;;; it according to LAPACK conventions). -- Tamas
+
+;;;; !! define an initialize-instance after method for consistency check?
+
+;;;;
+;;;;  QR factorizations
+;;;;
+
+(defclass QR ()
+  ;; QR is not a subclass of matrix, as it is technically two matrices
+  ;; (+ pivot indices).
+  ((nrow :type dimension :initarg :nrow :reader nrow
+	 :documentation "The number of rows in the original matrix.")
+   (ncol :type dimension :initarg :ncol :reader ncol
+	 :documentation "The number of columns in the original matrix.")
+   (data :type numeric-vector :initarg :data
+	 :reader data
+	 :documentation "QR decomposition of the matrix A with pivoting.")))
+
+;;;; !! define an initialize-instance after method for consistency check?
 
