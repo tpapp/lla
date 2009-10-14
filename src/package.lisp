@@ -21,16 +21,18 @@
    
    ;; numeric-vector
    
-   numeric-vector numeric-vector-data numeric-vector-integer
+   numeric-vector nv-data shared-p numeric-vector-integer
    numeric-vector-single numeric-vector-double
    numeric-vector-complex-single numeric-vector-complex-double
-   nv-element-type make-numeric-vector nv-copy element-lla-type
+   lla-type make-nv nv-copy-convert nv-copy
 
    ;; matrix
    
    matrix nrow ncol data *pring-matrix-aligned* *print-matrix-padding*
-   *print-matrix-precision* dense-matrix make-matrix vector->matrix-col
-   vector->matrix-row matrix->vector lu ipiv
+   *print-matrix-precision* dense-matrix make-matrix
+   vector->matrix-col vector->matrix-row matrix->vector
+   upper-triangular-matrix symmetric-matrix matrix-factorization
+   factorization-component lu ipiv qr
    
    ;; fortran-call
    

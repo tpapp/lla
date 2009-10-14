@@ -63,6 +63,29 @@ afterwards, signalling an lapack-error condition if info is nonzero."
 		 (error 'lapack-error :info ,info-value 
 			:lapack-procedure ',procedure-name)))))))
 
+(defmacro with-lwork-query ((lwork work lla-type) &body body)
+  "Call body twice with the given parameters, querying the size for
+the workspace area.  NOTE: abstraction leaks a bit (body is there
+twice), but it should not be a problem in practice.  Body is most
+commonly a single function call."
+  (check-type lwork symbol)
+  (check-type work symbol)
+  (with-unique-names (work-size foreign-size)
+    (once-only (lla-type)
+      `(with-foreign-object (,lwork :int32 1)
+         (let ((,foreign-size (foreign-size* ,lla-type))
+               ,work-size)
+           ;; query workspace size
+           (setf (mem-ref ,lwork :int32) -1)
+           (with-foreign-pointer (,work ,foreign-size)
+             ,@body
+             (setf ,work-size (floor (mem-aref* ,work ,lla-type))
+                   (mem-ref ,lwork :int32) ,work-size))
+           ;; allocate and use workspace
+           (with-foreign-pointer (,work (* ,foreign-size ,work-size))
+             ,@body))))))
+
+
 ;;;; Actual functions defined here.  Eventually, they will be moved to
 ;;;; somewhere else.  And more importantly, I am planning to write a
 ;;;; macro system to generate these functions intelligently from a few
@@ -81,7 +104,7 @@ afterwards, signalling an lapack-error condition if info is nonzero."
 
 (defmethod lu ((a dense-matrix))
   (bind (((:slots-read-only (m nrow) (n ncol) (a-data data)) a)
-	 (type (nv-element-type a-data))
+	 (type (lla-type a-data))
 	 (procedure (lapack-procedure-name 'getrf type)))
     (with-nv-input-output (a-data lu-data a% type)
       (with-nv-output (ipiv (min m n) ipiv% :integer)
@@ -101,7 +124,8 @@ afterwards, signalling an lapack-error condition if info is nonzero."
 (defmethod solve ((a dense-matrix) (b dense-matrix))
   (bind (((:slots-read-only (n nrow) (n2 ncol) (a-data data)) a)
 	 ((:slots-read-only (n3 nrow) (nrhs ncol) (b-data data)) b)
-	 (common-type (smallest-common-target-type (mapcar #'nv-element-type (list a-data b-data))))
+	 (common-type (smallest-common-target-type 
+                       (mapcar #'lla-type (list a-data b-data))))
 	 (procedure (lapack-procedure-name 'gesv common-type)))
     (assert (= n n2 n3))
     (with-nv-input-copied (a-data a% common-type) ; LU decomposition discarded
@@ -117,7 +141,8 @@ afterwards, signalling an lapack-error condition if info is nonzero."
 (defmethod solve ((lu lu) (b dense-matrix))
   (bind (((:slots-read-only (n nrow) (n2 ncol) ipiv (lu-data data)) lu)
 	 ((:slots-read-only (n3 nrow) (nrhs ncol) (b-data data)) b)
-	 (common-type (smallest-common-target-type (mapcar #'nv-element-type (list lu-data b-data))))
+	 (common-type (smallest-common-target-type
+                       (mapcar #'lla-type (list lu-data b-data))))
 	 (procedure (lapack-procedure-name 'getrs common-type)))
     (assert (= n n2 n3))
     (with-nv-input (lu-data lu% common-type)
@@ -138,7 +163,7 @@ afterwards, signalling an lapack-error condition if info is nonzero."
   (bind (((:slots-read-only (m nrow) (k ncol) (a-data data)) a)
 	 ((:slots-read-only (k2 nrow) (n ncol) (b-data data)) b)
 	 (common-type (smallest-common-target-type
-		       (mapcar #'nv-element-type (list a-data b-data))))
+		       (mapcar #'lla-type (list a-data b-data))))
 	 (procedure (lapack-procedure-name 'gemm common-type)))
     (assert (= k k2))
     (with-nv-input (a-data a% common-type)
@@ -154,26 +179,11 @@ afterwards, signalling an lapack-error condition if info is nonzero."
 		       z% c% m%)))
 	  (make-instance 'dense-matrix :nrow m :ncol n :data c-data))))))
 
-(defmacro with-lwork-query ((lwork work lla-type) &body body)
-  "Call body twice with the given parameters, querying the size for
-the workspace area.  NOTE: abstraction leaks (body is there twice),
-but it should not be a problem in practice."
-  (check-type lwork symbol)
-  (check-type work symbol)
-  (with-unique-names (work-size foreign-size)
-    (once-only (lla-type)
-      `(with-foreign-object (,lwork :int32 1)
-         (let ((,foreign-size (foreign-size* ,lla-type))
-               ,work-size)
-           ;; query workspace size
-           (setf (mem-ref ,lwork :int32) -1)
-           (with-foreign-pointer (,work ,foreign-size)
-             ,@body
-             (setf ,work-size (floor (mem-aref* ,work ,lla-type))
-                   (mem-ref ,lwork :int32) ,work-size))
-           ;; allocate and use workspace
-           (with-foreign-pointer (,work (* ,foreign-size ,work-size))
-             ,@body))))))
+(defmethod mm ((a numeric-vector) (b dense-matrix))
+  (matrix->vector (mm (vector->matrix-row a) b)))
+
+(defmethod mm ((a dense-matrix) (b numeric-vector))
+  (matrix->vector (mm a (vector->matrix-col b))))
 
 (defun eigen-dense-matrix-double (a &key vectors-p check-real-p)
   "Eigenvalues and vectors for dense, double matrices."
@@ -224,22 +234,26 @@ not)."))
   ;; The current approach is: convert to double precision (complex or
   ;; real), so we just need two functions.  Unfortunately, the LAPACK
   ;; interface for real and complex cases is different.
-  (case (nv-element-type (data a))
+  (case (lla-type (data a))
     ((:integer :single :double)
-       (eigen-dense-matrix-double a :vectors-p vectors-p :check-real-p check-real-p))
+       (eigen-dense-matrix-double a :vectors-p vectors-p
+                                  :check-real-p check-real-p))
     ((:complex-single :complex-double)
-       (eigen-dense-matrix-complex-double a :vectors-p vectors-p :check-real-p check-real-p))))
+       (eigen-dense-matrix-complex-double a :vectors-p vectors-p
+                                          :check-real-p check-real-p))))
 
-(defgeneric least-square (a b)
-  (:documentation "Return argmin_x L2norm( b-Ax ), solving a least
-squares problem.  b can have multiple columns, in which case x will
-have the same number of columns, each corresponding to a different
-column of b."))
+(defgeneric least-squares (a b)
+  (:documentation "Return (values x qr ss), where x = argmin_x L2norm(
+b-Ax ), solving a least squares problem, qr is the QR decomposition of
+A, and SS is the sum of squares for each column of B.  B can have
+multiple columns, in which case x will have the same number of
+columns, each corresponding to a different column of b."))
 
 (defmethod least-squares ((a dense-matrix) (b dense-matrix))
   (bind (((:slots-read-only (m nrow) (n ncol) (a-data data)) a)
 	 ((:slots-read-only (m2 nrow) (nrhs ncol) (b-data data)) b)
-	 (common-type (smallest-common-target-type (mapcar #'nv-element-type (list a-data b-data))))
+	 (common-type (smallest-common-target-type
+                       (mapcar #'lla-type (list a-data b-data))))
 	 (procedure (lapack-procedure-name 'gels common-type)))
     (assert (= m m2))
     (unless (<= n m)
@@ -256,6 +270,35 @@ column of b."))
             (values 
               (matrix-from-first-rows x-data m nrhs n)
               (make-instance 'qr :nrow m :ncol n
-                             :data qr-data))))))))
+                             :data qr-data)
+              (sum-last-rows x-data m nrhs n))))))))
 
-(%dgels trans m n nrhs a lda b ldb work lwork info)
+(defmethod least-squares ((a dense-matrix) (b numeric-vector))
+  (bind (((:values x qr ss) (least-squares a (vector->matrix-col b))))
+    (values (matrix->vector x) qr (xref ss 0))))
+
+(defgeneric invert (a)
+  (:documentation "Invert the matrix A."))
+
+(defmethod invert ((a cholesky))
+  (bind (((:slots-read-only (n nrow) (n2 ncol) (a-data data)) a)
+	 (common-type (lla-type a-data))
+	 (procedure (lapack-procedure-name 'potri common-type)))
+    (assert (= n n2))
+    (with-nv-input-output (a-data inv-data a% common-type) ; output: upper triangular
+      (with-character (#\U u-char)
+        (with-fortran-scalar (n n% :integer)
+          (with-info-check (gels info%)
+            (funcall procedure u-char n% a% n% info%))))
+      (make-instance 'symmetric-matrix :nrow n :ncol n :data inv-data)))) 
+
+(defun least-squares-raw-variance (qr)
+  "Calculate the residual variance (basically, (X^T X)-1 ) from the qr
+decomposition of X."
+  ;; Notes: X = QR, thus X^T X = R^T Q^T Q R = R^T R because Q is
+  ;; orthogonal.  Then
+  (with-slots (nrow ncol data) qr
+    (assert (<= ncol nrow))
+    (invert (make-instance 'cholesky :nrow ncol :ncol ncol 
+                           :data (data (matrix-from-first-rows data
+                                                               nrow ncol ncol))))))
