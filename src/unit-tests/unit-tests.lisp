@@ -147,6 +147,28 @@ coercions are valid."
   (ensure (test-nv-output :complex-single))
   (ensure (test-nv-output :complex-double)))
 
+
+;;;;
+;;;; matrix
+;;;;
+
+(addtest (lla-unit-tests)
+  make-matrix
+  (flet ((make (class)
+           (make-matrix class 2 2 :initial-contents '(1 2 3 4))))
+    (ensure-same (make 'dense-matrix)
+                 #2A((1 2) (3 4))
+                 :test #'x=)
+    (ensure-same (make 'upper-triangular-matrix)
+                 #2A((1 2) (0 4))
+                 :test #'x=)
+    (ensure-same (make 'lower-triangular-matrix)
+                 #2A((1 0) (3 4))
+                 :test #'x=)
+    (ensure-same (make 'symmetric-matrix)
+                 #2A((1 2) (2 4))
+                 :test #'x=)))
+
 ;;;;
 ;;;; linear algebra !!! incorporate stuff below
 ;;;;
@@ -194,6 +216,20 @@ coercions are valid."
     (ensure-same ss 6.724986 :test #'approx=)
     (ensure-same variance #2A((0.04035491 -0.03885797)
                               (-0.03885797  0.03810950))
+                 :test #'x=)))
+
+(addtest (lla-unit-tests)
+  invert
+  (flet ((invert (class)
+           (invert (make-matrix class 2 2 :initial-contents '(1 2 3 4)))))
+    (ensure-same (invert 'dense-matrix) ; also tests (invert lu)
+                 #2A((-2 1) (1.5 -0.5))
+                 :test #'x=)
+    (ensure-same (invert 'upper-triangular-matrix)
+                 #2A((1 -0.5) (0 0.25))
+                 :test #'x=)
+    (ensure-same (invert 'lower-triangular-matrix)
+                 #2A((1 0) (-0.75 0.25))
                  :test #'x=)))
 
 ;;;; run all tests

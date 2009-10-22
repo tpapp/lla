@@ -242,6 +242,10 @@ not)."))
        (eigen-dense-matrix-complex-double a :vectors-p vectors-p
                                           :check-real-p check-real-p))))
 
+;;;;
+;;;; least squares calculations
+;;;;
+
 (defgeneric least-squares (a b)
   (:documentation "Return (values x qr ss), where x = argmin_x L2norm(
 b-Ax ), solving a least squares problem, qr is the QR decomposition of
@@ -273,12 +277,67 @@ columns, each corresponding to a different column of b."))
                              :data qr-data)
               (sum-last-rows x-data m nrhs n))))))))
 
+;;; univariate versions of least squares: vector ~ vector, vector ~ matrix
+
 (defmethod least-squares ((a dense-matrix) (b numeric-vector))
   (bind (((:values x qr ss) (least-squares a (vector->matrix-col b))))
     (values (matrix->vector x) qr (xref ss 0))))
 
+(defmethod least-squares ((a numeric-vector) (b numeric-vector))
+  (bind (((:values x qr ss) (least-squares (vector->matrix-col a) (vector->matrix-col b))))
+    (values (matrix->vector x) qr (xref ss 0))))
+
+
+;;;;
+;;;; inverting matrices
+;;;;
+
 (defgeneric invert (a)
-  (:documentation "Invert the matrix A."))
+  (:documentation "Invert A."))
+
+(defmethod invert ((a dense-matrix))
+  (invert (lu a)))
+
+(defmethod invert ((lu lu))
+  (bind (((:slots-read-only (n nrow) (n2 ncol) ipiv (lu-data data)) lu)
+	 (common-type (lla-type lu-data))
+	 (procedure (lapack-procedure-name 'getri common-type)))
+    (assert (= n n2))
+    (with-nv-input-output (lu-data inverse-data lu% common-type)
+      (with-nv-input (ipiv ipiv% :integer)
+        (with-fortran-scalar (n n% :integer)
+          (with-lwork-query (lwork% work% common-type)
+            (with-info-check (getri info%)
+		(funcall procedure n% lu% n% ipiv% work% lwork% info%)))
+	  (make-instance 'dense-matrix :nrow n :ncol n
+			 :data inverse-data))))))
+
+
+(defun invert-triangular (a upper-p unit-diag-p result-class)
+  "Invert a dense (triangular) matrix using the LAPACK routine *TRTRI.
+UPPER-P indicates if the matrix is in the upper or the lower triangle
+of a (which needs to be a subtype of dense-matrix, but the type
+information is not used), UNIT-DIAG-P indicates whether the diagonal
+is supposed to consist of 1s.
+
+NOTE: for internal use, not exported."
+  (bind (((:slots-read-only (n nrow) (n2 ncol) (a-data data)) a)
+	 (common-type (lla-type a-data))
+	 (procedure (lapack-procedure-name 'trtri common-type)))
+    (assert (= n n2))
+    (with-nv-input-output (a-data inv-data a% common-type)
+      (with-characters (((if upper-p #\U #\L) u-char)
+                        ((if unit-diag-p #\U #\N) d-char))
+        (with-fortran-scalar (n n% :integer)
+          (with-info-check (trtri info%)
+            (funcall procedure u-char d-char n% a% n% info%))))
+      (make-instance result-class :nrow n :ncol n :data inv-data))))
+  
+(defmethod invert ((a upper-triangular-matrix))
+  (invert-triangular a t nil 'upper-triangular-matrix))
+
+(defmethod invert ((a lower-triangular-matrix))
+  (invert-triangular a nil nil 'lower-triangular-matrix))
 
 (defmethod invert ((a cholesky))
   (bind (((:slots-read-only (n nrow) (n2 ncol) (a-data data)) a)
@@ -296,9 +355,8 @@ columns, each corresponding to a different column of b."))
   "Calculate the residual variance (basically, (X^T X)-1 ) from the qr
 decomposition of X."
   ;; Notes: X = QR, thus X^T X = R^T Q^T Q R = R^T R because Q is
-  ;; orthogonal.  Then
+  ;; orthogonal.  Then we do as if calculating the inverse of a matrix
+  ;; using its Cholesky decomposition.
   (with-slots (nrow ncol data) qr
     (assert (<= ncol nrow))
-    (invert (make-instance 'cholesky :nrow ncol :ncol ncol 
-                           :data (data (matrix-from-first-rows data
-                                                               nrow ncol ncol))))))
+    (invert (take 'cholesky (factorization-component qr :R)))))

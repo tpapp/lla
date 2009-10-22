@@ -36,7 +36,7 @@
    
    ;; fortran-call
    
-   lu solve mm eigen
+   lu solve mm eigen least-squares least-squares-raw-variance invert
 
    ))
 

@@ -29,8 +29,8 @@
 ;;; Some of the xarray interface, xref defined later for specific
 ;;; subclasses
 
-(defmethod xtype ((matrix matrix))
-  (xtype (data matrix)))
+(defmethod xelttype ((matrix matrix))
+  (xelttype (data matrix)))
 
 (defmethod xrank ((matrix matrix))
   2)
@@ -191,6 +191,11 @@ use-directly-p, see make-nv."
 		 :nrow nrow
 		 :ncol ncol
 		 :data (etypecase initial-contents
+                         (numeric-vector (if (eq (lla-type initial-contents)
+                                                 lla-type)
+                                             (nv-copy initial-contents)
+                                             (nv-copy-convert initial-contents
+                                                              lla-type)))
 			 ((or null atom) (make-nv (* nrow ncol) lla-type
                                                   initial-contents
                                                   use-directly-p))
@@ -296,18 +301,158 @@ length n.")
       (nv-copy data))))
 
 ;;;;
+;;;;  Semantics of matrices that are subtypes of dense-matrix: these
+;;;;  matrices store their data as if they were dense matrices, but
+;;;;  some elements are not accessed and are treated as zero (or some
+;;;;  other constant) instead.  Nevertheless, these matrices may be
+;;;;  treated as dense-matrices, in which case set-restricted can be
+;;;;  used to make these elements 0.  zero-restricted keeps track of
+;;;;  whether this has been done.
+;;;;
+
+(defclass restricted-elements ()
+  ((restricted-set-p :type boolean :accessor restricted-set-p
+   :initform nil :documentation "non-nil iff not accessible elements
+   in the data vectors have been enforced to contain 0."))
+  (:documentation "Matrices (& other data structures) that store data
+  as some supertype but treat some elements as resticted (eg 0) should
+  be subtypes of this, and use restricted-set-p to keep track of
+  whether these elements have been set to their values."))
+
+(defgeneric set-restricted* (matrix)
+  (:documentation "Always set the restricted elements of matrix,
+  regardless of restricted-set-p.  Should not be called directly,
+  use set-restricted instead."))
+
+(defgeneric set-restricted (matrix)
+  (:documentation "Set restricted/unaccessed elements to the
+  appropriate value in the data vector of matrix.  Useful when calling
+  functions which expect eg a dense matrix.  If restricted-set-p, or
+  if the object is not a subtype of restricted-elements, do nothing.
+  NOTE: the default behavior is to call set-restricted* if (not
+  restricted-set-p), so it is advised to define that method instead.")
+  (:method (matrix))  ;; do nothing
+  (:method ((matrix restricted-elements))
+    (with-slots (restricted-set-p) matrix
+      (unless restricted-set-p
+        (set-restricted* matrix)
+        (setf restricted-set-p t)))))
+
+(defun take-dense-matrix (class matrix force-copy-p lla-type)
+  "INTERNAL function.  Use data in a dense-matrix matrix in another
+  dense-matrix (with given class), copying and converting if
+  necessary."
+  (with-slots (nrow ncol data) matrix
+    (make-instance class :nrow nrow :ncol ncol
+                   :data (if (or force-copy-p (not (eq lla-type (lla-type matrix))))
+                             (nv-copy-convert data lla-type)
+                             (nv-copy data)))))
+
+(defmacro define-dense-take (class)
+  "Define a take method for class from dense-matrices."
+  `(defmethod take ((class (eql ',class)) (matrix dense-matrix)
+                    &key force-copy-p (lla-type (lla-type matrix)))
+     ;; set zeros
+     (set-restricted matrix)
+     ;; create new structure
+     (take-dense-matrix ',class matrix force-copy-p lla-type)))
+
+(define-dense-take dense-matrix)
+
+;;;;
 ;;;;  Upper triangular matrix
 ;;;;
 
-(defclass upper-triangular-matrix (dense-matrix)
+(defclass upper-triangular-matrix (dense-matrix restricted-elements)
   ()
   (:documentation "A dense, upper triangular matrix.  The elements
 below the diagonal are not necessarily initialized and not accessed."))
 
-;;;; !! define interface -- Tamas
+(defmethod set-restricted* ((matrix upper-triangular-matrix))
+  (bind (((:slots-read-only nrow ncol data) matrix)
+         (vector (copy-data data))
+         (zero (coerce 0 (array-element-type vector))))
+    ;; set the lower triangle (below diagonal) to 0
+    (dotimes (col ncol)
+      (iter
+        (for index
+          :from (1+ (cm-index2 nrow col col))
+          :below (cm-index2 nrow nrow col))
+        (setf (aref vector index) zero))))
+  matrix)
 
-;;;; !! accessors, creation (?? integrate to make-matrix? or make
-;;;; make-matrix a generic function?) -- Tamas
+(define-dense-take upper-triangular-matrix)
+
+(defmethod xref ((matrix upper-triangular-matrix) &rest subscripts)
+  (bind (((row col) subscripts))
+    (with-slots (nrow ncol data) matrix
+      (check-index row nrow)
+      (check-index col ncol)
+      (if (<= row col)
+          (xref data (cm-index2 nrow row col))
+          (coerce 0 (xelttype matrix))))))
+
+(defmethod (setf xref) (value (matrix upper-triangular-matrix) &rest subscripts)
+  (bind (((row col) subscripts))
+    (with-slots (nrow ncol data) matrix
+      (check-index row nrow)
+      (check-index col ncol)
+      (if (<= row col)
+          (setf (xref data (cm-index2 nrow row col))
+                value)
+          (unless (zerop value)
+            (error 'xref-setting-readonly))))))
+
+(define-matrix-like-printer (matrix upper-triangular-matrix stream) ()
+  (print-matrix matrix stream :mask #'upper-triangular-mask))
+
+;;;;
+;;;;  Lower triangular matrix
+;;;;
+
+(defclass lower-triangular-matrix (dense-matrix restricted-elements)
+  ()
+  (:documentation "A dense, lower triangular matrix.  The elements
+above the diagonal are not necessarily initialized and not accessed."))
+
+(defmethod set-restricted* ((matrix lower-triangular-matrix))
+  (bind (((:slots-read-only nrow ncol data) matrix)
+         (vector (copy-data data))
+         (zero (coerce 0 (array-element-type vector))))
+    ;; set the upper triangle (above diagonal) to 0
+    (dotimes (col ncol)
+      (iter
+        (for index
+          :from (cm-index2 nrow 0 col)
+          :to (cm-index2 nrow col col))
+        (setf (aref vector index) zero))))
+  matrix)
+
+(define-dense-take lower-triangular-matrix)
+
+(defmethod xref ((matrix lower-triangular-matrix) &rest subscripts)
+  (bind (((row col) subscripts))
+    (with-slots (nrow ncol data) matrix
+      (check-index row nrow)
+      (check-index col ncol)
+      (if (>= row col)
+          (xref data (cm-index2 nrow row col))
+          (coerce 0 (xelttype matrix))))))
+
+(defmethod (setf xref) (value (matrix lower-triangular-matrix) &rest subscripts)
+  (bind (((row col) subscripts))
+    (with-slots (nrow ncol data) matrix
+      (check-index row nrow)
+      (check-index col ncol)
+      (if (>= row col)
+          (setf (xref data (cm-index2 nrow row col))
+                value)
+          (unless (zerop value)
+            (error 'xref-setting-readonly))))))
+
+(define-matrix-like-printer (matrix lower-triangular-matrix stream) ()
+  (print-matrix matrix stream :mask #'lower-triangular-mask))
+
 
 ;;;;
 ;;;;  Symmetric matrix
@@ -319,7 +464,7 @@ below the diagonal are not necessarily initialized and not accessed."))
       (cm-index2 nrow row col)          ; upper triangle
       (cm-index2 nrow col row)))        ; lower triangle
 
-(defclass symmetric-matrix (matrix)
+(defclass symmetric-matrix (matrix restricted-elements)
   ()
   (:documentation "A dense symmatric matrix, with elements stored in the upper triangle."))
 
@@ -337,6 +482,34 @@ below the diagonal are not necessarily initialized and not accessed."))
       (check-index col ncol)
       (setf (xref data (cm-index-symmetric nrow row col))
 	    value))))
+
+(defmethod set-restricted* ((matrix symmetric-matrix))
+  (bind (((:slots-read-only nrow ncol data) matrix)
+         (vector (copy-data data)))
+    ;; set the lower triangle (below diagonal) to mirror elements in
+    ;; the upper triangle
+    (dotimes (col ncol)
+      (iter
+        (for row :from col :below nrow)
+        (for index
+          :from (cm-index2 nrow col col)
+          :below (cm-index2 nrow nrow col))
+        (setf (aref vector index)
+              (aref vector (cm-index2 nrow col row))))))
+  matrix)
+
+(define-dense-take symmetric-matrix)
+
+(defun symmetric-mask (row col)
+  ;; print = instead of . in the lower triangle
+  (if (<= row col)
+      nil
+      "="))
+
+(define-matrix-like-printer (matrix lower-triangular-matrix stream) ()
+  (print-matrix matrix stream :mask #'lower-triangular-mask))
+
+
 
 ;;;; matrix factorizations
 ;;;;
@@ -397,9 +570,8 @@ Unless force-copy-p, it can share structure with the original."))
 (defmethod factorization-component ((mf QR) (component (eql :R)) &optional force-copy-p)
   (declare (ignore force-copy-p))
   (bind (((:slots-read-only nrow ncol data) mf))
-    (make-instance 'upper-triangular-matrix
-                   :nrow ncol :ncol ncol
-                   :data (matrix-from-first-rows data nrow ncol ncol))))
+    (take 'upper-triangular-matrix
+          (matrix-from-first-rows data nrow ncol ncol))))
 
 ;;;; !! define an initialize-instance after method for consistency check?
 
@@ -408,10 +580,12 @@ Unless force-copy-p, it can share structure with the original."))
 ;;;;  Cholesky decomposition
 ;;;;
 
-(defclass cholesky (matrix-factorization dense-matrix)
+(defclass cholesky (matrix-factorization)
   ((data :type numeric-vector :initarg :data
 	 :reader data
-	 :documentation "Cholesky decomposition of a matrix")))
+	 :documentation "Cholesky decomposition R of a matrix.  Should
+	 behave as a matrix, but only the upper-triangular part of the
+	 decomposition is stored.")))
 
 (defmethod initialize-instance :after ((mf cholesky) &key &allow-other-keys)
   (with-slots (nrow ncol data) mf
@@ -421,3 +595,9 @@ Unless force-copy-p, it can share structure with the original."))
 
 (define-matrix-like-printer (matrix cholesky stream) ()
   (print-matrix matrix stream :mask #'upper-triangular-mask))
+
+(defmethod factorization-component ((mf cholesky) component &optional force-copy-p)
+  (declare (ignore force-copy-p))
+  (take 'upper-triangular-matrix mf))
+
+(define-dense-take cholesky)

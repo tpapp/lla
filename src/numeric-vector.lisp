@@ -59,13 +59,13 @@ LLA type."
 
 (defgeneric copy-data (numeric-vector)
   (:documentation "Replace the data vector of numeric-vector with a
-  copy if it is shared.")
+  copy if it is shared.  Also return the resulting vector.")
   (:method ((nv numeric-vector))
     (with-slots (data shared-p) nv
       ;; implementation note: we reply on copy-seq being fast
       (when shared-p
-        (setf data (copy-seq data))))
-    (values)))
+        (setf data (copy-seq data)))
+      data)))
 
 
 ;;;;
@@ -102,7 +102,7 @@ LLA type."
 				lla-type)))
      (defmethod lla-type ((numeric-vector ,class-name))
        ',lla-type)
-     (defmethod xtype ((numeric-vector ,class-name))
+     (defmethod xelttype ((numeric-vector ,class-name))
        ',lisp-type)
      (defmethod take ((class (eql ',class-name)) (vector vector) &key function 
                       force-copy-p &allow-other-keys)
@@ -117,7 +117,15 @@ LLA type."
                                    (lambda (x) (coerce (funcall function x)
                                                        ',lisp-type))
                                    (lambda (x) (coerce x ',lisp-type)))
-                               vector)))))))
+                               vector))))
+     (defmethod xcreate ((class (eql ',class-name)) dimensions &key &allow-other-keys)
+       (let ((length (cond
+                    ((atom dimensions) dimensions)
+                    (t (bind (((length &rest rest) dimensions))
+                         (when rest
+                           (error "~A can only accept a single dimension" ',class-name))
+                         length)))))
+         (make-nv length ,lla-type))))))
 
 (def-numeric-vector-class :single)
 (def-numeric-vector-class :double)
