@@ -150,40 +150,11 @@ commonly a single function call."
 	(with-nv-input (ipiv ipiv% :integer)
 	  (with-fortran-scalars ((n n% :integer)
 				 (nrhs nrhs% :integer))
-	    (with-characters ((#\N trans%))
+	    (with-character (trans% #\N)
 	      (with-info-check (getrf info%)
 		(funcall procedure trans% n% nrhs% lu% n% ipiv% b% n% info%)))
 	  (make-instance 'dense-matrix :nrow n :ncol nrhs
 			 :data x-data)))))))
-
-(defgeneric mm (a b)
-  (:documentation "multiply A and B"))
-
-(defmethod mm ((a dense-matrix) (b dense-matrix))
-  (bind (((:slots-read-only (m nrow) (k ncol) (a-data data)) a)
-	 ((:slots-read-only (k2 nrow) (n ncol) (b-data data)) b)
-	 (common-type (smallest-common-target-type
-		       (mapcar #'lla-type (list a-data b-data))))
-	 (procedure (lapack-procedure-name 'gemm common-type)))
-    (assert (= k k2))
-    (with-nv-input (a-data a% common-type)
-      (with-nv-input (b-data b% common-type)
-	(with-nv-output (c-data (* m n) c% common-type)
-	  (with-fortran-scalars ((n n% :integer)
-				 (k k% :integer)
-				 (m m% :integer)
-				 (1d0 u% :double)
-				 (0d0 z% :double))
-	    (with-characters ((#\N trans%))
-	      (funcall procedure trans% trans% m% n% k% u% a% m% b% k%
-		       z% c% m%)))
-	  (make-instance 'dense-matrix :nrow m :ncol n :data c-data))))))
-
-(defmethod mm ((a numeric-vector) (b dense-matrix))
-  (matrix->vector (mm (vector->matrix-row a) b)))
-
-(defmethod mm ((a dense-matrix) (b numeric-vector))
-  (matrix->vector (mm a (vector->matrix-col b))))
 
 (defun eigen-dense-matrix-double (a &key vectors-p check-real-p)
   "Eigenvalues and vectors for dense, double matrices."
@@ -194,8 +165,8 @@ commonly a single function call."
       (with-work-area (w% :double (* 2 n))     ; eigenvalues, will be zipped
         (let ((wi% (inc-pointer w% (* n (foreign-type-size :double))))) ; imaginary part
           (with-fortran-scalar (n n% :integer)
-            (with-characters ((#\N n-char)
-                              (#\V v-char))
+            (with-characters ((n-char #\N)
+                              (v-char #\V))
               (if vectors-p
                   (with-nv-output (vr-data (* n n) vr% :double)
                     (with-lwork-query (lwork work :double)
@@ -264,7 +235,7 @@ columns, each corresponding to a different column of b."))
       (error "A doesn't have enough columns for least squares"))
     (with-nv-input-output (a-data qr-data a% common-type) ; output: QR decomposition
       (with-nv-input-output (b-data x-data b% common-type) ; output: 
-        (with-character (#\N n-char)
+        (with-character (n-char #\N)
 	  (with-fortran-scalars ((n n% :integer)
                                  (m m% :integer)
 				 (nrhs nrhs% :integer))
@@ -326,8 +297,8 @@ NOTE: for internal use, not exported."
 	 (procedure (lapack-procedure-name 'trtri common-type)))
     (assert (= n n2))
     (with-nv-input-output (a-data inv-data a% common-type)
-      (with-characters (((if upper-p #\U #\L) u-char)
-                        ((if unit-diag-p #\U #\N) d-char))
+      (with-characters ((u-char (if upper-p #\U #\L))
+                        (d-char (if unit-diag-p #\U #\N)))
         (with-fortran-scalar (n n% :integer)
           (with-info-check (trtri info%)
             (funcall procedure u-char d-char n% a% n% info%))))
@@ -345,11 +316,15 @@ NOTE: for internal use, not exported."
 	 (procedure (lapack-procedure-name 'potri common-type)))
     (assert (= n n2))
     (with-nv-input-output (a-data inv-data a% common-type) ; output: upper triangular
-      (with-character (#\U u-char)
+      (with-character (u-char #\U)
         (with-fortran-scalar (n n% :integer)
           (with-info-check (gels info%)
             (funcall procedure u-char n% a% n% info%))))
       (make-instance 'symmetric-matrix :nrow n :ncol n :data inv-data)))) 
+
+;;;;
+;;;;  utility functions for least squares
+;;;;
 
 (defun least-squares-raw-variance (qr)
   "Calculate the residual variance (basically, (X^T X)-1 ) from the qr
@@ -360,3 +335,78 @@ decomposition of X."
   (with-slots (nrow ncol data) qr
     (assert (<= ncol nrow))
     (invert (take 'cholesky (factorization-component qr :R)))))
+
+
+;;;;
+;;;;  matrix multiplication
+;;;; 
+;;;;  Currently, we only support the common alpha parameter alpha*A*B.
+
+(defgeneric mm (a b &optional alpha)
+  (:documentation "multiply A and B"))
+
+(defmethod mm ((a dense-matrix) (b dense-matrix) &optional (alpha 1))
+  (bind ((a (take 'dense-matrix a))
+         (b (take 'dense-matrix b))
+         ((:slots-read-only (m nrow) (k ncol) (a-data data)) a)
+	 ((:slots-read-only (k2 nrow) (n ncol) (b-data data)) b)
+	 (common-type (smallest-common-target-type
+		       (mapcar #'lla-type (list a-data b-data))))
+         (lisp-type (lla-type->lisp-type common-type))
+	 (procedure (lapack-procedure-name 'gemm common-type)))
+    (assert (= k k2))
+    (with-nv-input (a-data a% common-type)
+      (with-nv-input (b-data b% common-type)
+	(with-nv-output (c-data (* m n) c% common-type)
+	  (with-fortran-scalars ((n n% :integer)
+				 (k k% :integer)
+				 (m m% :integer)
+				 ((coerce alpha lisp-type) alpha% common-type)
+				 ((coerce 0 lisp-type) z% common-type))
+	    (with-character (trans% #\N)
+	      (funcall procedure trans% trans% m% n% k% alpha% a% m% b% k%
+		       z% c% m%)))
+	  (make-instance 'dense-matrix :nrow m :ncol n :data c-data))))))
+
+;;; !!! write triangular method, currently I am confused about its
+;;; !!! generality wrt dimensions - does it handle square triangular
+;;; !!! matrices only? currently the dense-matrix version will do just fine.
+
+;; (defun mm-triangular (a b side upper-p unit-diag-p alpha)
+;;   "Utility function for multiplication of triangular matrices.  SIDE
+;; is either :LEFT (AB) or :RIGHT (BA), but A is always the triangular
+;; matrix.  NOTE: not exported, for internal use only."
+;;   (bind (((:slots-read-only (nrow-a nrow) (ncol-a ncol) (a-data data)) a)
+;; 	 ((:slots-read-only (nrow-b nrow) (ncol-b ncol) (b-data data)) b)
+;; 	 (common-type (smallest-common-target-type
+;; 		       (mapcar #'lla-type (list a-data b-data))))
+;;          (lisp-type (lla-type->lisp-type common-type))
+;; 	 (procedure (lapack-procedure-name 'trmm common-type)))
+;;     (case side
+;;       (:left (assert (= ncol-a nrow-b)))
+;;       (:right (assert (= ncol-b nrow-a)))
+;;       (otherwise (error "invalide side specification ~A" side)))
+;;     (with-nv-input (a-data a% common-type)
+;;       (with-nv-input-output (b-data x-data b% common-type)
+;;         (with-fortran-scalars ((nrow-a nrow-a% :integer)
+;;                                (ncol-a ncol-a% :integer)
+;;                                (nrow-b nrow-b% :integer)
+;;                                (ncol-b ncol-b% :integer)
+;;                                ((coerce alpha lisp-type) alpha% common-type)
+;;                                ((coerce 0 lisp-type) z% common-type))
+;;           (with-characters ((t-char #\N)
+;;                             (u-char (if upper-p #\U #\L))
+;;                             (d-char (if unit-diag-p #\U #\N))
+;;                             (s-char (if (eq side :left) #\L #\R)))
+;;             (funcall procedure s-char u-char t-char d-char
+;;                      nrow-b% ncol-b% alpha% a% )))
+;; 	  (make-instance 'dense-matrix :nrow m :ncol n :data c-data))))))
+
+
+;; (defmethod mm ((a upper-triangular-
+
+(defmethod mm ((a numeric-vector) (b dense-matrix) &optional (alpha 1))
+  (matrix->vector (mm (vector->matrix-row a) b alpha)))
+
+(defmethod mm ((a dense-matrix) (b numeric-vector) &optional (alpha 1))
+  (matrix->vector (mm a (vector->matrix-col b) alpha)))
