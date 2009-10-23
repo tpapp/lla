@@ -60,8 +60,13 @@ afterwards, signalling an lapack-error condition if info is nonzero."
 	   (progn ,@body)
 	 (let ((,info-value (mem-aref ,info-pointer :int32)))
 	   (unless (zerop ,info-value)
-		 (error 'lapack-error :info ,info-value 
-			:lapack-procedure ',procedure-name)))))))
+             ;; ??? two different conditions should be thrown,
+             ;; depending on the value of INFO.  Positive INFO usually
+             ;; means something substantive (eg a minor is not PSD),
+             ;; negative INFO is a bad argument which should never
+             ;; happen
+             (error 'lapack-error :info ,info-value 
+                    :lapack-procedure ',procedure-name)))))))
 
 (defmacro with-lwork-query ((lwork work lla-type) &body body)
   "Call body twice with the given parameters, querying the size for
@@ -410,3 +415,31 @@ decomposition of X."
 
 (defmethod mm ((a dense-matrix) (b numeric-vector) &optional (alpha 1))
   (matrix->vector (mm a (vector->matrix-col b) alpha)))
+
+;;;;
+;;;;  Cholesky factorization
+;;;;
+
+(defgeneric cholesky (a)
+  (:documentation "Cholesky factorization.  Only used the upper
+  triangle of a dense-matrix, and needs a PSD matrix."))
+
+(defmethod cholesky ((a dense-matrix))
+  (bind (((:slots-read-only (n nrow) (n2 ncol) data) a)
+	 (common-type (lla-type data))
+	 (procedure (lapack-procedure-name 'potrf common-type)))
+    (assert (= n n2))
+    (with-nv-input-output (data cholesky-data data% common-type)
+      (with-fortran-scalar (n n% :integer)
+        (with-character (u-char #\U)
+          (with-info-check (potrf info%)
+            (funcall procedure u-char n% data% n% info%)))
+	  (make-instance 'cholesky :nrow n :ncol n
+			 :data cholesky-data)))))
+
+(defmethod reconstruct ((mf cholesky))
+  (let ((herm (take 'hermitian-matrix mf)))
+    (set-restricted* herm)
+    (let ((ut (take 'upper-triangular-matrix herm))
+          (lt (take 'lower-triangular-matrix herm)))
+      (mm lt ut))))

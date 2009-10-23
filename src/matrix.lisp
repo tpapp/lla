@@ -442,7 +442,7 @@ above the diagonal are not necessarily initialized and not accessed."))
       (iter
         (for index
           :from (cm-index2 nrow 0 col)
-          :to (cm-index2 nrow col col))
+          :below (cm-index2 nrow col col))
         (setf (aref vector index) zero))))
   matrix)
 
@@ -482,7 +482,7 @@ above the diagonal are not necessarily initialized and not accessed."))
       (cm-index2 nrow row col)          ; upper triangle
       (cm-index2 nrow col row)))        ; lower triangle
 
-(defclass symmetric-matrix (matrix restricted-elements)
+(defclass symmetric-matrix (dense-matrix restricted-elements)
   ()
   (:documentation "A dense symmatric matrix, with elements stored in the upper triangle."))
 
@@ -524,8 +524,61 @@ above the diagonal are not necessarily initialized and not accessed."))
       nil
       "="))
 
-(define-matrix-like-printer (matrix lower-triangular-matrix stream) ()
-  (print-matrix matrix stream :mask #'lower-triangular-mask))
+(define-matrix-like-printer (matrix symmetric-matrix stream) ()
+  (print-matrix matrix stream :mask #'symmetric-mask))
+
+
+;;;;
+;;;;  Hermitian matrix
+;;;;
+
+(defclass hermitian-matrix (dense-matrix restricted-elements)
+  ()
+  (:documentation "A dense Hermitian matrix, with elements stored in the upper triangle."))
+
+(defmethod xref ((matrix hermitian-matrix) &rest subscripts)
+  (bind (((row col) subscripts))
+    (with-slots (nrow ncol data) matrix
+      (check-index row nrow)
+      (check-index col ncol)
+      (if (<= row col)
+          (xref data (cm-index2 nrow row col))
+          (conjugate (xref data (cm-index2 nrow col row)))))))
+
+(defmethod (setf xref) (value (matrix symmetric-matrix) &rest subscripts)
+  (bind (((row col) subscripts))
+    (with-slots (nrow ncol data) matrix
+      (check-index row nrow)
+      (check-index col ncol)
+      (if (<= row col)
+          (setf (xref data (cm-index2 nrow row col)) value)
+          (setf (xref data (cm-index2 nrow col row)) (conjugate value))))))
+
+(defmethod set-restricted* ((matrix hermitian-matrix))
+  (bind (((:slots-read-only nrow ncol data) matrix)
+         (vector (copy-data data)))
+    ;; set the lower triangle (below diagonal) to conjugate of the
+    ;; elements in the upper triangle
+    (dotimes (col ncol)
+      (iter
+        (for row :from col :below nrow)
+        (for index
+          :from (cm-index2 nrow col col)
+          :below (cm-index2 nrow nrow col))
+        (setf (aref vector index)
+              (conjugate (aref vector (cm-index2 nrow col row)))))))
+  matrix)
+
+(define-dense-take hermitian-matrix)
+
+(defun hermitian-mask (row col)
+  ;; print * instead of . in the lower triangle
+  (if (<= row col)
+      nil
+      "*"))
+
+(define-matrix-like-printer (matrix hermitian-matrix stream) ()
+  (print-matrix matrix stream :mask #'hermitian-mask))
 
 
 
@@ -543,8 +596,12 @@ above the diagonal are not necessarily initialized and not accessed."))
 	 :documentation "The number of columns in the original matrix.")))
 
 (defgeneric factorization-component (mf component &optional force-copy-p)
+  ;;; ??? could lose the force-copy-p with the new nv-copy lazy semantics -- Tamas
   (:documentation "Return a given component of a matrix factorization.
 Unless force-copy-p, it can share structure with the original."))
+
+(defgeneric reconstruct (mf)
+  (:documentation "Return the original matrix from the matrix factorization."))
   
 ;;;;
 ;;;;  LU factorization
@@ -598,7 +655,7 @@ Unless force-copy-p, it can share structure with the original."))
 ;;;;  Cholesky decomposition
 ;;;;
 
-(defclass cholesky (matrix-factorization)
+(defclass cholesky (matrix-factorization dense-matrix)
   ((data :type numeric-vector :initarg :data
 	 :reader data
 	 :documentation "Cholesky decomposition R of a matrix.  Should
@@ -617,5 +674,3 @@ Unless force-copy-p, it can share structure with the original."))
 (defmethod factorization-component ((mf cholesky) component &optional force-copy-p)
   (declare (ignore force-copy-p))
   (take 'upper-triangular-matrix mf))
-
-(define-dense-take cholesky)

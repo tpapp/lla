@@ -306,13 +306,14 @@ is discarded."
 (defmacro with-nv-output ((name length pointer lla-type) &body body)
   "Allocates a memory area of the given type and length for the
 duration of body, and makes sure that the contents are assigned to the
-variable named name at the end."
+variable named name at the end.  The memory area is filled with
+zeroes at the beginning."
   (check-type name symbol)
   (check-type pointer symbol)
   (once-only (lla-type)
     `(progn
        (check-type ,lla-type lla-type)
-       (let ((,name (make-nv ,length ,lla-type)))
+       (let ((,name (make-nv ,length ,lla-type 0)))
 	 (with-pinned-vector ((nv-data ,name) ,pointer)
 	   ,@body)))))
 

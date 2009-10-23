@@ -93,6 +93,11 @@ coercions are valid."
   "Approximately equal, by *allowed-difference*."
   (< (abs (- a b)) *allowed-difference*))
 
+(defun x~= (eps)
+  "Return a comparison function for xref'able elements, with Lsup norm eps."
+  (lambda (a b)
+    (x= a b eps)))
+
 ;; TESTS
 
 ;;;;
@@ -232,5 +237,17 @@ coercions are valid."
                  #2A((1 0) (-0.75 0.25))
                  :test #'x=)))
 
+(addtest (lla-unit-tests)
+  cholesky
+  (let* ((a (make-matrix 'dense-matrix 3 3 :initial-contents '(2 -1 0
+                                                               -1 2 -1
+                                                               0 -1 2)))
+         (c (cholesky a)))
+    (ensure-same (take 'upper-triangular-matrix c)
+                 #2A((1.414214 -0.7071068 0.0000000)
+                     (0.000000 1.2247449 -0.8164966)
+                     (0.000000 0.0000000 1.1547005))
+                 :test (x~= 1e-5))
+    (ensure-same (reconstruct c) a :test #'x=)))
 ;;;; run all tests
 ;;;; (run-lla-tests)
