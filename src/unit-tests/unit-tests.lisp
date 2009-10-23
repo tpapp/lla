@@ -103,9 +103,9 @@ coercions are valid."
   ;; This is basically testing that your system is ASCII.  If this
   ;; fails, then you should consider buying a more recent computer.
   with-characters
-  (with-characters ((#\N n%)
-		    (#\C c%)
-		    (#\T t%))
+  (with-characters ((n% #\N)
+		    (c% #\C)
+		    (t% #\T))
     (ensure-same (mem-ref n% :unsigned-char) 78)
     (ensure-same (mem-ref c% :unsigned-char) 67)
     (ensure-same (mem-ref t% :unsigned-char) 84)))

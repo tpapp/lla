@@ -118,7 +118,7 @@ LLA type."
                                                        ',lisp-type))
                                    (lambda (x) (coerce x ',lisp-type)))
                                vector))))
-     (defmethod xcreate ((class (eql ',class-name)) dimensions &key &allow-other-keys)
+     (defmethod xcreate ((class (eql ',class-name)) dimensions &optional options)
        (let ((length (cond
                     ((atom dimensions) dimensions)
                     (t (bind (((length &rest rest) dimensions))

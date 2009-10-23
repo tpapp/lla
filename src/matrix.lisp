@@ -156,6 +156,20 @@ printed instead (should be a string)."
       (setf (xref data (cm-index2 nrow row col))
 	    value))))
 
+(defun xsimilar% (object new-dimensions)
+  ;; not exported
+  (let ((lla-type (lla-type object)))
+    (ecase (length new-dimensions)
+      (1 (list (numeric-vector-class lla-type)))
+      (2 `(dense-matrix :lla-type ,lla-type)))))
+
+(defmethod xsimilar ((nv numeric-vector) new-dimensions)
+  (xsimilar% nv new-dimensions))
+
+(defmethod xsimilar ((m dense-matrix) new-dimensions)
+  (xsimilar% m new-dimensions))
+
+
 ;;;; matrix creation
 
 (defun initial-contents-from-row-major-list (nrow ncol lla-type elt-list)
@@ -202,8 +216,10 @@ use-directly-p, see make-nv."
 			 (list (initial-contents-from-row-major-list
 				nrow ncol lla-type initial-contents)))))
 
-(defmethod take ((class (eql 'dense-matrix)) object &key lla-type)
-  (bind ((dims (xdims object)))
+(defmethod take ((class (eql 'dense-matrix)) object &key force-copy-p options)
+  (declare (ignore force-copy-p))
+  (bind (((&key (lla-type :double)) options)
+         (dims (xdims object)))
     (unless (= (length dims) 2)
       (error "OBJECT needs to have 2 dimensions for conversion into matrix."))
     (bind (((nrow ncol) dims)
@@ -217,10 +233,11 @@ use-directly-p, see make-nv."
       (make-matrix nrow ncol lla-type :initial-contents contents
                    :type 'dense-matrix))))
 
-(defmethod xcreate ((class (eql 'dense-matrix)) dimensions &key (lla-type :double))
+(defmethod xcreate ((class (eql 'dense-matrix)) dimensions &optional options)
   (unless (= (length dimensions) 2)
     (error "Exactly 2 dimensions are needed for a matrix."))
-  (bind (((nrow ncol) dimensions))
+  (bind (((nrow ncol) dimensions)
+         ((&key (lla-type :double)) options))
     (make-matrix class nrow ncol :lla-type lla-type)))
 
 (defun matrix-from-first-rows (nv m nrhs n)
@@ -351,11 +368,12 @@ length n.")
 (defmacro define-dense-take (class)
   "Define a take method for class from dense-matrices."
   `(defmethod take ((class (eql ',class)) (matrix dense-matrix)
-                    &key force-copy-p (lla-type (lla-type matrix)))
+                    &key force-copy-p options)
      ;; set zeros
      (set-restricted matrix)
      ;; create new structure
-     (take-dense-matrix ',class matrix force-copy-p lla-type)))
+     (bind (((&key (lla-type (lla-type matrix))) options))
+       (take-dense-matrix ',class matrix force-copy-p lla-type))))
 
 (define-dense-take dense-matrix)
 
