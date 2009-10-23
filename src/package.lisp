@@ -31,8 +31,10 @@
    matrix nrow ncol data *pring-matrix-aligned* *print-matrix-padding*
    *print-matrix-precision* dense-matrix make-matrix
    vector->matrix-col vector->matrix-row matrix->vector
-   upper-triangular-matrix symmetric-matrix matrix-factorization
-   factorization-component lu ipiv qr
+   restricted-elements set-restricted upper-triangular-matrix
+   lower-triangular-matrix symmetric-matrix hermitian-matrix
+   matrix-factorization factorization-component reconstruct lu ipiv qr
+   cholesky
    
    ;; fortran-call
    

@@ -439,7 +439,7 @@ decomposition of X."
 
 (defmethod reconstruct ((mf cholesky))
   (let ((herm (take 'hermitian-matrix mf)))
-    (set-restricted* herm)              ; mirror on the diagonal
+    (set-restricted herm)              ; mirror on the diagonal
     (let* ((ut (take 'upper-triangular-matrix herm))
            (lt (take 'lower-triangular-matrix herm))
            (result (mm lt ut)))
