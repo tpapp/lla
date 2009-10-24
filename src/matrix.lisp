@@ -156,10 +156,10 @@ printed instead (should be a string)."
       (setf (xref data (cm-index2 nrow row col))
 	    value))))
 
-(defun xsimilar% (object new-dimensions)
+(defun xsimilar% (object rank)
   ;; not exported
   (let ((lla-type (lla-type object)))
-    (ecase (length new-dimensions)
+    (ecase rank
       (1 (list (numeric-vector-class lla-type)))
       (2 `(dense-matrix :lla-type ,lla-type)))))
 
