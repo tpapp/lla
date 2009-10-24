@@ -29,12 +29,12 @@
    ;; matrix
    
    matrix nrow ncol data *pring-matrix-aligned* *print-matrix-padding*
-   *print-matrix-precision* dense-matrix make-matrix
+   *print-matrix-precision* dense-matrix cm-index2 make-matrix
    vector->matrix-col vector->matrix-row matrix->vector
    restricted-elements set-restricted upper-triangular-matrix
-   lower-triangular-matrix symmetric-matrix hermitian-matrix
-   matrix-factorization factorization-component reconstruct lu ipiv qr
-   cholesky
+   lower-triangular-matrix symmetric-matrix cm-index-symmetric
+   hermitian-matrix matrix-factorization factorization-component
+   reconstruct lu ipiv qr cholesky
    
    ;; fortran-call
    

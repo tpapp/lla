@@ -22,6 +22,10 @@
 	 always numeric-vector, but the length and interpretation of
 	 contents is implementation-dependent.")))
 
+;;; copy data on demand
+(defgeneric copy-data ((matrix matrix))
+  (copy-data (data matrix)))
+
 ;;; LLA element type, from the type of data
 (defmethod lla-type ((matrix matrix))
   (lla-type (data matrix)))
