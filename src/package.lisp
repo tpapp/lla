@@ -21,7 +21,7 @@
    
    ;; numeric-vector
    
-   numeric-vector nv-data shared-p numeric-vector-integer
+   numeric-vector nv-data shared-p copy-data numeric-vector-integer
    numeric-vector-single numeric-vector-double
    numeric-vector-complex-single numeric-vector-complex-double
    lla-type make-nv nv-copy-convert nv-copy

@@ -12,16 +12,17 @@
 ;;;;
 ;;;;
 
-(defun lapack-procedure-name (name lla-type)
-  "Return the name for the LAPACK procedure name based on name and
-general-type.  Name can be a string or a symbol, the returned value is
-a symbol."
-  (make-symbol* (ecase lla-type
-		  (:single "%S")
-		  (:double "%D")
-		  (:complex-single "%C")
-		  (:complex-double "%Z"))
-		name))
+(defmacro lb-procedure-name (name lla-type)
+  "Expand to an (ecase lla-type) which should evaluate to the
+procedure name.  LLA-TYPE has to be a symbol, if you need conditionals
+etc, do that outside this macro."
+  (check-type name symbol)
+  (check-type lla-type symbol)
+  `(ecase ,lla-type
+     (:single ',(make-symbol* "%S" name))
+     (:double ',(make-symbol* "%D" name))
+     (:complex-single ',(make-symbol* "%C" name))
+     (:complex-double ',(make-symbol* "%Z" name))))
 
 (define-condition lapack-error (error)
   ;; !! write method for formatting the error message
@@ -110,7 +111,7 @@ commonly a single function call."
 (defmethod lu ((a dense-matrix))
   (bind (((:slots-read-only (m nrow) (n ncol) (a-data data)) a)
 	 (type (lla-type a-data))
-	 (procedure (lapack-procedure-name 'getrf type)))
+	 (procedure (lb-procedure-name getrf type)))
     (with-nv-input-output (a-data lu-data a% type)
       (with-nv-output (ipiv (min m n) ipiv% :integer)
 	(with-fortran-scalars ((m m% :integer)
@@ -131,7 +132,7 @@ commonly a single function call."
 	 ((:slots-read-only (n3 nrow) (nrhs ncol) (b-data data)) b)
 	 (common-type (smallest-common-target-type 
                        (mapcar #'lla-type (list a-data b-data))))
-	 (procedure (lapack-procedure-name 'gesv common-type)))
+	 (procedure (lb-procedure-name gesv common-type)))
     (assert (= n n2 n3))
     (with-nv-input-copied (a-data a% common-type) ; LU decomposition discarded
       (with-nv-input-output (b-data x-data b% common-type)
@@ -148,7 +149,7 @@ commonly a single function call."
 	 ((:slots-read-only (n3 nrow) (nrhs ncol) (b-data data)) b)
 	 (common-type (smallest-common-target-type
                        (mapcar #'lla-type (list lu-data b-data))))
-	 (procedure (lapack-procedure-name 'getrs common-type)))
+	 (procedure (lb-procedure-name getrs common-type)))
     (assert (= n n2 n3))
     (with-nv-input (lu-data lu% common-type)
       (with-nv-input-output (b-data x-data b% common-type)
@@ -164,7 +165,7 @@ commonly a single function call."
 (defun eigen-dense-matrix-double (a &key vectors-p check-real-p)
   "Eigenvalues and vectors for dense, double matrices."
   (bind (((:slots-read-only (n nrow) (n2 ncol) (a-data data)) a)
-	 (procedure (lapack-procedure-name 'geev :double)))
+	 (procedure (lb-procedure-name geev :double)))
     (assert (= n n2))
     (with-nv-input-copied (a-data a% :double) ; A is overwritten
       (with-work-area (w% :double (* 2 n))     ; eigenvalues, will be zipped
@@ -234,7 +235,7 @@ columns, each corresponding to a different column of b."))
 	 ((:slots-read-only (m2 nrow) (nrhs ncol) (b-data data)) b)
 	 (common-type (smallest-common-target-type
                        (mapcar #'lla-type (list a-data b-data))))
-	 (procedure (lapack-procedure-name 'gels common-type)))
+	 (procedure (lb-procedure-name gels common-type)))
     (assert (= m m2))
     (unless (<= n m)
       (error "A doesn't have enough columns for least squares"))
@@ -277,7 +278,7 @@ columns, each corresponding to a different column of b."))
 (defmethod invert ((lu lu))
   (bind (((:slots-read-only (n nrow) (n2 ncol) ipiv (lu-data data)) lu)
 	 (common-type (lla-type lu-data))
-	 (procedure (lapack-procedure-name 'getri common-type)))
+	 (procedure (lb-procedure-name getri common-type)))
     (assert (= n n2))
     (with-nv-input-output (lu-data inverse-data lu% common-type)
       (with-nv-input (ipiv ipiv% :integer)
@@ -299,7 +300,7 @@ is supposed to consist of 1s.
 NOTE: for internal use, not exported."
   (bind (((:slots-read-only (n nrow) (n2 ncol) (a-data data)) a)
 	 (common-type (lla-type a-data))
-	 (procedure (lapack-procedure-name 'trtri common-type)))
+	 (procedure (lb-procedure-name trtri common-type)))
     (assert (= n n2))
     (with-nv-input-output (a-data inv-data a% common-type)
       (with-characters ((u-char (if upper-p #\U #\L))
@@ -318,7 +319,7 @@ NOTE: for internal use, not exported."
 (defmethod invert ((a cholesky))
   (bind (((:slots-read-only (n nrow) (n2 ncol) (a-data data)) a)
 	 (common-type (lla-type a-data))
-	 (procedure (lapack-procedure-name 'potri common-type)))
+	 (procedure (lb-procedure-name potri common-type)))
     (assert (= n n2))
     (with-nv-input-output (a-data inv-data a% common-type) ; output: upper triangular
       (with-character (u-char #\U)
@@ -361,7 +362,7 @@ decomposition of X."
 	 (common-type (smallest-common-target-type
 		       (mapcar #'lla-type (list a-data b-data))))
          (lisp-type (lla-type->lisp-type common-type))
-	 (procedure (lapack-procedure-name 'gemm common-type)))
+	 (procedure (lb-procedure-name gemm common-type)))
     (assert (= k k2))
     (with-nv-input (a-data a% common-type)
       (with-nv-input (b-data b% common-type)
@@ -389,7 +390,7 @@ decomposition of X."
 ;; 	 (common-type (smallest-common-target-type
 ;; 		       (mapcar #'lla-type (list a-data b-data))))
 ;;          (lisp-type (lla-type->lisp-type common-type))
-;; 	 (procedure (lapack-procedure-name 'trmm common-type)))
+;; 	 (procedure (lb-procedure-name 'trmm common-type)))
 ;;     (case side
 ;;       (:left (assert (= ncol-a nrow-b)))
 ;;       (:right (assert (= ncol-b nrow-a)))
@@ -457,10 +458,9 @@ decomposition of X."
                               (t :complex-double))
                             ct)))
          (lisp-type (lla-type->lisp-type common-type))
-         (procedure-symbol (if hermitian-p
-                               'herk
-                               'syrk))
-	 (procedure (lapack-procedure-name procedure-symbol common-type))
+         (procedure (if hermitian-p
+                        (lb-procedure-name herk common-type)
+                        (lb-procedure-name syrk common-type)))
          (k (ecase operation
               (:none (assert (= nrow-a nrow-c)) ncol-a)
               ((:transpose :conjugate) (assert (= nrow-a ncol-c)) nrow-a))))
@@ -526,7 +526,7 @@ of the valid symbols.  Internal, not exported."
 (defmethod cholesky ((a dense-matrix))
   (bind (((:slots-read-only (n nrow) (n2 ncol) data) a)
 	 (common-type (lla-type data))
-	 (procedure (lapack-procedure-name 'potrf common-type)))
+	 (procedure (lb-procedure-name potrf common-type)))
     (assert (= n n2))
     (with-nv-input-output (data cholesky-data data% common-type)
       (with-fortran-scalar (n n% :integer)

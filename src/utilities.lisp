@@ -8,7 +8,8 @@
                            (etypecase arg
                              (symbol (symbol-name arg))
                              (string arg)))
-                         args))))
+                         args))
+          'lla))
 
 ;;; (make-symbol* "test" "me")        =>   |testme| , :INTERNAL
 ;;; (make-symbol* "test" 'metoo "me") =>   |testMETOOme| , :INTERNAL
