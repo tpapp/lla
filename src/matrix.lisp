@@ -23,7 +23,7 @@
 	 contents is implementation-dependent.")))
 
 ;;; copy data on demand
-(defgeneric copy-data ((matrix matrix))
+(defmethod copy-data ((matrix matrix))
   (copy-data (data matrix)))
 
 ;;; LLA element type, from the type of data
@@ -658,7 +658,8 @@ Unless force-copy-p, it can share structure with the original."))
 	 :reader data
 	 :documentation "QR decomposition of a matrix")))
 
-(defmethod factorization-component ((mf QR) (component (eql :R)) &optional force-copy-p)
+(defmethod factorization-component ((mf QR) (component (eql :R)) 
+                                    &optional force-copy-p)
   (declare (ignore force-copy-p))
   (bind (((:slots-read-only nrow ncol data) mf))
     (take 'upper-triangular-matrix
