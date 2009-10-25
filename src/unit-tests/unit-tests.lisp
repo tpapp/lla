@@ -249,5 +249,8 @@ coercions are valid."
                      (0.000000 0.0000000 1.1547005))
                  :test (x~= 1e-5))
     (ensure-same (reconstruct c) a :test #'x=)))
+
+;;; !!! update-syhe could do with a lot of testing
+
 ;;;; run all tests
 ;;;; (run-lla-tests)

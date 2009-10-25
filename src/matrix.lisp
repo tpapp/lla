@@ -476,6 +476,17 @@ above the diagonal are not necessarily initialized and not accessed."))
   (print-matrix matrix stream :mask #'lower-triangular-mask))
 
 
+;;;;  ??? note on symmetric and hermitian matrices -- Tamas:
+;;;;
+;;;;  Currently, hermitian matrices can be real, in which case they
+;;;;  are also symmetric.  Is this a feature, or lack of good design?
+;;;;  Maybe how we handle this could change in the future.  For the
+;;;;  present, having a "real hermitian" matrix will just keep this
+;;;;  property in operations (eg update-syhe), and functions that
+;;;;  accept either a symmetric real or a hermitian complex matrix
+;;;;  should only accept a hermitian-matrix, which enforces these
+;;;;  properties regardless of whether elements are real or complex.
+
 ;;;;
 ;;;;  Symmetric matrix
 ;;;;
@@ -488,7 +499,8 @@ above the diagonal are not necessarily initialized and not accessed."))
 
 (defclass symmetric-matrix (dense-matrix restricted-elements)
   ()
-  (:documentation "A dense symmatric matrix, with elements stored in the upper triangle."))
+  (:documentation "A dense symmatric matrix, with elements stored in
+   the upper triangle."))
 
 (defmethod xref ((matrix symmetric-matrix) &rest subscripts)
   (bind (((row col) subscripts))

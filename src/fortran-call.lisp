@@ -417,6 +417,102 @@ decomposition of X."
   (matrix->vector (mm a (vector->matrix-col b) alpha)))
 
 ;;;;
+;;;;  Updates for symmetric and hermitian matrices
+;;;;
+
+(defun ntc-operation-char (operation)
+  "Return corresponding character for LAPACK operations."
+  (ecase operation
+    (:none #\N)
+    (:transpose #\T)
+    (:conjugate #\C)))
+
+(defgeneric update-syhe (a c op-left-p &key alpha beta)
+  (:documentation "Calculate alpha*A*op(A) + beta*C if OP-LEFT-P is
+  NIL, and alpha*op(A)*A + beta*C otherwise.  ALPHA and BETA default
+  to 1 and 0, respectively.
+
+  If C is a HERMITIAN-MATRIX or equal to 'HERMITIAN-MATRIX (in which
+  case C is created as such, filled with 0s), then op(A) is conjugate
+  transpose, and the result is a HERMITIAN-MATRIX.
+
+  If C is a SYMMETRIC-MATRIX or equal to 'SYMMETRIC-MATRIX (in which
+  case C is created as such, filled with 0s), then op(A) is transpose,
+  and the result is a SYMMETRIC-MATRIX."))
+
+(defun update-syhe% (a c alpha beta operation hermitian-p)
+  "Internal procedure for *SYRK and *HERK."
+  (bind (((:slots-read-only (nrow-a nrow) (ncol-a ncol) (a-data data)) a)
+	 ((:slots-read-only (nrow-c nrow) (ncol-c ncol) (c-data data)) c)
+	 (common-type (let ((ct (smallest-common-target-type
+                                 (mapcar #'lla-type (list c-data c-data)))))
+                        (if hermitian-p
+                            ;; for Hermitian operations, the result is
+                            ;; always complex.
+                            (case ct
+                              ((:single :complex-single) :complex-single)
+                              (t :complex-double))
+                            ct)))
+         (lisp-type (lla-type->lisp-type common-type))
+         (procedure-symbol (if hermitian-p
+                               'herk
+                               'syrk))
+	 (procedure (lapack-procedure-name procedure-symbol common-type))
+         (k (ecase operation
+              (:none (assert (= nrow-a nrow-c)) ncol-a)
+              ((:transpose :conjugate) (assert (= nrow-a ncol-c)) nrow-a))))
+    (assert (= ncol-c nrow-c)) ; not really needed, c has to be symm/herm
+    (when hermitian-p
+      ;; T not a valid operation, LAPACK would choke
+      (assert (not (eq operation :transpose))))
+    (with-nv-input (a-data a% common-type)
+      (with-nv-input-output (c-data x-data c% common-type)
+        (with-fortran-scalars ((nrow-a nrow-a% :integer)
+                               (ncol-c n% :integer)
+                               (k k% :integer)
+                               ((coerce alpha lisp-type) alpha% common-type)
+                               ((coerce beta lisp-type) beta% common-type))
+          (with-characters ((u-char #\U)
+                            (t-char (ntc-operation-char operation)))
+            (funcall procedure u-char t-char n% k% alpha% a% nrow-a%
+                     beta% c% n%)))
+        (make-instance (if hermitian-p
+                           'hermitian-matrix
+                           'symmetric-matrix) 
+                       :nrow nrow-c :ncol nrow-c :data x-data)))))
+
+(defmethod update-syhe ((a dense-matrix) (c symmetric-matrix) op-left-p
+                        &key (alpha 1) (beta 0))
+  (let ((a (take 'dense-matrix a)))     ; works with triangular, etc
+    (update-syhe% a c alpha beta (if op-left-p :transpose :none) nil)))
+
+(defmethod update-syhe ((a dense-matrix) (c hermitian-matrix) op-left-p
+                        &key (alpha 1) (beta 0))
+  (let ((a (take 'dense-matrix a))     ; works with triangular, etc
+        (operation (if op-left-p :conjugate :none)))
+    (if (or (lla-complex-p (lla-type a)) (lla-complex-p (lla-type c)))
+        (update-syhe% a c alpha beta operation t)
+        (take 'hermitian-matrix
+              (update-syhe% a c alpha beta operation nil)))))
+
+(defun update-syhe-creating-c% (a c op-left-p alpha beta)
+  "Create a conforming C matrix and clal update-syhe.  C has to be one
+of the valid symbols.  Internal, not exported."
+  (unless (zerop beta)
+    (warn "beta=~a does not make much sense for a zero c" beta))
+  (let* ((n (xdim a (if op-left-p 1 0)))
+         (c (make-matrix c n n :lla-type (lla-type a) :initial-contents 0)))
+    (update-syhe a c op-left-p :alpha alpha :beta beta)))
+
+(defmethod update-syhe ((a dense-matrix) (c (eql 'symmetric-matrix)) op-left-p
+                        &key (alpha 1) (beta 0))
+  (update-syhe-creating-c% a c op-left-p alpha beta))
+
+(defmethod update-syhe ((a dense-matrix) (c (eql 'hermitian-matrix)) op-left-p
+                        &key (alpha 1) (beta 0))
+  (update-syhe-creating-c% a c op-left-p alpha beta))
+
+;;;;
 ;;;;  Cholesky factorization
 ;;;;
 
@@ -438,12 +534,4 @@ decomposition of X."
 			 :data cholesky-data)))))
 
 (defmethod reconstruct ((mf cholesky))
-  (let ((herm (take 'hermitian-matrix mf)))
-    (set-restricted herm)              ; mirror on the diagonal
-    (let* ((ut (take 'upper-triangular-matrix herm))
-           (lt (take 'lower-triangular-matrix herm))
-           (result (mm lt ut)))
-      (take (if (lla-complex-p (lla-type result))
-                'hermitian-matrix
-                'symmetric-matrix)
-            result))))
+  (update-syhe (take 'upper-triangular-matrix mf) 'hermitian-matrix t))
