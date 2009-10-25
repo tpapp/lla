@@ -289,7 +289,7 @@ columns, each corresponding to a different column of b."))
 			 :data inverse-data))))))
 
 
-(defun invert-triangular (a upper-p unit-diag-p result-class)
+(defun invert-triangular% (a upper-p unit-diag-p result-class)
   "Invert a dense (triangular) matrix using the LAPACK routine *TRTRI.
 UPPER-P indicates if the matrix is in the upper or the lower triangle
 of a (which needs to be a subtype of dense-matrix, but the type
@@ -310,10 +310,10 @@ NOTE: for internal use, not exported."
       (make-instance result-class :nrow n :ncol n :data inv-data))))
   
 (defmethod invert ((a upper-triangular-matrix))
-  (invert-triangular a t nil 'upper-triangular-matrix))
+  (invert-triangular% a t nil 'upper-triangular-matrix))
 
 (defmethod invert ((a lower-triangular-matrix))
-  (invert-triangular a nil nil 'lower-triangular-matrix))
+  (invert-triangular% a nil nil 'lower-triangular-matrix))
 
 (defmethod invert ((a cholesky))
   (bind (((:slots-read-only (n nrow) (n2 ncol) (a-data data)) a)
@@ -346,11 +346,14 @@ decomposition of X."
 ;;;;  matrix multiplication
 ;;;; 
 ;;;;  Currently, we only support the common alpha parameter alpha*A*B.
+;;;;  ??? In the future, C and beta could be added.  Is it needed? --
+;;;;  Tamas
 
-(defgeneric mm (a b &optional alpha)
-  (:documentation "multiply A and B"))
+(defgeneric mm (a b &key alpha)
+  (:documentation "multiply A and B, also by the scalar
+  alpha (defaults to 1)."))
 
-(defmethod mm ((a dense-matrix) (b dense-matrix) &optional (alpha 1))
+(defmethod mm ((a dense-matrix) (b dense-matrix) &key (alpha 1))
   (bind ((a (take 'dense-matrix a))
          (b (take 'dense-matrix b))
          ((:slots-read-only (m nrow) (k ncol) (a-data data)) a)
@@ -410,11 +413,11 @@ decomposition of X."
 
 ;; (defmethod mm ((a upper-triangular-
 
-(defmethod mm ((a numeric-vector) (b dense-matrix) &optional (alpha 1))
-  (matrix->vector (mm (vector->matrix-row a) b alpha)))
+(defmethod mm ((a numeric-vector) (b dense-matrix) &key (alpha 1))
+  (matrix->vector (mm (vector->matrix-row a) b :alpha alpha)))
 
-(defmethod mm ((a dense-matrix) (b numeric-vector) &optional (alpha 1))
-  (matrix->vector (mm a (vector->matrix-col b) alpha)))
+(defmethod mm ((a dense-matrix) (b numeric-vector) &key (alpha 1))
+  (matrix->vector (mm a (vector->matrix-col b) :alpha alpha)))
 
 ;;;;
 ;;;;  Updates for symmetric and hermitian matrices

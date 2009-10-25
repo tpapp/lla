@@ -39,6 +39,7 @@
    ;; fortran-call
    
    lu solve mm eigen least-squares least-squares-raw-variance invert
+   update-syhe cholesky
 
    ))
 
