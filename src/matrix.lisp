@@ -133,10 +133,34 @@ printed instead (should be a string)."
 ;;;;
 ;;;;  Dense matrix class
 ;;;;
+;;;;  Dense matrices store elements in a column-major order.  Some
+;;;;  other matrix classes also employ this storage scheme, but may
+;;;;  not use all elements (eg triangular matrices).  The common
+;;;;  superclass of all of these is dense-matrix-like.
+;;;;
+;;;;  IMPORTANT: whenever an argument is dense-matrix-like but need to
+;;;;  be interpreted in a FORTRAN call as a dense-matrix, use (take
+;;;;  'dense-matrix object), or (as-dense-matrix (object) ...), where
+;;;;  the latter is preferred style.
 
-(defclass dense-matrix (matrix)
+(defclass dense-matrix-like (matrix)
+  ()
+  (:documentation "Elements stored like a dense matrix (in
+  column-major order), but some elements may not be accessed or can be
+  restricted to certain values (eg the upper part of a
+  lower-triangular matrix)."))
+
+(defclass dense-matrix (dense-matrix-like)
   ()
   (:documentation "Dense matrix, elements stored in column-major order."))
+
+(defmacro as-dense-matrix (matrices &body body)
+  "Rebind matrices as dense-matrix."
+  `(let ,(mapcar (lambda (x)
+                   (check-type x symbol)
+                   `(,x (take 'dense-matrix ,x)))
+          matrices)
+     ,@body))
 
 (declaim (inline cm-index2))
 (defun cm-index2 (nrow row col)
@@ -170,7 +194,7 @@ printed instead (should be a string)."
 (defmethod xsimilar ((nv numeric-vector) new-dimensions)
   (xsimilar% nv new-dimensions))
 
-(defmethod xsimilar ((m dense-matrix) new-dimensions)
+(defmethod xsimilar ((m dense-matrix-like) new-dimensions)
   (xsimilar% m new-dimensions))
 
 
@@ -322,13 +346,13 @@ length n.")
       (nv-copy data))))
 
 ;;;;
-;;;;  Semantics of matrices that are subtypes of dense-matrix: these
-;;;;  matrices store their data as if they were dense matrices, but
-;;;;  some elements are not accessed and are treated as zero (or some
-;;;;  other constant) instead.  Nevertheless, these matrices may be
-;;;;  treated as dense-matrices, in which case set-restricted can be
-;;;;  used to make these elements 0.  zero-restricted keeps track of
-;;;;  whether this has been done.
+;;;;  Semantics of matrices that are subtypes of dense-matrix-like
+;;;;  other than dense-matrix: these matrices store their data as if
+;;;;  they were dense matrices, but some elements are not accessed and
+;;;;  are treated as zero (or some other constant) instead.
+;;;;  Nevertheless, these matrices may be treated as dense-matrices,
+;;;;  in which case set-restricted can be used to make these elements
+;;;;  0.  zero-restricted keeps track of whether this has been done.
 ;;;;
 
 (defclass restricted-elements ()
@@ -359,33 +383,33 @@ length n.")
         (set-restricted* matrix)
         (setf restricted-set-p t)))))
 
-(defun take-dense-matrix (class matrix force-copy-p lla-type)
+(defun take-dense-matrix-like (class matrix force-copy-p lla-type)
   "INTERNAL function.  Use data in a dense-matrix matrix in another
-  dense-matrix (with given class), copying and converting if
-  necessary."
+  dense-matrix-like object (with given class), copying and converting
+  if necessary."
   (with-slots (nrow ncol data) matrix
     (make-instance class :nrow nrow :ncol ncol
                    :data (if (or force-copy-p (not (eq lla-type (lla-type matrix))))
                              (nv-copy-convert data lla-type)
                              (nv-copy data)))))
 
-(defmacro define-dense-take (class)
+(defmacro define-dense-matrix-like-take (class)
   "Define a take method for class from dense-matrices."
-  `(defmethod take ((class (eql ',class)) (matrix dense-matrix)
+  `(defmethod take ((class (eql ',class)) (matrix dense-matrix-like)
                     &key force-copy-p options)
      ;; set zeros
      (set-restricted matrix)
      ;; create new structure
      (bind (((&key (lla-type (lla-type matrix))) options))
-       (take-dense-matrix ',class matrix force-copy-p lla-type))))
+       (take-dense-matrix-like ',class matrix force-copy-p lla-type))))
 
-(define-dense-take dense-matrix)
+(define-dense-matrix-like-take dense-matrix)
 
 ;;;;
 ;;;;  Upper triangular matrix
 ;;;;
 
-(defclass upper-triangular-matrix (dense-matrix restricted-elements)
+(defclass upper-triangular-matrix (dense-matrix-like restricted-elements)
   ()
   (:documentation "A dense, upper triangular matrix.  The elements
 below the diagonal are not necessarily initialized and not accessed."))
@@ -403,7 +427,7 @@ below the diagonal are not necessarily initialized and not accessed."))
         (setf (aref vector index) zero))))
   matrix)
 
-(define-dense-take upper-triangular-matrix)
+(define-dense-matrix-like-take upper-triangular-matrix)
 
 (defmethod xref ((matrix upper-triangular-matrix) &rest subscripts)
   (bind (((row col) subscripts))
@@ -432,7 +456,7 @@ below the diagonal are not necessarily initialized and not accessed."))
 ;;;;  Lower triangular matrix
 ;;;;
 
-(defclass lower-triangular-matrix (dense-matrix restricted-elements)
+(defclass lower-triangular-matrix (dense-matrix-like restricted-elements)
   ()
   (:documentation "A dense, lower triangular matrix.  The elements
 above the diagonal are not necessarily initialized and not accessed."))
@@ -450,7 +474,7 @@ above the diagonal are not necessarily initialized and not accessed."))
         (setf (aref vector index) zero))))
   matrix)
 
-(define-dense-take lower-triangular-matrix)
+(define-dense-matrix-like-take lower-triangular-matrix)
 
 (defmethod xref ((matrix lower-triangular-matrix) &rest subscripts)
   (bind (((row col) subscripts))
@@ -497,7 +521,7 @@ above the diagonal are not necessarily initialized and not accessed."))
       (cm-index2 nrow row col)          ; upper triangle
       (cm-index2 nrow col row)))        ; lower triangle
 
-(defclass symmetric-matrix (dense-matrix restricted-elements)
+(defclass symmetric-matrix (dense-matrix-like restricted-elements)
   ()
   (:documentation "A dense symmatric matrix, with elements stored in
    the upper triangle."))
@@ -532,7 +556,7 @@ above the diagonal are not necessarily initialized and not accessed."))
               (aref vector (cm-index2 nrow col row))))))
   matrix)
 
-(define-dense-take symmetric-matrix)
+(define-dense-matrix-like-take symmetric-matrix)
 
 (defun symmetric-mask (row col)
   ;; print = instead of . in the lower triangle
@@ -548,7 +572,7 @@ above the diagonal are not necessarily initialized and not accessed."))
 ;;;;  Hermitian matrix
 ;;;;
 
-(defclass hermitian-matrix (dense-matrix restricted-elements)
+(defclass hermitian-matrix (dense-matrix-like restricted-elements)
   ()
   (:documentation "A dense Hermitian matrix, with elements stored in the upper triangle."))
 
@@ -585,7 +609,7 @@ above the diagonal are not necessarily initialized and not accessed."))
               (conjugate (aref vector (cm-index2 nrow col row)))))))
   matrix)
 
-(define-dense-take hermitian-matrix)
+(define-dense-matrix-like-take hermitian-matrix)
 
 (defun hermitian-mask (row col)
   ;; print * instead of . in the lower triangle
@@ -602,7 +626,7 @@ above the diagonal are not necessarily initialized and not accessed."))
 ;;;;
 ;;;; Technically these are not matrices (as they may contain 2+
 ;;;; matrices and other data), but they are usually defined as
-;;;; subclasses of dense-matrix (or a subclass, etc) so that you can
+;;;; subclasses of dense-matrix-like (or a subclass, etc) so that you can
 ;;;; manipulate them as if they were.
 
 (define-abstract-class matrix-factorization ()
@@ -623,7 +647,7 @@ Unless force-copy-p, it can share structure with the original."))
 ;;;;  LU factorization
 ;;;;
 
-(defclass LU (matrix-factorization dense-matrix)
+(defclass LU (matrix-factorization dense-matrix-like)
   ;; LU is not a subclass of matrix, as it is technically two matrices
   ;; (+ pivot indices)
   ;;
@@ -653,7 +677,7 @@ Unless force-copy-p, it can share structure with the original."))
 ;;;;  QR factorization
 ;;;;
 
-(defclass QR (matrix-factorization dense-matrix)
+(defclass QR (matrix-factorization dense-matrix-like)
   ((data :type numeric-vector :initarg :data
 	 :reader data
 	 :documentation "QR decomposition of a matrix")))
@@ -672,11 +696,12 @@ Unless force-copy-p, it can share structure with the original."))
 ;;;;  Cholesky decomposition
 ;;;;
 
-(defclass cholesky (matrix-factorization dense-matrix)
+(defclass cholesky (matrix-factorization lower-triangular-matrix)
   ((data :type numeric-vector :initarg :data
 	 :reader data
-	 :documentation "Cholesky decomposition R of a matrix.  Should
-	 behave as a matrix, but only the upper-triangular part of the
+	 :documentation "Cholesky decomposition R of a matrix=RR^*,
+	 where * is the conjugate transpose.  Should behave as a
+	 matrix, but only the lower-triangular part of the
 	 decomposition is stored.")))
 
 (defmethod initialize-instance :after ((mf cholesky) &key &allow-other-keys)
@@ -685,9 +710,8 @@ Unless force-copy-p, it can share structure with the original."))
     (assert (equalp (xdims data) (list (* nrow ncol)))))
   mf)
 
-(define-matrix-like-printer (matrix cholesky stream) ()
-  (print-matrix matrix stream :mask #'upper-triangular-mask))
-
 (defmethod factorization-component ((mf cholesky) component &optional force-copy-p)
   (declare (ignore force-copy-p))
-  (take 'upper-triangular-matrix mf))
+  (take 'lower-triangular-matrix mf))
+
+(define-dense-matrix-like-take cholesky)

@@ -243,10 +243,10 @@ coercions are valid."
                                                                -1 2 -1
                                                                0 -1 2)))
          (c (cholesky a)))
-    (ensure-same (take 'upper-triangular-matrix c)
-                 #2A((1.414214 -0.7071068 0.0000000)
-                     (0.000000 1.2247449 -0.8164966)
-                     (0.000000 0.0000000 1.1547005))
+    (ensure-same (take 'lower-triangular-matrix c)
+                 #2A((1.414214 0.000000 0.0000000)
+                     (-0.7071068 1.2247449 0.0000000)
+                     (0.000000 -0.8164966 1.1547005))
                  :test (x~= 1e-5))
     (ensure-same (reconstruct c) a :test #'x=)))
 
