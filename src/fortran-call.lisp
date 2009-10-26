@@ -109,17 +109,17 @@ commonly a single function call."
   (:documentation "LU decomposition of A"))
 
 (defmethod lu ((a dense-matrix-like))
-  (as-dense-matrix (a)
-    (bind (((:slots-read-only (m nrow) (n ncol) (a-data data)) a)
-           (type (lla-type a-data))
-           (procedure (lb-procedure-name getrf type)))
-      (with-nv-input-output (a-data lu-data a% type)
-        (with-nv-output (ipiv (min m n) ipiv% :integer)
-          (with-fortran-scalars ((m m% :integer)
-                                 (n n% :integer))
-	    (with-info-check (getrf info%)
-	      (funcall procedure m% n% a% m% ipiv% info%)))
-          (make-instance 'lu :nrow m :ncol n :ipiv ipiv :data lu-data))))))
+  (set-restricted a)
+  (bind (((:slots-read-only (m nrow) (n ncol) (a-data data)) a)
+         (type (lla-type a-data))
+         (procedure (lb-procedure-name getrf type)))
+    (with-nv-input-output (a-data lu-data a% type)
+      (with-nv-output (ipiv (min m n) ipiv% :integer)
+        (with-fortran-scalars ((m m% :integer)
+                               (n n% :integer))
+          (with-info-check (getrf info%)
+            (funcall procedure m% n% a% m% ipiv% info%)))
+        (make-instance 'lu :nrow m :ncol n :ipiv ipiv :data lu-data)))))
 
 (defgeneric solve (a b)
   (:documentation "Return X that solves AX=B."))
@@ -129,75 +129,74 @@ commonly a single function call."
   (matrix->vector (solve a (vector->matrix-col b))))
 
 (defmethod solve ((a dense-matrix-like) (b dense-matrix-like))
-  (as-dense-matrix (a b)
-    (bind (((:slots-read-only (n nrow) (n2 ncol) (a-data data)) a)
-           ((:slots-read-only (n3 nrow) (nrhs ncol) (b-data data)) b)
-           (common-type (smallest-common-target-type 
-                         (mapcar #'lla-type (list a-data b-data))))
-           (procedure (lb-procedure-name gesv common-type)))
-      (assert (= n n2 n3))
-      (with-nv-input-copied (a-data a% common-type) ; LU decomposition discarded
-        (with-nv-input-output (b-data x-data b% common-type)
-          (with-work-area (ipiv% :integer n) ; not saving IPIV
-            (with-fortran-scalars ((n n% :integer)
-                                   (nrhs nrhs% :integer))
-              (with-info-check (gesv info%)
-                (funcall procedure n% nrhs% a% n% ipiv% b% n% info%)))
+  (set-restricted a)
+  (set-restricted b)
+  (bind (((:slots-read-only (n nrow) (n2 ncol) (a-data data)) a)
+         ((:slots-read-only (n3 nrow) (nrhs ncol) (b-data data)) b)
+         (common-type (smallest-common-target-type 
+                       (mapcar #'lla-type (list a-data b-data))))
+         (procedure (lb-procedure-name gesv common-type)))
+    (assert (= n n2 n3))
+    (with-nv-input-copied (a-data a% common-type) ; LU decomposition discarded
+      (with-nv-input-output (b-data x-data b% common-type)
+        (with-work-area (ipiv% :integer n) ; not saving IPIV
+          (with-fortran-scalars ((n n% :integer)
+                                 (nrhs nrhs% :integer))
+            (with-info-check (gesv info%)
+              (funcall procedure n% nrhs% a% n% ipiv% b% n% info%)))
+          (make-instance 'dense-matrix :nrow n :ncol nrhs
+                         :data x-data))))))
+
+(defmethod solve ((lu lu) (b dense-matrix-like))
+  (set-restricted b)
+  (bind (((:slots-read-only (n nrow) (n2 ncol) ipiv (lu-data data)) lu)
+         ((:slots-read-only (n3 nrow) (nrhs ncol) (b-data data)) b)
+         (common-type (smallest-common-target-type
+                       (mapcar #'lla-type (list lu-data b-data))))
+         (procedure (lb-procedure-name getrs common-type)))
+    (assert (= n n2 n3))
+    (with-nv-input (lu-data lu% common-type)
+      (with-nv-input-output (b-data x-data b% common-type)
+        (with-nv-input (ipiv ipiv% :integer)
+          (with-fortran-scalars ((n n% :integer)
+                                 (nrhs nrhs% :integer))
+            (with-character (trans% #\N)
+              (with-info-check (getrf info%)
+                (funcall procedure trans% n% nrhs% lu% n% ipiv% b% n% info%)))
             (make-instance 'dense-matrix :nrow n :ncol nrhs
                            :data x-data)))))))
 
-(defmethod solve ((lu lu) (b dense-matrix-like))
-  (as-dense-matrix (b)
-    (bind (((:slots-read-only (n nrow) (n2 ncol) ipiv (lu-data data)) lu)
-           ((:slots-read-only (n3 nrow) (nrhs ncol) (b-data data)) b)
-           (common-type (smallest-common-target-type
-                         (mapcar #'lla-type (list lu-data b-data))))
-           (procedure (lb-procedure-name getrs common-type)))
-      (assert (= n n2 n3))
-      (with-nv-input (lu-data lu% common-type)
-        (with-nv-input-output (b-data x-data b% common-type)
-          (with-nv-input (ipiv ipiv% :integer)
-            (with-fortran-scalars ((n n% :integer)
-                                   (nrhs nrhs% :integer))
-              (with-character (trans% #\N)
-                (with-info-check (getrf info%)
-                  (funcall procedure trans% n% nrhs% lu% n% ipiv% b% n% info%)))
-              (make-instance 'dense-matrix :nrow n :ncol nrhs
-                             :data x-data))))))))
-
 (defun eigen-dense-matrix-double (a &key vectors-p check-real-p)
   "Eigenvalues and vectors for dense, double matrices."
-  (as-dense-matrix (a)
-    (bind (((:slots-read-only (n nrow) (n2 ncol) (a-data data)) a)
-           (procedure (lb-procedure-name geev :double)))
-      (assert (= n n2))
-      (with-nv-input-copied (a-data a% :double) ; A is overwritten
-        (with-work-area (w% :double (* 2 n)) ; eigenvalues, will be zipped
-          (let (;; imaginary part
-                (wi% (inc-pointer w% (* n (foreign-type-size :double)))))
-            (with-fortran-scalar (n n% :integer)
-              (with-characters ((n-char #\N)
-                                (v-char #\V))
-                (if vectors-p
-                    (with-nv-output (vr-data (* n n) vr% :double)
-                      (with-lwork-query (lwork work :double)
-                        (with-info-check (geev info%)
-                          (funcall procedure n-char v-char n% a% n% 
-                                   w% wi% ; eigenvalues
-                                   (null-pointer) n% vr% n% ; eigenvectors
-                                   work lwork info%)))
-                      (values (nv-zip-complex-double w% n check-real-p)
-                              (make-instance 'dense-matrix :nrow n :ncol n
-                                             :data vr-data)))
+  (set-restricted a)
+  (bind (((:slots-read-only (n nrow) (n2 ncol) (a-data data)) a)
+         (procedure (lb-procedure-name geev :double)))
+    (assert (= n n2))
+    (with-nv-input-copied (a-data a% :double) ; A is overwritten
+      (with-work-area (w% :double (* 2 n)) ; eigenvalues, will be zipped
+        (let (                             ;; imaginary part
+              (wi% (inc-pointer w% (* n (foreign-type-size :double)))))
+          (with-fortran-scalar (n n% :integer)
+            (with-characters ((n-char #\N)
+                              (v-char #\V))
+              (if vectors-p
+                  (with-nv-output (vr-data (* n n) vr% :double)
                     (with-lwork-query (lwork work :double)
                       (with-info-check (geev info%)
-                        (funcall procedure n-char n-char n% a% n% 
+                        (funcall procedure n-char v-char n% a% n% 
                                  w% wi% ; eigenvalues
-                                 (null-pointer) n% (null-pointer) n% ; eigenvectors
-                                 work lwork info%)
-                        (nv-zip-complex-double w% n check-real-p))))))))))))
-
-
+                                 (null-pointer) n% vr% n% ; eigenvectors
+                                 work lwork info%)))
+                    (values (nv-zip-complex-double w% n check-real-p)
+                            (make-instance 'dense-matrix :nrow n :ncol n
+                                           :data vr-data)))
+                  (with-lwork-query (lwork work :double)
+                    (with-info-check (geev info%)
+                      (funcall procedure n-char n-char n% a% n% 
+                               w% wi%   ; eigenvalues
+                               (null-pointer) n% (null-pointer) n% ; eigenvectors
+                               work lwork info%)
+                      (nv-zip-complex-double w% n check-real-p)))))))))))
 
 (defun eigen-dense-matrix-complex-double (a &key vectors-p check-real-p)
   "Eigenvalues and vectors for dense, double matrices."
@@ -236,30 +235,31 @@ multiple columns, in which case x will have the same number of
 columns, each corresponding to a different column of b."))
 
 (defmethod least-squares ((a dense-matrix-like) (b dense-matrix-like))
-  (as-dense-matrix (a b)
-    (bind (((:slots-read-only (m nrow) (n ncol) (a-data data)) a)
-           ((:slots-read-only (m2 nrow) (nrhs ncol) (b-data data)) b)
-           (common-type (smallest-common-target-type
-                         (mapcar #'lla-type (list a-data b-data))))
-           (procedure (lb-procedure-name gels common-type)))
-      (assert (= m m2))
-      (unless (<= n m)
-        (error "A doesn't have enough columns for least squares"))
-      (with-nv-input-output (a-data qr-data a% common-type) ; output: QR decomposition
-        (with-nv-input-output (b-data x-data b% common-type) ; output: 
-          (with-character (n-char #\N)
-            (with-fortran-scalars ((n n% :integer)
-                                   (m m% :integer)
-                                   (nrhs nrhs% :integer))
-              (with-lwork-query (lwork% work% :double)
-                (with-info-check (gels info%)
-                  (funcall procedure n-char m% n% nrhs% a% m% b% m%
-                           work% lwork% info%)))
-              (values 
-                (matrix-from-first-rows x-data m nrhs n)
-                (make-instance 'qr :nrow m :ncol n
-                               :data qr-data)
-                (sum-last-rows x-data m nrhs n)))))))))
+  (set-restricted a)
+  (set-restricted b)
+  (bind (((:slots-read-only (m nrow) (n ncol) (a-data data)) a)
+         ((:slots-read-only (m2 nrow) (nrhs ncol) (b-data data)) b)
+         (common-type (smallest-common-target-type
+                       (mapcar #'lla-type (list a-data b-data))))
+         (procedure (lb-procedure-name gels common-type)))
+    (assert (= m m2))
+    (unless (<= n m)
+      (error "A doesn't have enough columns for least squares"))
+    (with-nv-input-output (a-data qr-data a% common-type) ; output: QR decomposition
+      (with-nv-input-output (b-data x-data b% common-type) ; output: 
+        (with-character (n-char #\N)
+          (with-fortran-scalars ((n n% :integer)
+                                 (m m% :integer)
+                                 (nrhs nrhs% :integer))
+            (with-lwork-query (lwork% work% :double)
+              (with-info-check (gels info%)
+                (funcall procedure n-char m% n% nrhs% a% m% b% m%
+                         work% lwork% info%)))
+            (values 
+              (matrix-from-first-rows x-data m nrhs n)
+              (make-instance 'qr :nrow m :ncol n
+                             :data qr-data)
+              (sum-last-rows x-data m nrhs n))))))))
 
 ;;; univariate versions of least squares: vector ~ vector, vector ~ matrix
 
@@ -281,8 +281,8 @@ columns, each corresponding to a different column of b."))
   (:documentation "Invert A."))
 
 (defmethod invert ((a dense-matrix-like))
-  (as-dense-matrix (a)
-    (invert (lu a))))
+  (set-restricted a)
+  (invert (lu a)))
 
 (defmethod invert ((lu lu))
   (bind (((:slots-read-only (n nrow) (n2 ncol) ipiv (lu-data data)) lu)
@@ -364,26 +364,27 @@ decomposition of X."
   alpha (defaults to 1)."))
 
 (defmethod mm ((a dense-matrix-like) (b dense-matrix-like) &key (alpha 1))
-  (as-dense-matrix (a b)
-    (bind (((:slots-read-only (m nrow) (k ncol) (a-data data)) a)
-           ((:slots-read-only (k2 nrow) (n ncol) (b-data data)) b)
-           (common-type (smallest-common-target-type
-                         (mapcar #'lla-type (list a-data b-data))))
-           (lisp-type (lla-type->lisp-type common-type))
-           (procedure (lb-procedure-name gemm common-type)))
-      (assert (= k k2))
-      (with-nv-input (a-data a% common-type)
-        (with-nv-input (b-data b% common-type)
-          (with-nv-output (c-data (* m n) c% common-type)
-            (with-fortran-scalars ((n n% :integer)
-                                   (k k% :integer)
-                                   (m m% :integer)
-                                   ((coerce alpha lisp-type) alpha% common-type)
-                                   ((coerce 0 lisp-type) z% common-type))
-              (with-character (trans% #\N)
-                (funcall procedure trans% trans% m% n% k% alpha% a% m% b% k%
-                         z% c% m%)))
-            (make-instance 'dense-matrix :nrow m :ncol n :data c-data)))))))
+  (set-restricted a)
+  (set-restricted b)
+  (bind (((:slots-read-only (m nrow) (k ncol) (a-data data)) a)
+         ((:slots-read-only (k2 nrow) (n ncol) (b-data data)) b)
+         (common-type (smallest-common-target-type
+                       (mapcar #'lla-type (list a-data b-data))))
+         (lisp-type (lla-type->lisp-type common-type))
+         (procedure (lb-procedure-name gemm common-type)))
+    (assert (= k k2))
+    (with-nv-input (a-data a% common-type)
+      (with-nv-input (b-data b% common-type)
+        (with-nv-output (c-data (* m n) c% common-type)
+          (with-fortran-scalars ((n n% :integer)
+                                 (k k% :integer)
+                                 (m m% :integer)
+                                 ((coerce alpha lisp-type) alpha% common-type)
+                                 ((coerce 0 lisp-type) z% common-type))
+            (with-character (trans% #\N)
+              (funcall procedure trans% trans% m% n% k% alpha% a% m% b% k%
+                       z% c% m%)))
+          (make-instance 'dense-matrix :nrow m :ncol n :data c-data))))))
 
 ;;; !!! write triangular method, currently I am confused about its
 ;;; !!! generality wrt dimensions - does it handle square triangular
@@ -463,45 +464,45 @@ decomposition of X."
 
 (defun update-syhe% (a c alpha beta operation hermitian-p)
   "Internal procedure for *SYRK and *HERK.  The convention is that
-this function will convert A to a DENSE-MATRIX."
-  (as-dense-matrix (a)
-    (bind (((:slots-read-only (nrow-a nrow) (ncol-a ncol) (a-data data)) a)
-           ((:slots-read-only (nrow-c nrow) (ncol-c ncol) (c-data data)) c)
-           (common-type (let ((ct (smallest-common-target-type
-                                   (mapcar #'lla-type (list c-data c-data)))))
-                          (if hermitian-p
-                              ;; for Hermitian operations, the result is
-                              ;; always complex.
-                              (case ct
-                                ((:single :complex-single) :complex-single)
-                                (t :complex-double))
-                              ct)))
-           (lisp-type (lla-type->lisp-type common-type))
-           (procedure (if hermitian-p
-                          (lb-procedure-name herk common-type)
-                          (lb-procedure-name syrk common-type)))
-           (k (ecase operation          ; the "other" dimension of A
-                (:none (assert (= nrow-a nrow-c)) ncol-a)
-                ((:transpose :conjugate) (assert (= ncol-a ncol-c)) nrow-a))))
-      (assert (= ncol-c nrow-c)) ; not really needed, c has to be symm/herm
-      (when hermitian-p
-        ;; T not a valid operation, LAPACK would choke
-        (assert (not (eq operation :transpose))))
-      (with-nv-input (a-data a% common-type)
-        (with-nv-input-output (c-data x-data c% common-type)
-          (with-fortran-scalars ((nrow-a nrow-a% :integer)
-                                 (ncol-c n% :integer)
-                                 (k k% :integer)
-                                 ((coerce alpha lisp-type) alpha% common-type)
-                                 ((coerce beta lisp-type) beta% common-type))
-            (with-characters ((u-char #\U)
-                              (t-char (ntc-operation-char% operation)))
-              (funcall procedure u-char t-char n% k% alpha% a% nrow-a%
-                       beta% c% n%)))
-          (make-instance (if hermitian-p
-                             'hermitian-matrix
-                             'symmetric-matrix) 
-                         :nrow nrow-c :ncol nrow-c :data x-data))))))
+this function will enforce restrictions on A as a DENSE-MATRIX."
+  (set-restricted a)
+  (bind (((:slots-read-only (nrow-a nrow) (ncol-a ncol) (a-data data)) a)
+         ((:slots-read-only (nrow-c nrow) (ncol-c ncol) (c-data data)) c)
+         (common-type (let ((ct (smallest-common-target-type
+                                 (mapcar #'lla-type (list c-data c-data)))))
+                        (if hermitian-p
+                            ;; for Hermitian operations, the result is
+                            ;; always complex.
+                            (case ct
+                              ((:single :complex-single) :complex-single)
+                              (t :complex-double))
+                            ct)))
+         (lisp-type (lla-type->lisp-type common-type))
+         (procedure (if hermitian-p
+                        (lb-procedure-name herk common-type)
+                        (lb-procedure-name syrk common-type)))
+         (k (ecase operation            ; the "other" dimension of A
+              (:none (assert (= nrow-a nrow-c)) ncol-a)
+              ((:transpose :conjugate) (assert (= ncol-a ncol-c)) nrow-a))))
+    (assert (= ncol-c nrow-c)) ; not really needed, c has to be symm/herm
+    (when hermitian-p
+      ;; T not a valid operation, LAPACK would choke
+      (assert (not (eq operation :transpose))))
+    (with-nv-input (a-data a% common-type)
+      (with-nv-input-output (c-data x-data c% common-type)
+        (with-fortran-scalars ((nrow-a nrow-a% :integer)
+                               (ncol-c n% :integer)
+                               (k k% :integer)
+                               ((coerce alpha lisp-type) alpha% common-type)
+                               ((coerce beta lisp-type) beta% common-type))
+          (with-characters ((u-char #\U)
+                            (t-char (ntc-operation-char% operation)))
+            (funcall procedure u-char t-char n% k% alpha% a% nrow-a%
+                     beta% c% n%)))
+        (make-instance (if hermitian-p
+                           'hermitian-matrix
+                           'symmetric-matrix) 
+                       :nrow nrow-c :ncol nrow-c :data x-data)))))
 
 (defmethod update-syhe ((a dense-matrix-like) (c symmetric-matrix) op-left-p
                         &key (alpha 1) (beta 0))
@@ -542,18 +543,18 @@ of the valid symbols.  Internal, not exported."
   triangle of a dense-matrix, and needs a PSD matrix."))
 
 (defmethod cholesky ((a dense-matrix-like))
-  (as-dense-matrix (a)
-    (bind (((:slots-read-only (n nrow) (n2 ncol) data) a)
-           (common-type (lla-type data))
-           (procedure (lb-procedure-name potrf common-type)))
-      (assert (= n n2))
-      (with-nv-input-output (data cholesky-data data% common-type)
-        (with-fortran-scalar (n n% :integer)
-          (with-character (u-char #\L)
-            (with-info-check (potrf info%)
-              (funcall procedure u-char n% data% n% info%)))
-	  (make-instance 'cholesky :nrow n :ncol n
-			 :data cholesky-data))))))
+  (set-restricted a)
+  (bind (((:slots-read-only (n nrow) (n2 ncol) data) a)
+         (common-type (lla-type data))
+         (procedure (lb-procedure-name potrf common-type)))
+    (assert (= n n2))
+    (with-nv-input-output (data cholesky-data data% common-type)
+      (with-fortran-scalar (n n% :integer)
+        (with-character (u-char #\L)
+          (with-info-check (potrf info%)
+            (funcall procedure u-char n% data% n% info%)))
+        (make-instance 'cholesky :nrow n :ncol n
+                       :data cholesky-data)))))
 
 (defmethod reconstruct ((mf cholesky))
   (update-syhe (take 'lower-triangular-matrix mf) 'hermitian-matrix nil))

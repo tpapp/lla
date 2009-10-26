@@ -139,11 +139,13 @@ printed instead (should be a string)."
 ;;;;  superclass of all of these is dense-matrix-like.
 ;;;;
 ;;;;  IMPORTANT: whenever an argument is dense-matrix-like but need to
-;;;;  be interpreted in a FORTRAN call as a dense-matrix, use (take
-;;;;  'dense-matrix object), or (as-dense-matrix (object) ...), where
-;;;;  the latter is preferred style.
+;;;;  be interpreted in a FORTRAN call as a dense-matrix, element
+;;;;  restrictions need to be enforced.  The best way to do this is
+;;;;  using (set-restricted object): this will ensure that next time
+;;;;  this is done, it will not result in efficiency loss (unless the
+;;;;  object is modified, of course).
 
-(defclass dense-matrix-like (matrix)
+(define-abstract-class dense-matrix-like (matrix)
   ()
   (:documentation "Elements stored like a dense matrix (in
   column-major order), but some elements may not be accessed or can be
@@ -153,14 +155,6 @@ printed instead (should be a string)."
 (defclass dense-matrix (dense-matrix-like)
   ()
   (:documentation "Dense matrix, elements stored in column-major order."))
-
-(defmacro as-dense-matrix (matrices &body body)
-  "Rebind matrices as dense-matrix."
-  `(let ,(mapcar (lambda (x)
-                   (check-type x symbol)
-                   `(,x (take 'dense-matrix ,x)))
-          matrices)
-     ,@body))
 
 (declaim (inline cm-index2))
 (defun cm-index2 (nrow row col)
@@ -355,7 +349,7 @@ length n.")
 ;;;;  0.  zero-restricted keeps track of whether this has been done.
 ;;;;
 
-(defclass restricted-elements ()
+(define-abstract-class restricted-elements ()
   ((restricted-set-p :type boolean :accessor restricted-set-p
    :initform nil :documentation "non-nil iff not accessible elements
    in the data vectors have been enforced to contain 0."))
@@ -383,6 +377,10 @@ length n.")
         (set-restricted* matrix)
         (setf restricted-set-p t)))))
 
+(define-abstract-class dense-matrix-restricted (dense-matrix-like restricted-elements)
+  ()
+  (:documentation "Superclass for restricted dense matrices."))
+
 (defun take-dense-matrix-like (class matrix force-copy-p lla-type)
   "INTERNAL function.  Use data in a dense-matrix matrix in another
   dense-matrix-like object (with given class), copying and converting
@@ -408,6 +406,7 @@ length n.")
 ;;;;
 ;;;;  Upper triangular matrix
 ;;;;
+;;;;  (setf xref) has no effect on restricted-set-p.
 
 (defclass upper-triangular-matrix (dense-matrix-like restricted-elements)
   ()
@@ -455,6 +454,7 @@ below the diagonal are not necessarily initialized and not accessed."))
 ;;;;
 ;;;;  Lower triangular matrix
 ;;;;
+;;;;  (setf xref) has no effect on restricted-set-p.
 
 (defclass lower-triangular-matrix (dense-matrix-like restricted-elements)
   ()
@@ -514,6 +514,7 @@ above the diagonal are not necessarily initialized and not accessed."))
 ;;;;
 ;;;;  Symmetric matrix
 ;;;;
+;;;;  restricted-set-p has to be unset when (setf xref) is used.
 
 (declaim (inline cm-index-symmetric))
 (defun cm-index-symmetric (nrow row col)
@@ -535,9 +536,10 @@ above the diagonal are not necessarily initialized and not accessed."))
 
 (defmethod (setf xref) (value (matrix symmetric-matrix) &rest subscripts)
   (bind (((row col) subscripts))
-    (with-slots (nrow ncol data) matrix
+    (with-slots (nrow ncol data restricted-set-p) matrix
       (check-index row nrow)
       (check-index col ncol)
+      (setf restricted-set-p nil)
       (setf (xref data (cm-index-symmetric nrow row col))
 	    value))))
 
@@ -571,6 +573,7 @@ above the diagonal are not necessarily initialized and not accessed."))
 ;;;;
 ;;;;  Hermitian matrix
 ;;;;
+;;;;  restricted-set-p has to be unset when (setf xref) is used.
 
 (defclass hermitian-matrix (dense-matrix-like restricted-elements)
   ()
@@ -587,9 +590,10 @@ above the diagonal are not necessarily initialized and not accessed."))
 
 (defmethod (setf xref) (value (matrix symmetric-matrix) &rest subscripts)
   (bind (((row col) subscripts))
-    (with-slots (nrow ncol data) matrix
+    (with-slots (nrow ncol data restricted-set-p) matrix
       (check-index row nrow)
       (check-index col ncol)
+      (setf restricted-set-p nil)
       (if (<= row col)
           (setf (xref data (cm-index2 nrow row col)) value)
           (setf (xref data (cm-index2 nrow col row)) (conjugate value))))))
@@ -619,7 +623,6 @@ above the diagonal are not necessarily initialized and not accessed."))
 
 (define-matrix-like-printer (matrix hermitian-matrix stream) ()
   (print-matrix matrix stream :mask #'hermitian-mask))
-
 
 
 ;;;; matrix factorizations
