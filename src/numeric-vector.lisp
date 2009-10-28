@@ -175,6 +175,20 @@ use any kind of initial contents if they make sense."
     (make-instance (numeric-vector-class lla-type)
 		   :data data :shared-p nil)))
 
+(defmethod take ((class-name (eql 'numeric-vector)) (vector vector) &key force-copy-p
+                 options)
+  ;; this method tries to guess the type from the provided vector, or
+  ;; use a default
+  (bind ((vector-lla-type (lisp-type->lla-type 
+                           (array-element-type vector)
+                           nil))
+         (default-lla-type (if vector-lla-type vector-lla-type
+                 (lla-type-classifier vector)))
+         ((&key (lla-type default-lla-type)) options))
+    (make-nv (length vector) lla-type vector (and (eq lla-type vector-lla-type) (not force-copy-p)))))
+
+
+
 ;;;; generic xref interface
 ;;;;
 ;;;; !! also check for speed? -- Tamas

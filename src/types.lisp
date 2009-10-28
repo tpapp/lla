@@ -84,7 +84,7 @@ Basic summary:
 	;; reverse only for cosmetic purposes
 	(nreverse coercible))))
 
-(defun lisp-type->lla-type (lisp-type)
+(defun lisp-type->lla-type (lisp-type &optional value-if-not-recognized)
   (match lisp-type
 	 ('single-float :single)
 	 ('double-float :double)
@@ -92,8 +92,10 @@ Basic summary:
 	 ((list 'complex 'double-float) :complex-double)
 	 ((list 'unsigned-byte 32) :integer)
 	 ;; !! should define & use conditions -- Tamas
-	 (_ (error "~a is not recognized as corresponding to a valid ~
-  LLA type" lisp-type))))
+	 (_ (if (eq value-if-not-recognized 'error)
+                (error "~a is not recognized as corresponding to a valid ~
+  LLA type" lisp-type)
+                value-if-not-recognized))))
 
 (defun lla-type->lisp-type (lla-type)
   (case lla-type
@@ -126,3 +128,29 @@ that this is always a float type because of LAPACK."
       (complex-p :complex-single)
       (double-p :double)
       (t :single))))
+
+(defun lla-type-classifier (sequence)
+  "Finds the smallest lla type that can accomodate the elements of
+  list (after being converted with coerce).  If no such lla-type can
+  be found, return nil."
+  (let ((typecode (reduce (lambda (x y)
+                            ;; parallel maximum on a cons
+                            (cons (max (car x) (car y)) (max (cdr x) (cdr y))))
+                          sequence
+                          :key (lambda (x)
+                                 ;; conses: precision (0: integer, 1:
+                                 ;; single, 2: double) and complex indicator
+                                 (cond
+                                   ((typep x '(signed-byte 32)) '(0 . 0))
+                                   ((typep x '(or single-float rational)) '(1 . 0))
+                                   ((typep x 'double-float) '(2 . 0))
+                                   ((typep x '(complex single-float)) '(1 . 1))
+                                   ((typep x '(complex double-float)) '(2 . 1))
+                                   (t (return-from lla-type-classifier nil)))))))
+    (cond
+      ((equal typecode '(0 . 0)) :integer)
+      ((equal typecode '(1 . 0)) :single)
+      ((equal typecode '(2 . 0)) :double) 
+      ((equal typecode '(1 . 1)) :complex-single)
+      ((equal typecode '(2 . 1)) :complex-double)
+      (t (error "internal error, this should never happen")))))
