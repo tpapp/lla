@@ -180,16 +180,17 @@ printed instead (should be a string)."
 
 (defun xsimilar% (object rank)
   ;; not exported
-  (let ((lla-type (lla-type object)))
+  (let ((lla-type (lla-type object))
+        (rank (if (eq t rank) (xrank object) rank)))
     (ecase rank
       (1 (list (numeric-vector-class lla-type)))
       (2 `(dense-matrix :lla-type ,lla-type)))))
 
-(defmethod xsimilar ((nv numeric-vector) new-dimensions)
-  (xsimilar% nv new-dimensions))
+(defmethod xsimilar ((nv numeric-vector) rank)
+  (xsimilar% nv rank))
 
-(defmethod xsimilar ((m dense-matrix-like) new-dimensions)
-  (xsimilar% m new-dimensions))
+(defmethod xsimilar ((m dense-matrix-like) rank)
+  (xsimilar% m rank))
 
 
 ;;;; matrix creation
