@@ -119,6 +119,8 @@ LLA type."
                                    (lambda (x) (coerce x ',lisp-type)))
                                vector))))
      (defmethod xcreate ((class (eql ',class-name)) dimensions &optional options)
+       (when options
+         (error "This method does not take any options."))
        (let ((length (cond
                     ((atom dimensions) dimensions)
                     (t (bind (((length &rest rest) dimensions))
@@ -175,18 +177,62 @@ use any kind of initial contents if they make sense."
     (make-instance (numeric-vector-class lla-type)
 		   :data data :shared-p nil)))
 
+;;;;
+;;;;  Interface for NUMERIC-VECTOR
+;;;;
+
+(defgeneric default-lla-type (object)
+  (:documentation "Try to determine default lla-type for object.  If
+  this cannot be done, return nil.")
+  (:method ((vector vector))
+    (bind ((vector-lla-type (lisp-type->lla-type 
+                             (array-element-type vector)
+                             nil)))
+      (if vector-lla-type vector-lla-type
+          (lla-type-classifier vector))))
+  (:method ((array array))
+    (default-lla-type (flatten-array array)))
+  (:method ((view view))
+    (default-lla-type (original-ancestor view)))
+  (:method ((nv numeric-vector))
+    (lla-type nv)))
+
+(defmethod xcreate ((class (eql 'numeric-vector)) dimensions &optional
+                    options)
+  (bind (((&key (lla-type :double)) options)
+         ((n) dimensions))
+    (make-nv n lla-type 0)))
+    
 (defmethod take ((class-name (eql 'numeric-vector)) (vector vector) &key force-copy-p
                  options)
   ;; this method tries to guess the type from the provided vector, or
   ;; use a default
-  (bind ((vector-lla-type (lisp-type->lla-type 
-                           (array-element-type vector)
-                           nil))
-         (default-lla-type (if vector-lla-type vector-lla-type
-                 (lla-type-classifier vector)))
-         ((&key (lla-type default-lla-type)) options))
-    (make-nv (length vector) lla-type vector (and (eq lla-type vector-lla-type) (not force-copy-p)))))
+  (bind (((&key (lla-type (default-lla-type vector))) options))
+    (unless lla-type
+      (error "could not determine lla-type"))
+    (make-nv (length vector) lla-type vector 
+             (and (eq lla-type (lisp-type->lla-type
+                                (array-element-type vector)))
+                  (not force-copy-p)))))
 
+(defmethod take ((class-name (eql 'numeric-vector)) (view view) &key
+                 options force-copy-p)
+  (declare (ignore force-copy-p))
+  (bind (((&key (lla-type (default-lla-type view))) options))
+    (unless lla-type
+      (error "could not determined lla-type"))
+    (bind ((vector (take 'array view
+                         :options `(:element-type
+                                    ,(lla-type->lisp-type lla-type))
+                         :force-copy-p t)))
+      (make-nv (length vector) lla-type vector t))))
+
+(defmethod take ((class-name (eql 'numeric-vector))
+                 (nv numeric-vector) &key options force-copy-p)
+  (bind (((&key (lla-type :double)) options))
+    (if (eq lla-type (lla-type nv))
+        (nv-copy nv (not force-copy-p))
+        (nv-copy-convert nv lla-type))))
 
 
 ;;;; generic xref interface
@@ -216,6 +262,19 @@ use any kind of initial contents if they make sense."
     (copy-data nv))
   (setf (aref (nv-data nv) (first subscripts))
 	value))
+
+;;;; some operations
+;;;; !!!! do this nicely, with macros, for every operation
+
+(defmethod x* ((a numeric-vector) (b number) &key)
+  (let ((data (nv-data a))
+        (result-type (type-of (* b (to-lla-type 0 (lla-type a))))))
+    (make-nv (xsize a) (lisp-type->lla-type result-type)
+             (map `(simple-array ,result-type (*)) (lambda (a) (* a b)) data) t)))
+
+(defmethod x* ((a number) (b numeric-vector) &key)
+  (x* b a))
+  
 
 ;;;;
 ;;;;  copying and conversion (between float types)

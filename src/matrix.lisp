@@ -295,6 +295,7 @@ NOTE: needed to interface to LAPACK routines like xGELS."
              lisp-type)))
     (make-nv nrhs (lla-type nv) result t)))
 
+
 ;;;; matrix<->vector conversions
 ;;;;
 ;;;; IMPORTANT: results MAY share data with the original.  When
@@ -351,6 +352,7 @@ length n.")
 
 (define-abstract-class restricted-elements ()
   ((restricted-set-p :type boolean :accessor restricted-set-p
+                     :initarg :restricted-set-p
    :initform nil :documentation "non-nil iff not accessible elements
    in the data vectors have been enforced to contain 0."))
   (:documentation "Matrices (& other data structures) that store data
@@ -402,6 +404,19 @@ length n.")
        (take-dense-matrix-like ',class matrix force-copy-p lla-type))))
 
 (define-dense-matrix-like-take dense-matrix)
+
+;;;; multiplication: takes advantage of special structure
+
+(defmethod x* ((a dense-matrix-like) (b number) &key)
+  ;;; !!!! this assumes that all restricted elements are zeros
+  (if (typep a 'restricted-elements)
+      (make-instance (class-of a) :nrow (nrow a) :ncol (ncol a)
+                     :data (x* (data a) b) :restricted-set-p (restricted-set-p a))
+      (make-instance (class-of a) :nrow (nrow a) :ncol (ncol a)
+                     :data (x* (data a) b))))
+
+(defmethod x* ((a number) (b dense-matrix-like) &key)
+  (x* b a))
 
 ;;;;
 ;;;;  Upper triangular matrix

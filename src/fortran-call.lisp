@@ -228,11 +228,12 @@ not)."))
 ;;;;
 
 (defgeneric least-squares (a b)
-  (:documentation "Return (values x qr ss), where x = argmin_x L2norm(
-b-Ax ), solving a least squares problem, qr is the QR decomposition of
-A, and SS is the sum of squares for each column of B.  B can have
-multiple columns, in which case x will have the same number of
-columns, each corresponding to a different column of b."))
+  (:documentation "Return (values x qr ss nu), where x = argmin_x
+L2norm( b-Ax ), solving a least squares problem, qr is the QR
+decomposition of A, and SS is the sum of squares for each column of B.
+B can have multiple columns, in which case x will have the same number
+of columns, each corresponding to a different column of b.  nu is the
+degrees of freedom."))
 
 (defmethod least-squares ((a dense-matrix-like) (b dense-matrix-like))
   (set-restricted a)
@@ -259,18 +260,19 @@ columns, each corresponding to a different column of b."))
               (matrix-from-first-rows x-data m nrhs n)
               (make-instance 'qr :nrow m :ncol n
                              :data qr-data)
-              (sum-last-rows x-data m nrhs n))))))))
+              (sum-last-rows x-data m nrhs n)
+              (- m n))))))))
 
 ;;; univariate versions of least squares: vector ~ vector, vector ~ matrix
 
 (defmethod least-squares ((a dense-matrix-like) (b numeric-vector))
-  (bind (((:values x qr ss) (least-squares a (vector->matrix-col b))))
-    (values (matrix->vector x) qr (xref ss 0))))
+  (bind (((:values x qr ss nu) (least-squares a (vector->matrix-col b))))
+    (values (matrix->vector x) qr (xref ss 0) nu)))
 
 (defmethod least-squares ((a numeric-vector) (b numeric-vector))
-  (bind (((:values x qr ss) (least-squares (vector->matrix-col a)
+  (bind (((:values x qr ss nu) (least-squares (vector->matrix-col a)
                                            (vector->matrix-col b))))
-    (values (matrix->vector x) qr (xref ss 0))))
+    (values (matrix->vector x) qr (xref ss 0) nu)))
 
 
 ;;;;
@@ -343,7 +345,8 @@ NOTE: for internal use, not exported."
 
 (defun least-squares-raw-variance (qr)
   "Calculate the residual variance (basically, (X^T X)-1 ) from the qr
-decomposition of X."
+decomposition of X.  Return a CHOLESKY decomposition, which can be
+used as a LOWER-TRIANGULAR-MATRIX for generating random draws. "
   ;; Notes: X = QR, thus X^T X = R^T Q^T Q R = R^T R because Q is
   ;; orthogonal.  Then we do as if calculating the inverse of a matrix
   ;; using its Cholesky decomposition.

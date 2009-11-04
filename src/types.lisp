@@ -85,17 +85,16 @@ Basic summary:
 	(nreverse coercible))))
 
 (defun lisp-type->lla-type (lisp-type &optional value-if-not-recognized)
-  (match lisp-type
-	 ('single-float :single)
-	 ('double-float :double)
-	 ((list 'complex 'single-float) :complex-single)
-	 ((list 'complex 'double-float) :complex-double)
-	 ((list 'unsigned-byte 32) :integer)
-	 ;; !! should define & use conditions -- Tamas
-	 (_ (if (eq value-if-not-recognized 'error)
-                (error "~a is not recognized as corresponding to a valid ~
+  (cond
+    ((subtypep lisp-type 'single-float) :single)
+    ((subtypep lisp-type 'double-float) :double)
+    ((subtypep lisp-type '(complex single-float)) :complex-single)
+    ((subtypep lisp-type '(complex double-float)) :complex-double)
+    ((subtypep lisp-type '(signed-byte 32)) :integer)
+    (t (if (eq value-if-not-recognized 'error)
+           (error "~a is not recognized as corresponding to a valid ~
   LLA type" lisp-type)
-                value-if-not-recognized))))
+           value-if-not-recognized))))
 
 (defun lla-type->lisp-type (lla-type)
   (case lla-type
@@ -103,7 +102,7 @@ Basic summary:
     (:double 'double-float)
     (:complex-single '(complex single-float))
     (:complex-double '(complex double-float))
-    (:integer '(unsigned-byte 32))
+    (:integer '(signed-byte 32))
     ;; !! should define & use conditions -- Tamas
     (otherwise (error "~a is not a valid LLA type" lla-type))))
 
@@ -154,3 +153,7 @@ that this is always a float type because of LAPACK."
       ((equal typecode '(1 . 1)) :complex-single)
       ((equal typecode '(2 . 1)) :complex-double)
       (t (error "internal error, this should never happen")))))
+
+(defun to-lla-type (number lla-type)
+  "Return number coerced to lla-type."
+  (coerce number (lla-type->lisp-type lla-type)))
