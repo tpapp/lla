@@ -203,13 +203,14 @@ commonly a single function call."
   (declare (ignore a vectors-p check-real-p))
   (error "this function needs to be implemented"))
 
-
 (defgeneric eigen (a &key vectors-p check-real-p &allow-other-keys)
   (:documentation "Calculate the eigenvalues and optionally the right
-eigenvectors of a matrix.  Return (values eigenvalues eigenvectors).
-If check-real-p, eigenvalues of real matrices are checked for an
-imaginary part and returned with the appropriate type (compex or
-not)."))
+eigenvectors of a matrix (as columns).  Return (values eigenvalues
+eigenvectors).  If check-real-p, eigenvalues of real matrices are
+checked for an imaginary part and returned with the appropriate
+type (compex or not).  Complex conjugate pairs of eigenvalues appear
+consecutively with the eigenvalue having the positive imaginary part
+first."))
 
 (defmethod eigen ((a dense-matrix-like) &key vectors-p check-real-p)
   ;; The current approach is: convert to double precision (complex or
