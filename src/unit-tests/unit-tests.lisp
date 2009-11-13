@@ -98,6 +98,23 @@ coercions are valid."
   (lambda (a b)
     (x= a b eps)))
 
+(defun make-nv-with-seq (lla-type n)
+  "Return a numeric-vector of type LLA-TYPE, holding the integers 0...n-1."
+  (bind ((nv (make-nv n lla-type))
+         (data (nv-data nv))
+         (lisp-type (xelttype nv)))
+    (iter
+      (for i :from 0 :below n)
+      (setf (aref data i) (coerce i lisp-type)))
+    nv))
+
+(defun make-matrix-with-seq (lla-type nrow ncol)
+  "Return a dense matrix of type LLA-TYPE, holding the integers
+0...n-1 in column-major order."
+  (make-matrix 'dense-matrix nrow ncol :lla-type lla-type
+               :initial-contents (make-nv-with-seq lla-type (* nrow ncol))
+               :use-directly-p t))
+
 ;; TESTS
 
 ;;;;
@@ -173,6 +190,18 @@ coercions are valid."
     (ensure-same (make 'symmetric-matrix)
                  #2A((1 2) (2 4))
                  :test #'x=)))
+
+(addtest (lla-unit-tests)
+  transpose
+  (ensure-same (take 'array (transpose (make-matrix-with-seq :double 3 4)))
+               #2A((0.0d0 1.0d0 2.0d0)
+                   (3.0d0 4.0d0 5.0d0)
+                   (6.0d0 7.0d0 8.0d0)
+                   (9.0d0 10.0d0 11.0d0))
+               :test #'x=)
+  ;; !!! test transpose for other classes, lower-upper triangular, symmetric, etc
+  ;; !!! check for type of resulting class
+  )
 
 ;;;;
 ;;;; linear algebra !!! incorporate stuff below

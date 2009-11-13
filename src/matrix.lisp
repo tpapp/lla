@@ -380,6 +380,11 @@ length n.")
         (set-restricted* matrix)
         (setf restricted-set-p t)))))
 
+(defmethod restricted-set-p ((matrix dense-matrix))
+  ;; Dense matrices can behave as if their restricted elements were
+  ;; always set.  This makes handling some special cases easier.
+  t)
+
 (define-abstract-class dense-matrix-restricted (dense-matrix-like restricted-elements)
   ()
   (:documentation "Superclass for restricted dense matrices."))
@@ -405,6 +410,43 @@ length n.")
        (take-dense-matrix-like ',class matrix force-copy-p lla-type))))
 
 (define-dense-matrix-like-take dense-matrix)
+
+;;;; transpose
+;;;;
+;;;; Methods should take care of returning the correct result type (eg
+;;;; lower-triangular into upper-triangular, etc).  Helper function
+;;;; transpose% can be used for implementation.
+
+(defun transpose% (matrix transposed-matrix-class)
+  "Return the transpose of MATRIX, which will be of class
+TRANSPOSED-MATRIX-CLASS.  RESTRICTED-SET-P is propagated if
+meaningful.  Meant to be used as a helper function."
+  (declare (optimize (speed 3)))
+  (bind (((:slots-read-only nrow ncol data) matrix)
+         (original-vector (nv-data data))
+         (transposed (make-nv (length original-vector) (lla-type data)))
+         (transposed-vector (nv-data transposed)))
+    (declare (fixnum nrow ncol))
+    ;; !!! could do with a bit of optimization, eg methods specialized
+    ;; !!! on lla-type, some fixnums are still not recognized --- Tamas
+    (dotimes (col ncol)
+      (declare (fixnum col))
+      (iter
+        (declare (iterate:declare-variables))
+        (for (the fixnum original-i) :from (cm-index2 nrow 0 col) :below (cm-index2 nrow nrow col))
+        (for (the fixnum transposed-i) :from (cm-index2 ncol col 0) :by ncol)
+        (setf (aref transposed-vector transposed-i)
+              (aref original-vector original-i))))
+    (let ((transposed-matrix (make-matrix transposed-matrix-class ncol nrow
+                                          :lla-type (lla-type matrix)
+                                          :initial-contents transposed
+                                          :use-directly-p t)))
+      (if (subtypep transposed-matrix-class 'dense-matrix-restricted)
+          (setf (restricted-set-p transposed-matrix) (restricted-set-p matrix)))
+      transposed-matrix)))
+
+(defmethod transpose ((matrix dense-matrix))
+  (transpose% matrix 'dense-matrix))
 
 ;;;; multiplication: takes advantage of special structure
 
@@ -467,6 +509,9 @@ below the diagonal are not necessarily initialized and not accessed."))
 (define-matrix-like-printer (matrix upper-triangular-matrix stream) ()
   (print-matrix matrix stream :mask #'upper-triangular-mask))
 
+(defmethod transpose ((matrix upper-triangular-matrix))
+  (transpose% matrix 'lower-triangular-matrix))
+
 ;;;;
 ;;;;  Lower triangular matrix
 ;;;;
@@ -515,6 +560,8 @@ above the diagonal are not necessarily initialized and not accessed."))
 (define-matrix-like-printer (matrix lower-triangular-matrix stream) ()
   (print-matrix matrix stream :mask #'lower-triangular-mask))
 
+(defmethod transpose ((matrix lower-triangular-matrix))
+  (transpose% matrix 'upper-triangular-matrix))
 
 ;;;;  ??? note on symmetric and hermitian matrices -- Tamas:
 ;;;;
@@ -585,6 +632,9 @@ above the diagonal are not necessarily initialized and not accessed."))
 (define-matrix-like-printer (matrix symmetric-matrix stream) ()
   (print-matrix matrix stream :mask #'symmetric-mask))
 
+(defmethod transpose ((matrix symmetric-matrix))
+  (transpose% matrix 'symmetric-matrix))
+
 
 ;;;;
 ;;;;  Hermitian matrix
@@ -640,6 +690,8 @@ above the diagonal are not necessarily initialized and not accessed."))
 (define-matrix-like-printer (matrix hermitian-matrix stream) ()
   (print-matrix matrix stream :mask #'hermitian-mask))
 
+(defmethod transpose ((matrix hermitian-matrix))
+  (transpose% matrix 'hermitian-matrix))
 
 ;;;; matrix factorizations
 ;;;;
