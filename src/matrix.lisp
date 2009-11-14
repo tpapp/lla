@@ -178,7 +178,7 @@ printed instead (should be a string)."
       (setf (xref data (cm-index2 nrow row col))
 	    value))))
 
-(defun xsimilar% (object rank)
+(defun xsimilar% (rank object)
   ;; not exported
   (let ((lla-type (lla-type object))
         (rank (if (eq t rank) (xrank object) rank)))
@@ -186,11 +186,11 @@ printed instead (should be a string)."
       (1 (list (numeric-vector-class lla-type)))
       (2 `(dense-matrix :lla-type ,lla-type)))))
 
-(defmethod xsimilar ((nv numeric-vector) rank)
-  (xsimilar% nv rank))
+(defmethod xsimilar (rank (nv numeric-vector))
+  (xsimilar% rank nv))
 
-(defmethod xsimilar ((m dense-matrix-like) rank)
-  (xsimilar% m rank))
+(defmethod xsimilar (rank (m dense-matrix-like))
+  (xsimilar% rank m))
 
 
 ;;;; matrix creation
