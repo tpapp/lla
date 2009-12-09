@@ -1,7 +1,7 @@
 (in-package :lla)
 
 (defun make-symbol* (&rest args)
-  "build a symbol by concatenating each element of ARGS, and intern it
+  "Build a symbol by concatenating each element of ARGS, and intern it
   in the current package.  Elements can be strings or symbols."
   (intern (apply #'concatenate 'string
                  (mapcar (lambda (arg)
@@ -10,6 +10,16 @@
                              (string arg)))
                          args))
           'lla))
+
+(defun gensym* (&rest args)
+  "A version of GENSYM that concatenates args before generating the
+symbol.  Also accepts symbols."
+  (gensym (apply #'concatenate 'string
+                 (mapcar (lambda (arg)
+                           (etypecase arg
+                             (symbol (symbol-name arg))
+                             (string arg)))
+                         args))))
 
 ;;; (make-symbol* "test" "me")        =>   |testme| , :INTERNAL
 ;;; (make-symbol* "test" 'metoo "me") =>   |testMETOOme| , :INTERNAL
