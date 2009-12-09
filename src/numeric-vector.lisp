@@ -414,6 +414,7 @@ assigning the pointer to pointer."
 			  (* ,size (foreign-size* ,lla-type)))
      ,@body))
 
+(with-multiple-bindings with-work-area)
 
 ;;;; 
 ;;;;  Some LAPACK routines return real and imaginary parts of vectors
