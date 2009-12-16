@@ -21,19 +21,25 @@
   :components 
   ((:module 
     "package-init"
-    :pathname #P "src/"
+    :pathname #P"src/"
     :components
     ((:file "package")))
-   (:module 
-    "basics"
+   (:module
+    "fortran-interface"
     :pathname #P"src/"
-    :depends-on ("package-init")
     :serial t
     :components
     ((:file "load-libs")
+     (:file "fortran-types")
      (:file "blas-cffi")
-     (:file "lapack-cffi")
-     (:file "utilities")
+     (:file "lapack-cffi")))
+   (:module 
+    "basics"
+    :pathname #P"src/"
+    :depends-on ("package-init" "fortran-interface")
+    :serial t
+    :components
+    ((:file "utilities")
      (:file "types")
      (:file "scalar")
      (:file "numeric-vector")
