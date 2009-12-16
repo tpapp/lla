@@ -124,10 +124,10 @@ coercions are valid."
 (addtest (lla-unit-tests)
   ;; This is basically testing that your system is ASCII.  If this
   ;; fails, then you should consider buying a more recent computer.
-  with-characters
-  (with-characters ((n% #\N)
-		    (c% #\C)
-		    (t% #\T))
+  ascii-characters
+  (with-fortran-atoms ((:char n% #\N)
+                       (:char c% #\C)
+                       (:char t% #\T))
     (ensure-same (mem-ref n% :unsigned-char) 78)
     (ensure-same (mem-ref c% :unsigned-char) 67)
     (ensure-same (mem-ref t% :unsigned-char) 84)))
@@ -231,6 +231,8 @@ coercions are valid."
     (ensure-same (slice eigenvectors :all order)
                  #2A((-0.8245648 -0.4159736)
                      (0.5657675 -0.9093767)) :test #'x=)))
+
+;; (bind ((a (make-matrix 'dense-matrix 2 2 :initial-contents '(1 2 0 3)))
 
 (addtest (lla-unit-tests)
   least-squares

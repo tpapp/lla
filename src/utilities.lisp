@@ -71,16 +71,6 @@ constraint is binding."
       (values dimension nil)
       (values *print-length* t)))
 
-(defmacro with-character ((pointer character) &body body)
-  "Place character at the memory location of pointer during body."
-  (check-type pointer symbol)
-  `(with-foreign-object (,pointer :char)
-     (setf (mem-ref ,pointer :unsigned-char) (char-code ,character))
-     ,@body))
-
-(with-multiple-bindings with-character)
-
-
 ;;;;
 ;;;;  Printing and formatting
 ;;;;

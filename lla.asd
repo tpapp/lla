@@ -41,12 +41,11 @@
     :components
     ((:file "utilities")
      (:file "types")
-     (:file "scalar")
+     (:file "fortran-atoms")
      (:file "numeric-vector")
      (:file "matrix")
      (:file "fortran-call")
-;; !! include these when they stabilize
-     )))
+     (:file "linear-algebra"))))
   :depends-on
   (:cl-utilities :iterate :metabang-bind :cffi :cl-match :xarray
 		 :lift))

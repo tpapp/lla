@@ -565,76 +565,11 @@ above the diagonal are not necessarily initialized and not accessed."))
 
 ;;;;  ??? note on symmetric and hermitian matrices -- Tamas:
 ;;;;
-;;;;  Currently, hermitian matrices can be real, in which case they
-;;;;  are also symmetric.  Is this a feature, or lack of good design?
-;;;;  Maybe how we handle this could change in the future.  For the
-;;;;  present, having a "real hermitian" matrix will just keep this
-;;;;  property in operations (eg update-syhe), and functions that
-;;;;  accept either a symmetric real or a hermitian complex matrix
-;;;;  should only accept a hermitian-matrix, which enforces these
-;;;;  properties regardless of whether elements are real or complex.
-
-;;;;
-;;;;  Symmetric matrix
-;;;;
-;;;;  restricted-set-p has to be unset when (setf xref) is used.
-
-(declaim (inline cm-index-symmetric))
-(defun cm-index-symmetric (nrow row col)
-  (if (<= row col)
-      (cm-index2 nrow row col)          ; upper triangle
-      (cm-index2 nrow col row)))        ; lower triangle
-
-(defclass symmetric-matrix (dense-matrix-like restricted-elements)
-  ()
-  (:documentation "A dense symmatric matrix, with elements stored in
-   the upper triangle."))
-
-(defmethod xref ((matrix symmetric-matrix) &rest subscripts)
-  (bind (((row col) subscripts))
-    (with-slots (nrow ncol data) matrix
-      (check-index row nrow)
-      (check-index col ncol)
-      (xref data (cm-index-symmetric nrow row col)))))
-
-(defmethod (setf xref) (value (matrix symmetric-matrix) &rest subscripts)
-  (bind (((row col) subscripts))
-    (with-slots (nrow ncol data restricted-set-p) matrix
-      (check-index row nrow)
-      (check-index col ncol)
-      (setf restricted-set-p nil)
-      (setf (xref data (cm-index-symmetric nrow row col))
-	    value))))
-
-(defmethod set-restricted* ((matrix symmetric-matrix))
-  (bind (((:slots-read-only nrow ncol data) matrix)
-         (vector (copy-data data)))
-    ;; set the lower triangle (below diagonal) to mirror elements in
-    ;; the upper triangle
-    (dotimes (col ncol)
-      (iter
-        (for row :from col :below nrow)
-        (for index
-          :from (cm-index2 nrow col col)
-          :below (cm-index2 nrow nrow col))
-        (setf (aref vector index)
-              (aref vector (cm-index2 nrow col row))))))
-  matrix)
-
-(define-dense-matrix-like-take symmetric-matrix)
-
-(defun symmetric-mask (row col)
-  ;; print = instead of . in the lower triangle
-  (if (<= row col)
-      nil
-      "="))
-
-(define-matrix-like-printer (matrix symmetric-matrix stream) ()
-  (print-matrix matrix stream :mask #'symmetric-mask))
-
-(defmethod transpose ((matrix symmetric-matrix))
-  (transpose% matrix 'symmetric-matrix))
-
+;;;;  LLA uses the class HERMITIAN-MATRIX to implement both real
+;;;;  symmetric and complex Hermitian matrices --- as technically,
+;;;;  real symmetric matrices are also Hermitian.  Complex symmetric
+;;;;  matrices are NOT implemented as a special matrix type, as they
+;;;;  don't have any special properties (eg real eigenvalues, etc).
 
 ;;;;
 ;;;;  Hermitian matrix
@@ -654,7 +589,7 @@ above the diagonal are not necessarily initialized and not accessed."))
           (xref data (cm-index2 nrow row col))
           (conjugate (xref data (cm-index2 nrow col row)))))))
 
-(defmethod (setf xref) (value (matrix symmetric-matrix) &rest subscripts)
+(defmethod (setf xref) (value (matrix hermitian-matrix) &rest subscripts)
   (bind (((row col) subscripts))
     (with-slots (nrow ncol data restricted-set-p) matrix
       (check-index row nrow)
@@ -691,6 +626,7 @@ above the diagonal are not necessarily initialized and not accessed."))
   (print-matrix matrix stream :mask #'hermitian-mask))
 
 (defmethod transpose ((matrix hermitian-matrix))
+  ;; !!! could just leave real matrices alone
   (transpose% matrix 'hermitian-matrix))
 
 ;;;; matrix factorizations

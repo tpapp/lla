@@ -9,19 +9,6 @@
 
 (in-package :lla)
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (defctype fortran-logical :pointer)
-  (defctype fortran-int :pointer)
-  (defctype fortran-float :pointer)
-  (defctype fortran-double :pointer)
-  (defctype fortran-complex-float :pointer)
-  (defctype fortran-complex-double :pointer)
-  (defctype cffi-fnv-float :pointer)
-  (defctype cffi-fnv-double :pointer)
-  (defctype cffi-fnv-complex-float :pointer)
-  (defctype cffi-fnv-complex-double :pointer)
-  (defctype cffi-fnv-int32 :pointer))
-
 (CFFI:DEFCFUN ("cbdsqr_" %CBDSQR) :VOID (UPLO :STRING) (N FORTRAN-INT)
               (NCVT FORTRAN-INT) (NRU FORTRAN-INT) (NCC FORTRAN-INT)
               (D CFFI-FNV-FLOAT) (E CFFI-FNV-FLOAT)
