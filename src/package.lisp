@@ -6,7 +6,6 @@
         :iterate
         :bind
 	:cffi
-	:cl-match
 	:xarray)
   (:shadowing-import-from :iterate :collecting :collect)
   (:export 

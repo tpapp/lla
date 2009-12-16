@@ -47,8 +47,7 @@
      (:file "fortran-call")
      (:file "linear-algebra"))))
   :depends-on
-  (:cl-utilities :iterate :metabang-bind :cffi :cl-match :xarray
-		 :lift))
+  (:cl-utilities :iterate :metabang-bind :cffi :xarray :lift))
 
 
 ;;;; !! ASDF loading for unit tests. 
