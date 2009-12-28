@@ -24,15 +24,15 @@ this macro."
 (defun lb-procedure-name2 (real-name complex-name lla-type)
   "Evaluate to the LAPACK/BLAS procedure name, differentiating real
 and complex cases.  :single or :double is returned as the second value
-as appropriate."
+as appropriate, and the third value is true iff lla-type is complex."
   (check-type real-name symbol)
   (check-type complex-name symbol)
   (check-type lla-type symbol)
   (ecase lla-type
-    (:single (values (make-symbol* "%S" real-name) :single))
-    (:double (values (make-symbol* "%D" real-name) :double))
-    (:complex-single (values (make-symbol* "%C" complex-name) :single))
-    (:complex-double (values (make-symbol* "%Z" complex-name) :double))))
+    (:single (values (make-symbol* "%S" real-name) :single nil))
+    (:double (values (make-symbol* "%D" real-name) :double nil))
+    (:complex-single (values (make-symbol* "%C" complex-name) :single t))
+    (:complex-double (values (make-symbol* "%Z" complex-name) :double t))))
 
 
 

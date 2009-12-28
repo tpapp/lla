@@ -187,7 +187,7 @@ coercions are valid."
     (ensure-same (make 'lower-triangular-matrix)
                  #2A((1 0) (3 4))
                  :test #'x=)
-    (ensure-same (make 'symmetric-matrix)
+    (ensure-same (make 'hermitian-matrix)
                  #2A((1 2) (2 4))
                  :test #'x=)))
 
@@ -280,6 +280,21 @@ coercions are valid."
                      (0.000000 -0.8164966 1.1547005))
                  :test (x~= 1e-5))
     (ensure-same (reconstruct c) a :test #'x=)))
+
+(addtest (lla-unit-tests)
+  hermitian
+  (bind ((a (make-matrix 'dense-matrix 2 2 :initial-contents '(1 2 3 4)))
+         (aa (mmx a t))
+         ((:values eigenvalues eigenvectors)
+          (eigen aa :vectors-p t))
+         (order (xorder eigenvalues #'<)))
+    ;; we order by eigenvector magnitude
+    (ensure-same (slice eigenvalues order)
+                 #(0.1339313 29.8660687) :test #'x=)
+    (ensure-same (slice eigenvectors :all order)
+                 #2A(( -0.8174156 0.5760484)
+                     (0.5760484 0.8174156)) :test #'x=)))
+
 
 ;;; !!! update-syhe could do with a lot of testing
 

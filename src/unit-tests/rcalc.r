@@ -10,3 +10,9 @@ fit.full <- lm(y~x-1)
 a <- matrix(c(1,2,0,3),2,2,byrow=TRUE)
 b <- t(a) %*% a
 chol(t(a) %*% a)
+
+
+## eigenvalues -- hermitian
+a <- matrix(1:4,2,2,byrow=TRUE)
+aa <- t(a) %*% a
+eigen(aa)
