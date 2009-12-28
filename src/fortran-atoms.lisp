@@ -11,6 +11,10 @@
 ;;;; !! Once CFFI gets to handle complex types, life will be so much
 ;;;; !! simpler and we can dispense with a lot of this code.
 
+(defun coerce* (value lla-type)
+  "Coerce VALUE to type given by LLA-TYPE."
+  (coerce value (lla-type->lisp-type lla-type)))
+
 (defun foreign-size* (type)
   "Return the size of an LLA-TYPE or :CHAR, in bytes."
   (ecase type
@@ -25,7 +29,7 @@
 ;;  (check-type index fixnum)
   "Accessing 1d arrays in memory.  TYPE is LLA-TYPE or :CHAR."
   (ecase type
-    (:char (mem-aref ptr :char index))
+    (:char (code-char (mem-aref ptr :char index)))
     (:integer (mem-aref ptr :uint32 index))
     (:single (mem-aref ptr :float index))
     (:double (mem-aref ptr :double index))
@@ -40,7 +44,7 @@
 ;;  (check-type index fixnum)
   "Setf expander for accessing 1d arrays in memory.  TYPE is LLA-TYPE or :CHAR"
   (ecase type
-    (:char (setf (mem-aref ptr :char index) value))
+    (:char (setf (mem-aref ptr :char index) (char-code value)))
     (:integer (setf (mem-aref ptr :uint32 index) value))
     (:single (setf (mem-aref ptr :float index) value))
     (:double (setf (mem-aref ptr :double index) value))
