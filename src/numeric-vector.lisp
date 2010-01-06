@@ -268,7 +268,7 @@ use any kind of initial contents if they make sense."
 
 (defmethod x* ((a numeric-vector) (b number) &key)
   (let ((data (nv-data a))
-        (result-type (type-of (* b (to-lla-type 0 (lla-type a))))))
+        (result-type (type-of (* b (coerce* 0 (lla-type a))))))
     (make-nv (xsize a) (lisp-type->lla-type result-type)
              (map `(simple-array ,result-type (*)) (lambda (a) (* a b)) data) t)))
 

@@ -130,8 +130,7 @@ that this is always a float type because of LAPACK."
 
 (defun lla-type-classifier (sequence)
   "Finds the smallest lla type that can accomodate the elements of
-  list (after being converted with coerce).  If no such lla-type can
-  be found, return nil."
+  sequence.  If no such lla-type can be found, return nil."
   (let ((typecode (reduce (lambda (x y)
                             ;; parallel maximum on a cons
                             (cons (max (car x) (car y)) (max (cdr x) (cdr y))))
@@ -153,7 +152,3 @@ that this is always a float type because of LAPACK."
       ((equal typecode '(1 . 1)) :complex-single)
       ((equal typecode '(2 . 1)) :complex-double)
       (t (error "internal error, this should never happen")))))
-
-(defun to-lla-type (number lla-type)
-  "Return number coerced to lla-type."
-  (coerce number (lla-type->lisp-type lla-type)))

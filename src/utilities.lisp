@@ -2,7 +2,7 @@
 
 (defun make-symbol* (&rest args)
   "Build a symbol by concatenating each element of ARGS, and intern it
-  in the current package.  Elements can be strings or symbols."
+  in LLA.  Elements can be strings or symbols."
   (intern (apply #'concatenate 'string
                  (mapcar (lambda (arg)
                            (etypecase arg
@@ -80,7 +80,7 @@ constraint is binding."
 
 (defun standard-numeric-formatter (x)
   "Standard formatter for matrix printing.  Respects
-*print-lla-precision*, formats complex numbers as, for example,
+*print-lla-precision*, and formats complex numbers as a+bi, eg
 0.0+1.0i."
   ;; ?? do we want a complex numbers to be aligned on the +, like R? I
   ;; am not sure I like that very much, and for a lot of data, I would
