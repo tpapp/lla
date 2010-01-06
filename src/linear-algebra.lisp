@@ -128,8 +128,6 @@ first."))
        (eigen-dense-matrix-complex-double a :vectors-p vectors-p
                                           :check-real-p check-real-p))))
 
-(describe 'sb-int:set-floating-point-modes)
-
 ;;;  Currently, the setup below triggers floating point exceptions
 ;;;  (divison-by-zero), which is actually expected since it calls
 ;;;  *STEMR.  I plan to fix this with implementation-dependent flags
