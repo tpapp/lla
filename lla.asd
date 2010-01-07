@@ -43,9 +43,12 @@
      (:file "types")
      (:file "fortran-atoms")
      (:file "numeric-vector")
-     (:file "matrix")
-     (:file "fortran-call")
-     (:file "linear-algebra"))))
+     (:file "numeric-vector-wrappers")
+     ;; (:file "matrix")
+     ;; (:file "fortran-call")
+     ;; (:file "linear-algebra")
+     (:file "printing")
+)))
   :depends-on
   (:cl-utilities :iterate :metabang-bind :cffi :xarray :lift))
 

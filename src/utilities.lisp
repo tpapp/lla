@@ -54,46 +54,6 @@ plural of the old one (generated using format)."
 			       ,@body))
 	   `(progn ,@body)))))
 
-(deftype dimension ()
-   "Type for vector/matrix dimensions, basically a nonnegative fixnum."
-  '(integer 0 #.most-positive-fixnum))
-
-(defun check-index (index dimension)
-  "Error if index is outside dimension."
-  ;; ?? should this be a macro, could this signal more information
-  (unless (and (<= 0 index) (< index dimension))
-    (error "index ~a is outside [0,~a)" index dimension)))
-
-(defun print-length-truncate (dimension)
-  "Return values (min dimension *print-length*) and whether the
-constraint is binding."
-  (if (<= dimension *print-length*)
-      (values dimension nil)
-      (values *print-length* t)))
-
-;;;;
-;;;;  Printing and formatting
-;;;;
-
-(defvar *print-lla-precision* 5
-  "number of digits after the decimal point when printing numeric matrices")
-
-(defun standard-numeric-formatter (x)
-  "Standard formatter for matrix printing.  Respects
-*print-lla-precision*, and formats complex numbers as a+bi, eg
-0.0+1.0i."
-  ;; ?? do we want a complex numbers to be aligned on the +, like R? I
-  ;; am not sure I like that very much, and for a lot of data, I would
-  ;; visualize it graphically anyhow (I hate tables of 7+ numbers in
-  ;; general).  -- Tamas, 2009-sep-13
-  (typecase x
-    (integer (format nil "~d" x))
-    (real (format nil "~,vf" *print-lla-precision* x))
-    (complex (format nil "~,vf+~,vfi"
-		     *print-lla-precision* (realpart x)
-		     *print-lla-precision* (imagpart x)))
-    (t (format nil "~a" x))))
-
 ;;;;
 ;;;;  CL array displacement
 ;;;;

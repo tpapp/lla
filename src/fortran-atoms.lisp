@@ -11,10 +11,6 @@
 ;;;; !! Once CFFI gets to handle complex types, life will be so much
 ;;;; !! simpler and we can dispense with a lot of this code.
 
-(defun coerce* (value lla-type)
-  "Coerce VALUE to type given by LLA-TYPE."
-  (coerce value (lla-type->lisp-type lla-type)))
-
 (defun foreign-size* (type)
   "Return the size of an LLA-TYPE or :CHAR, in bytes."
   (ecase type

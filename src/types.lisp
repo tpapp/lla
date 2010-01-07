@@ -72,6 +72,10 @@ floats can be upgraded to complex."
 	;; reverse only for cosmetic purposes
 	(nreverse coercible))))
 
+(defgeneric lla-type (numeric-vector)
+  (:documentation "Return the lla-type of the elements of the
+  object."))
+
 (defun lisp-type->lla-type (lisp-type &optional value-if-not-recognized)
   (cond
     ((subtypep lisp-type 'single-float) :single)
@@ -98,30 +102,62 @@ floats can be upgraded to complex."
   "Coerce VALUE to type given by LLA-TYPE."
   (coerce value (lla-type->lisp-type lla-type)))
 
-(defun smallest-common-target-type (lla-type-list)
-  "Find the smallest supertype that all types can be coerced to.  Note
-that this is always a float type because of LAPACK."
-  (let ((double-p (some #'lla-double-p lla-type-list))
-	(complex-p (some #'lla-complex-p lla-type-list)))
-    (cond
-      ((and double-p complex-p) :complex-double)
-      (complex-p :complex-single)
-      (double-p :double)
-      (t :single))))
+(defmacro append-lla-type (prefix lla-type)
+  "Return prefix-LLA-TYPE."
+  `(ecase ,lla-type
+     (:integer ',(make-symbol* prefix '-integer))
+     (:single ',(make-symbol* prefix '-single))
+     (:double ',(make-symbol* prefix '-double))
+     (:complex-single ',(make-symbol* prefix '-complex-single))
+     (:complex-double ',(make-symbol* prefix '-complex-double))))
 
-(defun lla-type-classifier (sequence)
+;;;; type classification
+;;;
+;;; We find the smallest common target type, the type we can all
+;;; coerce to, using binary or.  Bits: float-p, double-p, complex-p
+
+(defconstant +integer+ #b000)
+(defconstant +single+ #b100)
+(defconstant +double+ #b110)
+(defconstant +complex-single+ #b101)
+(defconstant +complex-double+ #b111)
+
+(declaim (inline lla-type->binary-code binary-code->lla-type
+                 common-target-type))
+
+(defun lla-type->binary-code (type)
+  "Convert LLA type to bits."
+  (ecase type
+    (:integer +integer+)
+    (:single +single+)
+    (:double +double+)
+    (:complex-single +complex-single+)
+    (:complex-double +complex-double+)))
+
+(defun binary-code->lla-type (binary-code &optional force-float-p)
+  "Convert bits to LLA type."
+  (ecase binary-code
+    (#.+integer+ (if force-float-p :single :integer))
+    (#.+single+ :single)
+    (#.+double+ :double)
+    (#.+complex-single+ :complex-single)
+    (#.+complex-double+ :complex-double)))
+  
+(defun common-target-type (&rest types)
+  "Find the smallest supertype that all types can be coerced to.  Does
+not force floats."
+  (binary-code->lla-type
+   (reduce #'logior types :key #'lla-type->binary-code)))
+
+(defun find-element-type (sequence)
   "Finds the smallest LLA-TYPE that can accomodate the elements of
   sequence.  If no such LLA-TYPE can be found, return nil."
-  (ecase (reduce #'logior sequence :key
-                 (lambda (x) (typecase x ;; bits: float-p, double-p, complex-p
-                               ((signed-byte 32) #b000)
-                               ((or single-float rational) #b100)
-                               (double-float #b110)
-                               ((complex single-float) #b101)
-                               ((complex double-float) #b111)
-                               (t (return-from lla-type-classifier nil)))))
-    (#b000 :integer)
-    (#b100 :single)
-    (#b110 :double) 
-    (#b101 :complex-single)
-    (#b111 :complex-double)))     ; anything else should be impossible
+  (binary-code->lla-type
+   (reduce #'logior sequence :key
+           (lambda (x) (typecase x ;; 
+                         ((signed-byte 32) +integer+)
+                         ((or single-float rational) +single+)
+                         (double-float +double+)
+                         ((complex single-float) +complex-single+)
+                         ((complex double-float) +complex-double+)
+                         (t (return-from find-element-type nil)))))))

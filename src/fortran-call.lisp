@@ -1,12 +1,18 @@
 (in-package :lla)
 
-;;;;  Code for interfacing with Fortran calls.
+;;;; Code for interfacing with Fortran calls.
 
 
-;;;;  Helper functions that generate the correct LAPACK/BLAS function
-;;;;  names based on a "root" function name.  For some functions
-;;;;  (usually those involving Hermitian matrices), the roots actually
-;;;;  differ based on whether the matrix is real or complex.
+(declaim (inline lb-target-type))
+(defun lb-target-type (&rest objects)
+  (apply #'smallest-common-target-type (mapcar #'lla-type objects)))
+
+
+
+;;; Helper functions that generate the correct LAPACK/BLAS function
+;;; names based on a "root" function name.  For some functions
+;;; (usually those involving Hermitian matrices), the roots actually
+;;; differ based on whether the matrix is real or complex.
 
 (declaim (inline lb-procedure-name lb-procedure-name2))
 (defun lb-procedure-name (name lla-type)
@@ -34,28 +40,25 @@ as appropriate, and the third value is true iff lla-type is complex."
     (:complex-single (values (make-symbol* "%C" complex-name) :single t))
     (:complex-double (values (make-symbol* "%Z" complex-name) :double t))))
 
-
-
-;;;;  Some LAPACK procedures can signal errors, they do this via an
-;;;;  INFO output integer.  Here we provide macros to capture these
-;;;;  errors.
-;;;;
-;;;;  Currently, a general lapack-error condition is thrown.  This may
-;;;;  be too coarse, as INFO actually provides quite a bit of
-;;;;  information of what went wrong.  There are usually two kinds of
-;;;;  errors: invalid/nonsensical arguments (should never happen), and
-;;;;  incomputable problems (matrix being singular, usually with
-;;;;  detailed info).  !!! We should capture the latter and provide
-;;;;  more sensible error messages.  Maybe instead of throwing
-;;;;  LAPACK-ERROR, macros should accept a form that tells what kind
-;;;;  of error to signal.  Expect CALL-WITH-INFO-CHECK to be modified
-;;;;  in the future, eg all current arguments go into a list, then
-;;;;  body gets PROCEDURE and INFO values in case of an error and may
-;;;;  do what it wants with them.
-;;;;
-;;;;  ??? Most (maybe all?) LAPACK functions just have INFO as their
-;;;;  last argument, so WITH-INFO-CHECK may never be used directly.
-;;;;  Should everything be folded into CALL-WITH-INFO-CHECK?
+;;; Some LAPACK procedures can signal errors, they do this via an INFO
+;;; output integer.  Here we provide macros to capture these errors.
+;;;
+;;; Currently, a general lapack-error condition is thrown.  This may
+;;; be too coarse, as INFO actually provides quite a bit of
+;;; information of what went wrong.  There are usually two kinds of
+;;; errors: invalid/nonsensical arguments (should never happen), and
+;;; incomputable problems (matrix being singular, usually with
+;;; detailed info).  !!! We should capture the latter and provide more
+;;; sensible error messages.  Maybe instead of throwing LAPACK-ERROR,
+;;; macros should accept a form that tells what kind of error to
+;;; signal.  Expect CALL-WITH-INFO-CHECK to be modified in the future,
+;;; eg all current arguments go into a list, then body gets PROCEDURE
+;;; and INFO values in case of an error and may do what it wants with
+;;; them.
+;;;
+;;; ??? Most (maybe all?) LAPACK functions just have INFO as their
+;;; last argument, so WITH-INFO-CHECK may never be used directly.
+;;; Should everything be folded into CALL-WITH-INFO-CHECK?
 
 (define-condition lapack-error (error)
   ;; !! write method for formatting the error message
@@ -71,22 +74,22 @@ as appropriate, and the third value is true iff lla-type is complex."
 (defmacro with-info-check ((procedure-name info-pointer) &body body)
   "Evaluate body with info-pointer bound to an integer, and check it
 afterwards, signalling an lapack-error condition if info is nonzero."
-  ;;;; !!! how to handle errors nicely? the wrapper can handle this
-  ;;;; condition, and output an error message.  There are generally
-  ;;;; two kinds of errors in LAPACK: (1) malformed inputs, and (2)
-  ;;;; ill-conditioned numerical problems (eg trying to invert a
-  ;;;; matrix which is not invertible, etc).
-  ;;;;
-  ;;;; (1) requires displaying argument names, but in a well-written
-  ;;;; library errors like that should not happen, so we will not
-  ;;;; worry about it (if it does, that requires debugging & fixing,
-  ;;;; not a condition system). In (2), info usually carries all the
-  ;;;; information.
-  ;;;;
-  ;;;; ??? suggestion: an extra argument to the macro on how to
-  ;;;; interpret info and generate an error message? create a class
-  ;;;; hierarchy of conditions. !!!! do this when API has
-  ;;;; stabilized. -- Tamas
+  ;; !!! how to handle errors nicely? the wrapper can handle this
+  ;; condition, and output an error message.  There are generally
+  ;; two kinds of errors in LAPACK: (1) malformed inputs, and (2)
+  ;; ill-conditioned numerical problems (eg trying to invert a
+  ;; matrix which is not invertible, etc).
+  ;;
+  ;; (1) requires displaying argument names, but in a well-written
+  ;; library errors like that should not happen, so we will not
+  ;; worry about it (if it does, that requires debugging & fixing,
+  ;; not a condition system). In (2), info usually carries all the
+  ;; information.
+  ;;
+  ;; ??? suggestion: an extra argument to the macro on how to
+  ;; interpret info and generate an error message? create a class
+  ;; hierarchy of conditions. !!!! do this when API has
+  ;; stabilized. -- Tamas
   (check-type info-pointer symbol)
   (check-type procedure-name symbol)
   (with-unique-names (info-value)
@@ -114,11 +117,11 @@ with-info-check."
        (funcall ,procedure ,@arguments))))
 
 
-;;;;  Some (most?) LAPACK procedures allow the caller to query the
-;;;;  function for the optimal workspace size, this is a helper macro
-;;;;  that does exactly that.  We provide the singular case as a
-;;;;  special case if the plural one instead of the other way around,
-;;;;  since this would not recurse well.
+;;; Some (most?) LAPACK procedures allow the caller to query the
+;;; function for the optimal workspace size, this is a helper macro
+;;; that does exactly that.  We provide the singular case as a
+;;; special case if the plural one instead of the other way around,
+;;; since this would not recurse well.
 
 (defmacro with-work-queries ((&rest specifications) &body body)
   "Call body twice with the given work area specifications, querying
@@ -164,6 +167,46 @@ the allocated memory area (pointer) are assigned to these."
                                              pointers foreign-sizes returned-sizes)
                ,@body)))))))
 
+
+;;;; Allocation for temporary workspace.
+
 (defmacro with-work-query ((size pointer lla-type) &body body)
   "Single-variable version of WITH-WORK-QUERIES."
   `(with-work-queries ((,size ,pointer ,lla-type)) ,@body))
+
+(defmacro with-work-area ((pointer lla-type size) &body body)
+  "Allocate a work area of size lla-type elements during body,
+assigning the pointer to pointer."
+  (check-type pointer symbol)
+  `(with-foreign-pointer (,pointer 
+			  (* ,size (foreign-size* ,lla-type)))
+     ,@body))
+
+(with-multiple-bindings with-work-area)
+
+
+;;;; Miscellaneous utility functions.
+
+(defun nv-zip-complex-double (pointer n &optional check-real-p)
+  "Return the complex numbers stored at pointer (n real parts,
+followed by n imaginary parts) as a numeric vector (either double or
+complex-double).  If check-real-p, then check if the imaginary part is
+0 and if so, return a numeric-vector-double, otherwise always return a
+complex-double one.  Rationale: some LAPACK routines return real and
+imaginary parts of vectors  separately, we have to assemble them."
+  (let ((real-p (and check-real-p 
+                     (iter
+                       (for i :from 0 :below n)
+                       (always (zerop (mem-aref pointer :double (+ n i))))))))
+    (if real-p
+        (let ((elements (make-array n :element-type 'double-float)))
+          (iter
+            (for i :from 0 :below n)
+            (setf (aref elements i) (mem-aref pointer :double i)))
+          (make-instance 'numeric-vector-double :elements elements))
+        (let ((elements (make-array n :element-type '(complex double-float))))
+          (iter
+            (for i :from 0 :below n)
+            (setf (aref elements i) (complex (mem-aref pointer :double i)
+                                         (mem-aref pointer :double (+ n i)))))
+          (make-instance 'numeric-vector-complex-double :elements elements)))))
