@@ -21,7 +21,8 @@
 
 ;;;; Numeric vectors
 
-;;; 
+;;; Naming convention: class names have NUMERIC-VECTOR spelled out,
+;;; but functions/macros abbreviate it as nv.
 
 (define-abstract-class numeric-vector ()
   ((elements :type (simple-array * (*))
@@ -33,13 +34,13 @@ shared with another numeric vector."))
 vector ELEMENTS (which may be accessed directly) and SHARED-P, which
 is non-nil iff another numeric vector shares the same data.
 
-The semantics of copying, implemented by NV-COPY, is lazy and is
+The semantics of copying, implemented by COPY-NV, is lazy and is
 designed to promote functional programming (where possible)."))
 
 ;;;; helper functions
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defun numeric-vector-class (lla-type)
+  (defun nv-class (lla-type)
     "Return the class name corresponding to LLA-TYPE."
     (append-lla-type numeric-vector lla-type))
   (defun nv-array-type (lla-type &optional length)
@@ -48,82 +49,10 @@ designed to promote functional programming (where possible)."))
                  (,(if length length '*)))))
 
 
-;;;; some LLA-specific generic interface and utility functions
-
-(defgeneric copy-elements (numeric-vector)
-  (:documentation "Replace the elements vector of numeric-vector with
-  a copy if it is shared.  Also return the resulting vector.")
-  (:method ((nv numeric-vector))
-    (with-slots (elements shared-p) nv
-      ;; implementation note: we reply on copy-seq being fast
-      (when shared-p
-        (setf elements (copy-seq elements)))
-      elements)))
-
-(defun nv-copy (nv &optional (shared-p t))
-  "Copy a numeric vector.  If shared-p is t, data will be shared and
-copied later on demand."
-  (let ((copy (make-instance (class-of nv) 
-                             :elements (elements nv)
-                             :shared-p shared-p)))
-    (unless shared-p
-      (copy-elements copy))
-    copy))
-
-
-(defun make-nv (length lla-type &optional initial-contents
-                use-directly-p)
-  "Return a numeric vector with given length and LLA-type.
-Initial-contents is interpeted as follows:
-  - a number is used to fill the vector, coerced to the correct type
-  - a list is copied, elements coerced
-  - a vector is copied, elements coerced
-If initial-contents is nil, the array elements are not necessarily
-initialized (depending on the implementation).  If initial-contents is
-a list or a vector, then T is accepted as length.
-
-If use-directly-p, then initial-contents is used as data.  It is
-checked for type (also length, if not T).
-
-This is designed to be a \"friendly\" interface that should be able to
-use any kind of initial contents if they make sense."
-  (check-type lla-type lla-type)
-  (let* ((lisp-type (lla-type->lisp-type lla-type))
-         (length (cond
-                   ((not (eq length t)) ; length given
-                    (check-type length dimension)
-                    length)
-                   (t (check-type initial-contents (or list vector))
-                    (length initial-contents))))
-         (class (numeric-vector-class lla-type))
-         (array-type (nv-array-type lla-type length))
-         (data (cond
-                 (use-directly-p
-                  (if (typep initial-contents array-type)
-                      initial-contents
-                      (error "INITIAL-CONTENTS is not of the required element type or length.")))
-                 ((null initial-contents)
-                  (make-array length :element-type lisp-type))
-                 ((numberp initial-contents)
-                  (make-array length :element-type lisp-type
-                              :initial-element
-                              (coerce initial-contents lisp-type)))
-                 ((or (vectorp initial-contents) (listp initial-contents))
-                  (map array-type (lambda (x) (coerce x lisp-type))
-                       initial-contents))
-                 (t (error "couldn't use ~A to initialize a NUMERIC-VECTOR ~
-                       of ~A elements " initial-contents length)))))
-    (make-instance class :elements data :shared-p nil)))
-
-;;;; 
 ;;;; define the subclasses
-;;;;
 
-
-(defmacro define-numeric-vector-class (lla-type)
-  "!!! documentation"
-  (check-type lla-type symbol)
-  (let* ((class-name (numeric-vector-class lla-type))
+(expand-for-lla-types lla-type
+  (let* ((class-name (nv-class lla-type))
          (lisp-type (lla-type->lisp-type lla-type))
          (array-type (nv-array-type lla-type)))
     `(progn
@@ -132,132 +61,168 @@ use any kind of initial contents if they make sense."
          ((data :type ,array-type))
          (:documentation ,(format nil "numeric vector of type ~a"
                                   lla-type)))
-       ;; LLA-specific interface
+       ;; LLA-type
        (defmethod lla-type ((numeric-vector ,class-name))
          ',lla-type)
-       ;; XARRAY interface (type-specific)
+       ;; XELTTYPE
        (defmethod xelttype ((numeric-vector ,class-name))
-         ',lisp-type)
-       (defmethod take ((class (eql ',class-name)) (vector vector) &key
-                        force-copy-p &allow-other-keys)
-         (make-nv t ,lla-type vector
-                  (and (not force-copy-p)
-                       (typep vector ',array-type))))
-       (defmethod xcreate ((class (eql ',class-name)) dimensions &optional options)
-         (when options (error "This method does not take any options."))
-         (bind (((length) dimensions))
-           (make-nv length ,lla-type))))))
+         ',lisp-type))))
 
-(define-numeric-vector-class :single)
-(define-numeric-vector-class :double)
-(define-numeric-vector-class :complex-single)
-(define-numeric-vector-class :complex-double)
-(define-numeric-vector-class :integer)
 
-;;;; miscellaneous helper functions
+;;;; some LLA-specific generic interface and utility functions
 
-(declaim (inline lb-target-type))
-(defun lb-target-type (&rest objects)
-  "Find common target type of objects to.  Forces floats, should be
-used in LAPACK."
-  (binary-code->lla-type
-   (reduce #'logior objects :key (lambda (object)
-                                   (lla-type->binary-code
-                                    (lla-type object))))))
+(declaim (inline make-nv*))
+(defun make-nv* (lla-type elements &optional (shared-p nil))
+  "Create a NUMERIC-VECTOR of LLA-TYPE, with given ELEMENTS.  Note
+that there is no type checking, and elements are not copied: this is
+effectively shorthand for a MAKE-INSTANCE call.  For internal use, not
+exported."
+  (make-instance (nv-class lla-type) :elements elements :shared-p shared-p))
 
-(defgeneric nv-convert (nv lla-type)
-  (:documentation "Make a copy of the ELEMENTS of a numeric vector,
-  converting (if necessary) to the target type.  Types are LLA type.")
+(defun make-nv (length lla-type &optional initial-element)
+  "Create a NUMERIC-VECTOR of LLA-TYPE, optionally initialized with INITIAL-ELEMENTs."
+  (let ((lisp-type (lla-type->lisp-type lla-type)))
+    (make-nv* lla-type (if initial-element
+                           (make-array length :element-type lisp-type
+                                       :initial-element (coerce initial-element lisp-type))
+                           (make-array length :element-type lisp-type)))))
+
+(defun create-nv (initial-contents &optional lla-type)
+  "Create numeric vector with given initial contents (a list or a
+vector).  Unless LLA-TYPE is given, it is inferred from the elements.
+This is a convenience function for easily creation of NUMERIC-VECTORs.
+Also see *forced-float*."
+  (let* ((lla-type (infer-lla-type lla-type initial-contents *force-float*))
+         (lisp-type (lla-type->lisp-type lla-type))
+         (length (length initial-contents)))
+    (make-nv* lla-type (map (nv-array-type lla-type length)
+                            (lambda (x) (coerce x lisp-type))
+                            initial-contents))))
+
+(defgeneric copy-elements (nv)
+  (:documentation "Return a vector that is a copy if ELEMENTS in
+NUMERIC-VECTOR.  Note: to copy a numeric-vector, just use COPY-NV,
+which can make a lazy copy."))
+(expand-for-lla-types lla-type
+  `(defmethod copy-elements ((nv ,(nv-class lla-type)))
+     (declare (optimize speed))
+     (bind (((:slots-read-only elements) nv))
+       (declare (type ,(nv-array-type lla-type) elements))
+       (copy-seq elements))))
+
+(defun ensure-unshared (nv)
+  "Replace the elements vector of numeric-vector with a copy if it is
+shared.  Return no values."
+    (with-slots (elements shared-p) nv
+      ;; implementation note: we rely on copy-seq being fast
+      (when shared-p
+        (setf shared-p nil)
+        (setf elements (copy-elements nv)))
+      (values)))
+
+(defgeneric copy-nv (nv)
+  (:documentation "Copy a numeric vector.  ELEMENTS are shared.  If NV
+is an instance of a subclass of NUMERIC-VECTOR, the result is still a
+NUMERIC-VECTOR."))
+(expand-for-lla-types lla-type
+  (let ((class (nv-class lla-type)))
+    `(defmethod copy-nv ((nv ,class))
+       (make-instance ',class
+                      :elements (elements nv)))))
+
+(defgeneric convert-elements (nv lla-type)
+  (:documentation "Make a (non-shared) copy of the ELEMENTS of a
+  numeric vector, converting (if necessary) to the target type.  Types
+  are LLA type.")
   (:method (nv lla-type)
     ;; fallback method for impossible conversions, signal error
     (error "can't coerce numeric-vector of type ~A to ~A"
 	   (lla-type nv) lla-type)))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defun generate-nv-convert (source-type target-type)
-    "Define a method for nv-copy-convert for given source and target
+  (defun generate-convert-elements (source-type target-type)
+    "Define a method for convert-nv for given source and target
 types."
-    ;; !!! optimize, mainly with declarations, etc
     (let ((source-lisp-type (lla-type->lisp-type source-type))
           (target-lisp-type (lla-type->lisp-type target-type))
-          (class (numeric-vector-class source-type)))
-      `(defmethod nv-convert ((nv ,class) (target-type (eql ',target-type)))
-         ;;       (declare (optimize speed))
+          (class (nv-class source-type)))
+      `(defmethod convert-elements ((nv ,class) (target-type (eql ,target-type)))
+         (declare (optimize speed)
+                  #+sbcl (sb-ext:muffle-conditions sb-ext:compiler-note))
          ,(if (equal source-lisp-type target-lisp-type)
-              `(copy-seq (elements nv))
-              `(let* ((elements (elements nv))
-                      (length (length elements))
-                      (copy (make-array length :element-type
-                                        ',target-lisp-type)))
-                 ;; ??? test if map would be faster
-                 (dotimes (i length)
-                   (setf (aref copy i)
-                         (coerce (aref elements i)
-                                 ',target-lisp-type)))
-                 copy))))))
+              `(copy-elements nv)
+              `(let ((elements (elements nv)))
+                 (declare (type ,(nv-array-type source-type) elements))
+                 (let* ((length (length elements))
+                        (result (make-array length :element-type ',target-lisp-type)))
+                   (dotimes (i length)
+                     (setf (aref result i)
+                           (coerce (aref elements i) ',target-lisp-type)))
+                   result)))))))
 
-(defmacro generate-nv-convert-function ()
+(defmacro define-convert-elements ()
   `(progn
      ,@(mapcar (lambda (pair)
-                 (apply #'generate-nv-convert pair))
+                 (apply #'generate-convert-elements pair))
                (coercible-pairs-list))))
-(generate-nv-convert-function)
+(define-convert-elements)
 
 
 ;;;; XARRAY interface for NUMERIC-VECTOR
 
-(defgeneric default-lla-type (object)
-  (:documentation "Try to determine default lla-type for object.  If
-  this cannot be done, return nil.")
-  (:method ((vector vector))
-    (bind ((vector-lla-type (lisp-type->lla-type 
-                             (array-element-type vector)
-                             nil)))
-      (if vector-lla-type vector-lla-type
-          (find-element-type vector))))
-  (:method ((array array))
-    (default-lla-type (flatten-array array)))
-  (:method ((view view))
-    (default-lla-type (original-ancestor view)))
-  (:method ((nv numeric-vector))
-    (lla-type nv)))
+;; (defgeneric default-lla-type (object)
+;;   (:documentation "Try to determine default lla-type for object.  If
+;;   this cannot be done, return nil.")
+;;   (:method ((vector vector))
+;;     (bind ((vector-lla-type (lisp-type->lla-type 
+;;                              (array-element-type vector)
+;;                              nil)))
+;;       (if vector-lla-type vector-lla-type
+;;           (find-element-type vector))))
+;;   (:method ((array array))
+;;     (default-lla-type (make-array (array-total-size array)
+;;                                   :element-type (array-element-type array)
+;;                                   :displaced-to array)))
+;;   (:method ((view view))
+;;     (default-lla-type (original-ancestor view)))
+;;   (:method ((nv numeric-vector))
+;;     (lla-type nv)))
 
-(defmethod xcreate ((class (eql 'numeric-vector)) dimensions &optional
-                    options)
-  (bind (((&key (lla-type :double)) options)
-         ((n) dimensions))
-    (make-nv n lla-type 0)))
+;; (defmethod xcreate ((class (eql 'numeric-vector)) dimensions &optional
+;;                     options)
+;;   (bind (((&key (lla-type :double)) options)
+;;          ((n) dimensions))
+;;     (make-nv n lla-type)))
 
-(defmethod take ((class-name (eql 'numeric-vector)) (vector vector) &key force-copy-p
-                 options)
-  ;; this method tries to guess the type from the provided vector, or
-  ;; use a default
-  (bind (((&key (lla-type (default-lla-type vector))) options))
-    (unless lla-type
-      (error "could not determine lla-type"))
-    (make-nv t lla-type vector 
-             (and (eq lla-type (lisp-type->lla-type
-                                (array-element-type vector)))
-                  (not force-copy-p)))))
+;; (defmethod take ((class-name (eql 'numeric-vector)) (vector vector) &key force-copy-p
+;;                  options)
+;;   ;; this method tries to guess the type from the provided vector, or
+;;   ;; use a default
+;;   (declare (ignore force-copy-p))
+;;   (bind (((&key (lla-type (default-lla-type vector))) options))
+;;     (unless lla-type
+;;       (error "could not determine lla-type"))
+;;     (make-nv nil lla-type vector)))
+             
 
-(defmethod take ((class-name (eql 'numeric-vector)) (view view) &key
-                 options force-copy-p)
-  (declare (ignore force-copy-p))
-  (bind (((&key (lla-type (default-lla-type view))) options))
-    (unless lla-type
-      (error "could not determined lla-type"))
-    (bind ((vector (take 'array view
-                         :options `(:element-type
-                                    ,(lla-type->lisp-type lla-type))
-                         :force-copy-p t)))
-      (make-nv t lla-type vector t))))
+;; (defmethod take ((class-name (eql 'numeric-vector)) (view view) &key
+;;                  options force-copy-p)
+;;   (declare (ignore force-copy-p))
+;;   (bind (((&key (lla-type (default-lla-type view))) options))
+;;     (unless lla-type
+;;       (error "could not determined lla-type"))
+;;     (bind ((vector (take 'array view
+;;                          :options `(:element-type
+;;                                     ,(lla-type->lisp-type lla-type))
+;;                          :force-copy-p t)))
+;;       (make-instance (nv-class lla-type) :elements vector))))
 
-(defmethod take ((class-name (eql 'numeric-vector))
-                 (nv numeric-vector) &key options force-copy-p)
-  (bind (((&key (lla-type :double)) options))
-    (if (eq lla-type (lla-type nv))
-        (nv-copy nv (not force-copy-p))
-        (nv-convert nv lla-type))))
+;; (defmethod take ((class-name (eql 'numeric-vector))
+;;                  (nv numeric-vector) &key options force-copy-p)
+;;   (bind (((&key (lla-type :double)) options))
+;;     (if (eq lla-type (lla-type nv))
+;;         (copy-nv nv (not force-copy-p))
+;;         (convert-nv nv lla-type))))
 
 
 ;; !! also check for speed? -- Tamas
@@ -277,14 +242,19 @@ types."
 (defmethod xdims ((nv numeric-vector))
   (list (xsize nv)))
 
-(defmethod xref ((nv numeric-vector) &rest subscripts)
-  (aref (elements nv) (first subscripts)))
+(expand-for-lla-types lla-type
+  `(defmethod xref ((nv ,(nv-class lla-type))  &rest subscripts)
+     (declare (optimize (speed 3))
+              #+sbcl (sb-ext:muffle-conditions sb-ext:compiler-note))
+     (aref (the ,(nv-array-type lla-type) (elements nv)) (first subscripts))))
 
-(defmethod (setf xref) (value (nv numeric-vector) &rest subscripts)
-  (when (shared-p nv)
-    (copy-elements nv))
-  (setf (aref (elements nv) (first subscripts))
-	value))
+(expand-for-lla-types lla-type
+  `(defmethod (setf xref) (value (nv ,(nv-class lla-type)) &rest subscripts)
+     (declare (optimize (speed 3))
+              #+sbcl (sb-ext:muffle-conditions sb-ext:compiler-note))
+     (ensure-unshared nv)
+     (setf (aref (the ,(nv-array-type lla-type) (elements nv)) (first subscripts))
+           value)))
 
 ;;;; some operations
 
@@ -293,22 +263,33 @@ types."
   `(progn
      ,@(mapcar (lambda (pair)
                  (bind (((a-type b-type) pair)
-                        (a-class (numeric-vector-class a-type))
-                        (b-class (numeric-vector-class b-type))
+                        (a-class (nv-class a-type))
+                        (b-class (nv-class b-type))
                         (a-array-type (nv-array-type a-type))
                         (b-array-type (nv-array-type b-type))
-                        (common-type (common-target-type a-type b-type))
-                        (common-array-type (nv-array-type common-type)))
-                   `(defmethod ,method-name ((a ,a-class) (b ,b-class) &key &allow-other-keys)
+                        (common-type (common-target-type a-type b-type)))
+                   `(defmethod ,method-name ((a ,a-class) (b ,b-class)
+                                             &key &allow-other-keys)
+                      (declare (optimize speed)
+                               #+sbcl (sb-ext:muffle-conditions sb-ext:compiler-note))
                       (let ((a-elements (elements a))
                             (b-elements (elements b)))
                         (declare (type ,a-array-type a-elements)
                                  (type ,b-array-type b-elements))
-                        (make-instance ',(numeric-vector-class common-type)
-                                       :elements (map ',common-array-type
-                                                      (lambda (a-elt b-elt)
-                                                        (,op a-elt b-elt))
-                                                      a-elements b-elements))))))
+                        (make-instance ',(nv-class common-type)
+                                       :elements
+                                       (let* ((length (length a-elements))
+                                              (result (make-array length :element-type 
+                                                                  ',(lla-type->lisp-type 
+                                                                     common-type))))
+                                         (assert (= length (length b-elements)))
+                                         (dotimes (i length)
+                                           (setf (aref result i)
+                         ;;; here the result type is deliberately not
+                         ;;; declared, I want to catch overflows
+                                                 (,op (aref a-elements i)
+                                                      (aref b-elements i))))
+                                         result))))))
                (coercible-pairs-list))))
 
 (define-nv-elementwise-operation +)

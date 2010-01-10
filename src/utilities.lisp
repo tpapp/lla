@@ -21,6 +21,19 @@ symbol.  Also accepts symbols."
                              (string arg)))
                          args))))
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (pushnew :muffle-notes cl:*features*))
+
+(defmacro optimize* ((&rest options) &body body)
+  `(locally
+       (declare (optimize speed)
+                #+muffle-notes
+                ,@(if (find :muffle-notes options)
+                      #+sbcl '((sb-ext:muffle-conditions sb-ext:compiler-note))
+                      #-sbcl nil))
+     ,@body))
+     
+
 ;;; (make-symbol* "test" "me")        =>   |testme| , :INTERNAL
 ;;; (make-symbol* "test" 'metoo "me") =>   |testMETOOme| , :INTERNAL
 ;;; (make-symbol* "TEsT" 'metoo "me") =>   |TEsTMETOOme| , :INTERNAL
@@ -54,35 +67,8 @@ plural of the old one (generated using format)."
 			       ,@body))
 	   `(progn ,@body)))))
 
-;;;;
-;;;;  CL array displacement
-;;;;
-
-(defun find-original-array (array)
-  "Find the original parent of a displaced array, return this and the
-sum of displaced index offsets."
-  (let ((sum-of-offsets 0))
-    (tagbody
-     check-displacement
-       (multiple-value-bind (displaced-to displaced-index-offset)
-           (array-displacement array)
-         (when displaced-to
-           (setf array displaced-to)
-           (incf sum-of-offsets displaced-index-offset)
-           (go check-displacement))))
-    (values array sum-of-offsets)))
-
-(defun displace-array (array dimensions index-offset)
-  "Make a displaced array from array with the given dimensions and the
-index-offset and the same element-type as array.  Tries to displace
-from the original array."
-  (multiple-value-bind (original-array sum-of-offsets)
-      (find-original-array array)
-    (make-array dimensions 
-                :element-type (array-element-type array)
-                :displaced-to original-array
-                :displaced-index-offset (+ sum-of-offsets index-offset))))
-
 (defun flatten-array (array)
-  "Return a flat (ie rank 1) displaced version of the array."
-  (displace-array array (array-total-size array) 0))
+  "Return a 1D displaced version of array."
+  (make-array (array-total-size array)
+              :element-type (array-element-type array)
+              :displaced-to array))
