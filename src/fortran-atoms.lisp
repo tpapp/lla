@@ -69,7 +69,7 @@ omitted."
            (setf (mem-aref* ,pointer ,type) ,value-saved)
            ,@body)))))
 
-(with-multiple-bindings with-fortran-atom)
+(define-with-multiple-bindings with-fortran-atom)
 
 ;; ?? naming convention: above could be with-fortran-scalar-input, if
 ;; there were -input-output and -input version, but there won't be:
@@ -79,4 +79,4 @@ omitted."
 
 
 ;;;; this is missing from CFFI at the moment
-(with-multiple-bindings with-foreign-pointer)
+(define-with-multiple-bindings with-foreign-pointer)

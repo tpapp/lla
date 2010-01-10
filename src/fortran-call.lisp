@@ -185,7 +185,7 @@ assigning the pointer to pointer."
 			  (* ,size (foreign-size* ,lla-type)))
      ,@body))
 
-(with-multiple-bindings with-work-area)
+(define-with-multiple-bindings with-work-area)
 
 
 ;;;; Miscellaneous utility functions.

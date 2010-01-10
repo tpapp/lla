@@ -54,7 +54,7 @@ symbol.  Also accepts symbols."
 	   (warn "~A is an abstract base class and not to be instantiated." 
                  (quote ',classname))))))
 
-(defmacro with-multiple-bindings (macro)
+(defmacro define-with-multiple-bindings (macro)
   "Define a version of `macro' with multiple arguments, given as a
 list.  Application of `macro' will be nested.  The new name is the 
 plural of the old one (generated using format)."
