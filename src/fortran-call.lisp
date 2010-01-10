@@ -5,8 +5,12 @@
 
 (declaim (inline lb-target-type))
 (defun lb-target-type (&rest objects)
-  (apply #'smallest-common-target-type (mapcar #'lla-type objects)))
-
+  "Find common target type of objects to.  Forces floats, should be
+used in LAPACK."
+  (binary-code->lla-type
+   (reduce #'logior objects :key (lambda (object)
+                                   (lla-type->binary-code
+                                    (lla-type object))))))
 
 
 ;;; Helper functions that generate the correct LAPACK/BLAS function
@@ -168,7 +172,6 @@ the allocated memory area (pointer) are assigned to these."
                ,@body)))))))
 
 
-;;;; Allocation for temporary workspace.
 
 (defmacro with-work-query ((size pointer lla-type) &body body)
   "Single-variable version of WITH-WORK-QUERIES."
@@ -203,10 +206,45 @@ imaginary parts of vectors  separately, we have to assemble them."
           (iter
             (for i :from 0 :below n)
             (setf (aref elements i) (mem-aref pointer :double i)))
-          (make-instance 'numeric-vector-double :elements elements))
+          (make-nv* :double elements))
         (let ((elements (make-array n :element-type '(complex double-float))))
           (iter
             (for i :from 0 :below n)
             (setf (aref elements i) (complex (mem-aref pointer :double i)
                                          (mem-aref pointer :double (+ n i)))))
-          (make-instance 'numeric-vector-complex-double :elements elements)))))
+          (make-nv* :complex-double elements)))))
+
+;;; Collecting the matrix/vector at the end.
+
+(defun matrix-from-first-rows (nv m nrhs n)
+  "Extract & return (as a dense-matrix) the first n rows of an m x
+nrhs matrix, stored in nv in column-major view.  NOTE: needed to
+interface to LAPACK routines like xGELS."
+  ;; It is assumed that NV's ELEMENTS has the correct type.
+  (let* ((elements (elements nv))
+         (result (make-array (* n nrhs) :element-type (array-element-type elements))))
+    (dotimes (col nrhs)
+      (iter
+        (repeat n)
+        (for elements-index :from (* col m))
+        (for result-index :from (* col n))
+        (setf (aref result result-index) (aref elements elements-index))))
+    (make-matrix* (lla-type nv) n nrhs result)))
+
+(defun sum-last-rows (nv m nrhs n)
+  "Sum & return (as a numeric-vector of the appropriate type) the last
+m-n rows of an m x nrhs matrix, stored in nv in column-major view.
+NOTE: needed to interface to LAPACK routines like xGELS."
+  (let* ((elements (elements nv))
+         (lisp-type (array-element-type elements))
+         (result (make-array nrhs :element-type lisp-type
+                             :initial-element (coerce 0 lisp-type))))
+    (dotimes (col nrhs)
+      (setf (aref result col)
+            (coerce 
+             (iter
+               (repeat (- m n))
+               (for elements-index :from (+ (* col m) n))
+               (summing (expt (abs (aref elements elements-index)) 2)))
+             lisp-type)))
+    (make-nv* (lla-type nv) result)))
