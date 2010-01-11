@@ -87,9 +87,9 @@ is discarded."
     `(progn
        (check-type ,numeric-vector numeric-vector)
        (check-type ,lla-type lla-type)
-       (with-pinned-vector ((convert-elements ,numeric-vector ,lla-type))
-         ,pointer)
-       ,@body)))
+       (with-pinned-vector ((convert-elements ,numeric-vector ,lla-type)
+                            ,pointer)
+         ,@body))))
 
 
 #+sbcl
@@ -110,15 +110,16 @@ be used as elements in MAKE-NV* and MAKE-MATRIX*), assigned to name."
 	   ,@body)))))
 
 #+sbcl
-(defmacro with-nv-output ((name length pointer lla-type) &body body)
+(defmacro with-vector-output ((name length pointer lla-type) &body body)
   "Allocates a memory area of the given type and length for the
 duration of body, and makes sure that the contents are assigned to the
-variable named name at the end."
+variable named name at the end as a Lisp array of compatible type.
+The elements are initialized to zero."
   (check-type name symbol)
   (check-type pointer symbol)
   (once-only (lla-type)
     `(progn
        (check-type ,lla-type lla-type)
-       (let ((,name (make-nv ,length ,lla-type)))
-	 (with-pinned-vector ((elements ,name) ,pointer)
+       (let ((,name (make-nv-elements ,length ,lla-type)))
+	 (with-pinned-vector (,name ,pointer)
 	   ,@body)))))

@@ -189,16 +189,18 @@ MAKE-NV and MAKE-MATRIX."
 ;;;; macros for defining subclasses of NUMERIC-VECTOR-*
 
 
-(defmacro expand-for-lla-types (typevar &body form)
+(defmacro expand-for-lla-types ((typevar &optional (prologue '(progn)))
+                                &body form)
   "Expand FORM (using EVAL) with TYPEVAR bound to all possible LLA
-types, return the results inside a PROGN."
+types, return the results inside a (,@PROLOGUE ...), PROGN by
+default."
   (when (cadr form)
     ;; FORM is a &body argument only for saner indentation.
     (error "Multiple forms provided."))
-  `(progn
-     ,@(mapcar (lambda (typename)
-                 (eval `(let ((,typevar ',typename)) ,(car form))))
-               +lla-type-list+)))
+  `(,@prologue
+    ,@(mapcar (lambda (typename)
+                (eval `(let ((,typevar ',typename)) ,(car form))))
+              +lla-type-list+)))
 
 (defmacro define-lla-class (class &optional (superclasses (list class)))
   "Define subclasses of all NUMERIC-VECTOR types and given

@@ -13,11 +13,17 @@
 ;;; resulting vector can be passed to LAPACK.  See SET-RESTRICTED and
 ;;; RESTRICTED-ELEMENTS for nuances.
 
-(define-abstract-class dense-matrix-like ()
+(define-abstract-class matrix-storage ()
   ((nrow :type dimension :initarg :nrow :reader nrow
 	 :documentation "The number of rows in the matrix.")
    (ncol :type dimension :initarg :ncol :reader ncol
 	 :documentation "The number of columns in the matrix."))
+  (:documentation "Superclass of all classes that resemble a matrix.
+  Nevertheless, it is not implied that the elements should be
+  interpreted as a matrix: they could be a matrix factorization packed
+  into a matrix, etc."))
+
+(define-abstract-class dense-matrix-like (matrix-storage) ()
   (:documentation "Subclasses of this class behave like an NROW x NCOL
   matrix, storing the elements in a subset of ELEMENTS, mapped using
   column-major indexing.  If the subclass is also a member of
@@ -26,6 +32,15 @@
   inferred from other elements (eg for hermitian matrices.  When
   SET-RESTRICTED is called, it has to ensure that all values in
   ELEMENTS reflect the constant or inferred cells in the matrix."))
+
+(define-abstract-class matrix-factorization (matrix-storage)
+  ()
+  (:documentation "Technically these are not matrices (as they may
+contain 2+ matrices and other data), but they are usually defined as
+subclasses of dense-matrix-like (or a subclass, etc) so that you can
+manipulate them as if they were.  NROW and NCOL follow the conventions
+of LAPACK, ie usually refer to the dimensions of the original
+matrix."))
 
 (defmacro define-matrix-class ()
   "Define the function MATRIX-CLASS."
@@ -37,12 +52,12 @@
                              (:qr qr-factorization)
                              (:cholesky cholesky-factorization))))
     (labels ((generate-lla-type-case (prefix)
-               `(case lla-type
+               `(ecase lla-type
                   ,@(mapcar (lambda (lla-type)
                               `(,lla-type ',(make-symbol* prefix '- lla-type)))
                        +lla-type-list+)))
              (generate-kind-case ()
-               `(case kind
+               `(ecase kind
                   ,@(mapcar (lambda (kind-and-prefix)
                               `(,(first kind-and-prefix)
                                  ,(generate-lla-type-case (second kind-and-prefix))))
@@ -59,21 +74,26 @@
   (:documentation "Return the matrix kind,
   eg :DENSE, :UPPER-TRIANGULAR, etc."))
 
-(defmacro define-dense-matrix-kind ((kind &optional (class-name (make-symbol* kind '-matrix)))
-                                    (&rest additional-superclasses) documentation
-                                    &optional (additional-slots '()))
+(defmacro define-matrix-storage-subclass
+    ((kind &optional (type 'dense-matrix-like))
+     (&rest additional-superclasses) documentation
+     &optional (additional-slots '()))
   "Macro for defining simple subclasses of DENSE-MATRIX-LIKE."
   (check-type kind symbol)
-  (check-type class-name symbol)
   (check-type documentation string)
-  `(progn
-     (define-abstract-class ,class-name (,@additional-superclasses dense-matrix-like)
-       ,additional-slots
-       (:documentation ,documentation))
-     (define-lla-class ,class-name)
-     (defmethod matrix-kind ((matrix ,class-name)) ,kind)))
+  (bind (((class superclass) (ecase type
+                               (dense-matrix-like (list (make-symbol* kind '-matrix)
+                                                        'dense-matrix-like))
+                               (factorization (list (make-symbol* kind '-factorization)
+                                                    'matrix-factorization)))))
+    `(progn
+       (define-abstract-class ,class (,@additional-superclasses ,superclass)
+         ,additional-slots
+         (:documentation ,documentation))
+       (define-lla-class ,class)
+       (defmethod matrix-kind ((matrix ,class)) ,kind))))
 
-(define-dense-matrix-kind (:dense) ()
+(define-matrix-storage-subclass (:dense) ()
   "Dense matrix, with elements stored in column-major order.")
 
 ;;; Framework for dense matrices with restricted elements.
@@ -91,6 +111,20 @@
   routines.  Calling SET-RESTRICTED will ensure that it is set to the
   correct value."))
 
+(defmethod restricted-set-p ((matrix dense-matrix-like))
+  ;; Dense matrices can behave as if their restricted elements were
+  ;; always set.  This makes handling some special cases easier.
+  t)
+
+(defgeneric set-restricted-set-p (matrix value)
+  (:documentation "Set the value of the restricted-set-p slot,
+  whenever applicable.")
+  (:method ((matrix matrix-storage) value)
+    ;; general case: do nothing
+    (declare (ignore matrix value)))
+  (:method ((matrix restricted-elements) value)
+    (setf (restricted-set-p matrix) value)))
+    
 (defgeneric set-restricted* (matrix)
   (:documentation "Always set the restricted elements of matrix,
   regardless of restricted-set-p.  Should not be called directly,
@@ -106,27 +140,22 @@
   NOTE: the default behavior is to call set-restricted* if (not
   restricted-set-p), so it is advised to define that method instead
   for classes.")
-  (:method ((matrix dense-matrix))) ;; do nothing
+  (:method ((matrix matrix-storage))) ;; do nothing
   (:method ((matrix restricted-elements))
     (with-slots (restricted-set-p) matrix
       (unless restricted-set-p
         (set-restricted* matrix)
         (setf restricted-set-p t)))))
 
-(defmethod restricted-set-p ((matrix dense-matrix))
-  ;; Dense matrices can behave as if their restricted elements were
-  ;; always set.  This makes handling some special cases easier.
-  t)
-
-(define-dense-matrix-kind (:upper-triangular) (restricted-elements)
+(define-matrix-storage-subclass (:upper-triangular) (restricted-elements)
     "A dense, upper triangular matrix.  The elements below the
 diagonal are not necessarily initialized and not accessed.")
 
-(define-dense-matrix-kind (:lower-triangular) (restricted-elements)
+(define-matrix-storage-subclass (:lower-triangular) (restricted-elements)
     "A dense, lower triangular matrix.  The elements above the
 diagonal are not necessarily initialized and not accessed.")
 
-(define-dense-matrix-kind (:hermitian) (restricted-elements)
+(define-matrix-storage-subclass (:hermitian) (restricted-elements)
   ;; LLA uses the class HERMITIAN-MATRIX to implement both real
   ;; symmetric and complex Hermitian matrices --- as technically, real
   ;; symmetric matrices are also Hermitian.  Complex symmetric
@@ -138,14 +167,6 @@ diagonal are not necessarily initialized and not accessed.")
 
 ;;; Matrix factorizations
 
-(define-abstract-class matrix-factorization ()
-  ()
-  (:documentation "Technically these are not matrices (as they may
-contain 2+ matrices and other data), but they are usually defined as
-subclasses of dense-matrix-like (or a subclass, etc) so that you can
-manipulate them as if they were.  NROW and NCOL follow the conventions
-of LAPACK, ie usually refer to the dimensions of the original
-matrix."))
 
 (defgeneric factorization-component (mf component)
   (:documentation "Return a given component of a matrix factorization."))
@@ -153,16 +174,16 @@ matrix."))
 (defgeneric reconstruct (mf)
   (:documentation "Calculate the original matrix from the matrix factorization."))
 
-(define-dense-matrix-kind (:lu lu-factorization) (matrix-factorization)
+(define-matrix-storage-subclass (:lu factorization) ()
   "LU decomposition of the matrix A with pivoting."
   ((ipiv :type numeric-vector-integer :initarg :ipiv :reader ipiv
 	 :documentation "pivot indices")))
 
-(define-dense-matrix-kind (:qr qr-factorization) (matrix-factorization)
+(define-matrix-storage-subclass (:qr factorization) ()
   "QR decomposition of a matrix.")
 
-(define-dense-matrix-kind (:cholesky
-cholesky-factorization) (matrix-factorization lower-triangular-matrix)
+(define-matrix-storage-subclass (:cholesky factorization)
+    (lower-triangular-matrix)
   "Cholesky decomposition R of a matrix=RR^*, where * is the conjugate
 transpose.  Should behave as a matrix, but only the lower-triangular
 part of the decomposition is stored.")

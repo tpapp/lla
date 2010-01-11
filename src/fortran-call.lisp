@@ -190,29 +190,67 @@ assigning the pointer to pointer."
 
 ;;;; Miscellaneous utility functions.
 
-(defun nv-zip-complex-double (pointer n &optional check-real-p)
-  "Return the complex numbers stored at pointer (n real parts,
-followed by n imaginary parts) as a numeric vector (either double or
-complex-double).  If check-real-p, then check if the imaginary part is
-0 and if so, return a numeric-vector-double, otherwise always return a
-complex-double one.  Rationale: some LAPACK routines return real and
-imaginary parts of vectors  separately, we have to assemble them."
+(defun zip-eigenvalues (val-pointer n real-type complex-type check-real-p)
+  "Return the complex numbers stored at VAL-POINTER (N real parts,
+followed by N imaginary parts) as a NUMERIC-VECTOR (either
+SINGLE/DOUBLE or COMPLEX-SINGLE/COMPLEX-DOUBLE).  If CHECK-REAL-P,
+then check if the imaginary part is 0 and if so, return a
+NUMERIC-VECTOR-SINGLE/DOUBLE, otherwise always return a complex one.
+The second value is non-nil if there are complex eigenvalues.  *Usage
+note:* some LAPACK routines return real and imaginary parts of vectors
+separately, we have to assemble them. *NOT EXPORTED*."
   (let ((real-p (and check-real-p 
                      (iter
                        (for i :from 0 :below n)
-                       (always (zerop (mem-aref pointer :double (+ n i))))))))
+                       (always (zerop (mem-aref val-pointer 
+                                                real-type (+ n i))))))))
     (if real-p
-        (let ((elements (make-array n :element-type 'double-float)))
+        ;; no complex eigenvalues
+        (let ((elements (make-nv-elements n real-type)))
           (iter
             (for i :from 0 :below n)
-            (setf (aref elements i) (mem-aref pointer :double i)))
-          (make-nv* :double elements))
-        (let ((elements (make-array n :element-type '(complex double-float))))
+            (setf (aref elements i) (mem-aref val-pointer real-type i)))
+          (values (make-nv* real-type elements) nil))
+        ;; complex eigenvalues
+        (let ((elements (make-nv-elements n complex-type)))
           (iter
             (for i :from 0 :below n)
-            (setf (aref elements i) (complex (mem-aref pointer :double i)
-                                         (mem-aref pointer :double (+ n i)))))
-          (make-nv* :complex-double elements)))))
+            (setf (aref elements i) (complex (mem-aref val-pointer
+                                                       real-type i)
+                                             (mem-aref val-pointer
+                                                       real-type (+ n i)))))
+          (values (make-nv* complex-type elements) t)))))
+
+(defun zip-eigenvectors (val-pointer vec-pointer n real-type complex-type)
+  "Collect complex eigenvectors from S/DGEEV.  Should only be called
+when the second value returned by ZIP-EIGENVALUES is non-nil."
+  (prog ((vec (make-nv-elements (* n n) complex-type))
+         (i 0))
+   top
+     (let ((column-start-index (cm-index2 n 0 i)))
+       (if (zerop (mem-aref val-pointer (+ n i)))
+           ;; real
+           (progn
+             (iter
+               (for j :from 0 :below n)
+               (for vec-index :from column-start-index)
+               (setf (aref vec vec-index)
+                     (complex (mem-aref vec-pointer real-type vec-index))))
+             (incf i))
+           ;; complex, assemble from real +- imaginary columns
+           (progn
+             (iter
+               (for j :from 0 :below n)
+               (for vec-index :from column-start-index)
+               (for vec-index2 :from (+ column-start-index n))
+               (with realpart := (mem-aref vec-pointer real-type vec-index))
+               (with imagpart := (mem-aref vec-pointer real-type vec-index2))
+               (setf (aref vec vec-index) (complex realpart imagpart)
+                     (aref vec vec-index2) (complex realpart (- imagpart))))
+             (incf i 2))))
+     (if (< i n)
+         (go top)
+         (return vec))))
 
 ;;; Collecting the matrix/vector at the end.
 
@@ -222,7 +260,7 @@ nrhs matrix, stored in nv in column-major view.  NOTE: needed to
 interface to LAPACK routines like xGELS."
   ;; It is assumed that NV's ELEMENTS has the correct type.
   (let* ((elements (elements nv))
-         (result (make-array (* n nrhs) :element-type (array-element-type elements))))
+         (result (make-nv-elements (* n nrhs) (lla-type nv))))
     (dotimes (col nrhs)
       (iter
         (repeat n)
@@ -237,8 +275,7 @@ m-n rows of an m x nrhs matrix, stored in nv in column-major view.
 NOTE: needed to interface to LAPACK routines like xGELS."
   (let* ((elements (elements nv))
          (lisp-type (array-element-type elements))
-         (result (make-array nrhs :element-type lisp-type
-                             :initial-element (coerce 0 lisp-type))))
+         (result (make-nv-elements nrhs (lla-type nv))))
     (dotimes (col nrhs)
       (setf (aref result col)
             (coerce 
@@ -248,3 +285,42 @@ NOTE: needed to interface to LAPACK routines like xGELS."
                (summing (expt (abs (aref elements elements-index)) 2)))
              lisp-type)))
     (make-nv* (lla-type nv) result)))
+
+
+;;;; nice interface for matrices, probably the most important macro
+
+(defmacro with-matrix-input (((matrix nrow ncol &optional
+                                      keyword output)
+                              pointer lla-type
+                              &optional (set-restricted t)) &body body)
+  "Convenience macro for using matrices as input for Fortran calls.
+Essentially like WITH-NV-INPUT, except that matrix dimensions are
+bound to variables.  NROW and NCOL have the following syntax:
+  variable-name  -- dimensions is assigned to the variable
+  (variable-name fortran-atom-name)  --  value is also assigned to a
+     memory location as an integer using WITH-FORTRAN-ATOM."
+  (flet ((parse-dimspec (dimspec)
+           "Parse dimension name binding specification."
+           (cond
+             ((and dimspec (atom dimspec))
+              (check-type dimspec symbol)
+              (list dimspec nil))
+             ((and dimspec (listp dimspec) (= (length dimspec) 2))
+              (bind (((name fortran-atom-name) dimspec))
+                (assert (every #'symbolp dimspec) ()
+                        "Need symbol for dimension specification.")
+                `(,name ((:integer ,fortran-atom-name ,name)))))
+             (t (error "Invalid dimension specification ~A.  ~
+                       Use NAME or (NAME FORTRAN-ATOM-NAME)." dimspec)))))
+    (bind (((nrow-name nrow-fortran-atom-expansion) (parse-dimspec nrow))
+           ((ncol-name ncol-fortran-atom-expansion) (parse-dimspec ncol)))
+      (once-only (matrix)
+        `(bind (((:slots-read-only (,nrow-name nrow) (,ncol-name ncol)) ,matrix))
+           ,@(if set-restricted
+                 `((set-restricted ,matrix)))
+           (with-fortran-atoms (,@nrow-fortran-atom-expansion
+                                ,@ncol-fortran-atom-expansion)
+             (with-nv-input ((,matrix ,keyword ,output) ,pointer ,lla-type)
+               ,@body)))))))
+
+(define-with-multiple-bindings with-matrix-input)

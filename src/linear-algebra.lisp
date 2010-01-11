@@ -14,98 +14,190 @@
 ;;;; argument was a vector.  For example, (solve a b) should be a
 ;;;; vector iff b is a vector, otherwise it should be a matrix.
 
+                                                    
+;;;;  matrix multiplication
+;;; 
+;;; The general matrix multiplication function is MMM.  It can be
+;;; called with more than two arguments: it multiplies matrices from
+;;; the left, using MM.  MM's first argument can also be a scalar.
+;;;
+;;; MM takes two matrices and an optional scalar.  Specialized methods
+;;; may allow matrices to be replaced by symbols etc, in which case
+;;; they have a special interpretation (eg multiply matrix by
+;;; transpose).
+;;;
+;;; !! Various optimizations, deferred to the future:
+;;; - compiler macros could notice (transpose matrix)
+;;; - mmm could detect and collect scalars
+;;; - methods for triangular matrices
+
+(defun mmm (&rest matrices)
+  (reduce #'mm matrices))
+
+(defgeneric mm (a b &optional alpha)
+  (:documentation "multiply A and B, also by the scalar
+  alpha (defaults to 1)."))
+
+(defmethod mm ((a numeric-vector) (b dense-matrix-like) &optional (alpha 1))
+  (copy-nv (mm (vector->row a) b alpha)))
+
+(defmethod mm ((a dense-matrix-like) (b numeric-vector) &optional (alpha 1))
+  (copy-nv (mm a (vector->column b) alpha)))
+
+(defmethod mm ((a numeric-vector) (b numeric-vector) &optional (alpha 1))
+  ;; a dot product, basically
+  (aref (elements (mm (vector->row a) (vector->column b) alpha)) 0))
+
+(defmethod mm ((a dense-matrix-like) (b dense-matrix-like) &optional (alpha 1))
+  (bind ((common-type (lb-target-type a b))
+         (lisp-type (lla-type->lisp-type common-type))
+         (procedure (lb-procedure-name 'gemm common-type)))
+    (with-matrix-inputs (((a (m m%) (k k%)) a% common-type)
+                         ((b k2 (n n%)) b% common-type))
+      (assert (= k k2))
+      (with-vector-output (c (* m n) c% common-type)
+        (with-fortran-atoms ((common-type alpha% (coerce alpha lisp-type))
+                             (common-type z% (coerce 0 lisp-type))
+                             (:char trans% #\N))
+          (funcall procedure trans% trans% m% n% k% alpha% a% m% b% k%
+                   z% c% m%))
+          (make-matrix* common-type m n c)))))
+
+(defun mm-hermitian% (a op-left-p &optional (alpha 1))
+  "Calculate alpha*A*op(A) if OP-LEFT-P is NIL, and alpha*op(A)*A
+  otherwise.  ALPHA defaults to 1.  op() is always conjugate
+  transpose, but may be implemented as a transpose if A is real, in
+  which case the two are equivalent.  This function is meant to be
+  used internally, and is *NOT EXPORTED*."
+  (set-restricted a)
+  (bind ((common-type (lla-type a))
+         ((:values procedure real-type)
+          (lb-procedure-name2 'syrk 'herk common-type)))
+    (with-matrix-input ((a (nrow nrow%) ncol) a% common-type)
+      (bind (((:values dim-c other-dim-a op-char)
+              (if op-left-p
+                  (values ncol nrow #\C) ; C is good for real, too
+                  (values nrow ncol #\N)))
+             (real-lisp-type (lla-type->lisp-type real-type)))
+        (with-vector-output (c (expt dim-c 2) c% common-type)
+          (with-fortran-atoms ((:integer dim-c% dim-c)
+                               (:integer other-dim-a% other-dim-a)
+                               (real-type alpha% (coerce alpha real-lisp-type))
+                               (real-type beta% (coerce 0 real-lisp-type))
+                               (:char u-char% #\U)
+                               (:char op-char% op-char))
+            (funcall procedure u-char% op-char% dim-c% other-dim-a%
+                     alpha% a% nrow% beta% c% dim-c%))
+          (make-matrix* common-type dim-c dim-c c :kind :hermitian))))))
+
+(defmethod mm ((a dense-matrix-like) (b (eql t)) &optional (alpha 1))
+  ;; A A^T
+  (mm-hermitian% a nil alpha))
+
+(defmethod mm ((a (eql t)) (b dense-matrix-like) &optional (alpha 1))
+  ;; A^T A
+  (mm-hermitian% b t alpha))
+
+
+;;;; LU factorization
+
 (defgeneric lu (a)
   (:documentation "LU decomposition of A"))
 
 (defmethod lu ((a dense-matrix-like))
-  (set-restricted a)
-  (bind (((:slots-read-only (m nrow) (n ncol) (a-data data)) a)
-         (type (lla-type a-data))
+  (bind ((type (lla-type a))
          (procedure (lb-procedure-name 'getrf type)))
-    (with-nv-input-output (a-data lu-data a% type)
-      (with-nv-output (ipiv (min m n) ipiv% :integer)
-        (with-fortran-atoms ((:integer m% m)
-                             (:integer n% n))
-          (call-with-info-check procedure m% n% a% m% ipiv% info%))
-        (make-instance 'lu :nrow m :ncol n :ipiv ipiv :data lu-data)))))
+    (with-matrix-input ((a (m m%) (n n%) :output-to lu-elements) a% type)
+      (with-vector-output (ipiv (min m n) ipiv% :integer)
+        (call-with-info-check procedure m% n% a% m% ipiv% info%)
+        (make-instance (matrix-class :lu type) :nrow m :ncol n 
+                       :elements lu-elements :ipiv (make-nv* :integer ipiv))))))
+
+;;;; solving linear equations
 
 (defgeneric solve (a b)
   (:documentation "Return X that solves AX=B."))
 
 (defmethod solve (a (b numeric-vector))
-  ;; will simply call one of the methods below
-  (matrix->vector (solve a (vector->matrix-col b))))
+  ;; Simply convert and call the method for a matrix.
+  ;;
+  ;; ??? check if the overhead is expensive, my hunch is that it
+  ;; should be trivial -- Tamas
+  (copy-nv (solve a (vector->column b))))
 
 (defmethod solve ((a dense-matrix-like) (b dense-matrix-like))
-  (set-restricted a)
-  (set-restricted b)
-  (bind (((:slots-read-only (n nrow) (n2 ncol) (a-data data)) a)
-         ((:slots-read-only (n3 nrow) (nrhs ncol) (b-data data)) b)
-         (common-type (smallest-common-target-type 
-                       (mapcar #'lla-type (list a-data b-data))))
+  (bind ((common-type (lb-target-type a b))
          (procedure (lb-procedure-name 'gesv common-type)))
-    (assert (= n n2 n3))
-    (with-nv-input-copied (a-data a% common-type) ; LU decomposition discarded
-      (with-nv-input-output (b-data x-data b% common-type)
-        (with-work-area (ipiv% :integer n) ; not saving IPIV
-          (with-fortran-atoms ((:integer n% n)
-                               (:integer nrhs% nrhs))
-            (call-with-info-check procedure n% nrhs% a% n% ipiv% b% n% info%))
-          (make-instance 'dense-matrix :nrow n :ncol nrhs
-                         :data x-data))))))
+    (with-matrix-inputs (((a (n n%) n2 :copied) a% common-type)
+                         ((b n3 (nrhs nrhs%) :output-to x-elements) b% common-type))
+      (assert (= n n2 n3))
+      (with-work-area (ipiv% :integer n) ; not saving IPIV
+        (call-with-info-check procedure n% nrhs% a% n% ipiv% b% n% info%))
+      (make-matrix* common-type n nrhs x-elements))))
 
-(defmethod solve ((lu lu) (b dense-matrix-like))
-  (set-restricted b)
-  (bind (((:slots-read-only (n nrow) (n2 ncol) ipiv (lu-data data)) lu)
-         ((:slots-read-only (n3 nrow) (nrhs ncol) (b-data data)) b)
-         (common-type (smallest-common-target-type
-                       (mapcar #'lla-type (list lu-data b-data))))
+(defmethod solve ((lu lu-factorization) (b dense-matrix-like))
+  (bind ((common-type (lb-target-type lu b))
          (procedure (lb-procedure-name 'getrs common-type)))
-    (assert (= n n2 n3))
-    (with-nv-input (lu-data lu% common-type)
-      (with-nv-input-output (b-data x-data b% common-type)
-        (with-nv-input (ipiv ipiv% :integer)
-          (with-fortran-atoms ((:integer n% n)
-                               (:integer nrhs% nrhs)
-                               (:char trans% #\N))
-              (call-with-info-check procedure trans% n% nrhs% lu% n% ipiv% b% n% info%)))
-        (make-instance 'dense-matrix :nrow n :ncol nrhs
-                       :data x-data)))))
+    (with-matrix-inputs (((lu (n n%) n2) lu% common-type)
+                         ((b n3 (nrhs nrhs%) :output-to x) b% common-type))
+      (assert (= n n2 n3))
+      (with-nv-input (((ipiv lu)) ipiv% :integer)
+        (with-fortran-atom (:char trans% #\N)
+          (call-with-info-check procedure trans% n% nrhs% lu% n% ipiv% b% n% info%)))
+      (make-matrix* common-type n nrhs x))))
 
-(defun eigen-dense-matrix-double (a &key vectors-p check-real-p)
-  "Eigenvalues and vectors for dense, double matrices."
-  (set-restricted a)
-  (bind (((:slots-read-only (n nrow) (n2 ncol) (a-data data)) a)
-         (procedure (lb-procedure-name 'geev :double)))
-    (assert (= n n2))
-    (with-nv-input-copied (a-data a% :double) ; A is overwritten
-      (with-work-area (w% :double (* 2 n)) ; eigenvalues, will be zipped
-        (let (;; imaginary part
-              (wi% (inc-pointer w% (* n (foreign-type-size :double)))))
-          (with-fortran-atoms ((:integer n% n)
-                               (:char n-char #\N)
-                               (:char v-char #\V))
-              (if vectors-p
-                  (with-nv-output (vr-data (* n n) vr% :double)
-                    (with-work-query (lwork work :double)
-                      (call-with-info-check procedure n-char v-char n% a% n% 
-                                            w% wi% ; eigenvalues
-                                            (null-pointer) n% vr% n% ; eigenvectors
-                                            work lwork info%))
-                    (values (nv-zip-complex-double w% n check-real-p)
-                            (make-instance 'dense-matrix :nrow n :ncol n
-                                           :data vr-data)))
-                  (with-work-query (lwork work :double)
-                    (call-with-info-check procedure n-char n-char n% a% n% 
-                                          w% wi%   ; eigenvalues
-                                          (null-pointer) n% (null-pointer) n% ; eigenvectors
-                                          work lwork info%)
-                    (nv-zip-complex-double w% n check-real-p)))))))))
+(defgeneric invert (a)
+  (:documentation "Invert A.  Usage note: inverting matrices is
+  unnecessary and unwise in most cases, because it is numerically
+  unstable.  If you are solving many Ax=b equations with the same A,
+  use a matrix factorization like LU.  Most INVERT methods use a
+  matrix factorization anyway."))
 
-(defun eigen-dense-matrix-complex-double (a &key vectors-p check-real-p)
-  "Eigenvalues and vectors for dense, double matrices."
-  (declare (ignore a vectors-p check-real-p))
-  (error "this function needs to be implemented"))
+(defmethod invert ((a dense-matrix-like))
+  (invert (lu a)))
+
+(defmethod invert ((lu lu-factorization))
+  (bind ((common-type (lla-type lu))
+	 (procedure (lb-procedure-name 'getri common-type)))
+    (with-matrix-input ((lu (n n%) n2 :output-to inverse) lu% common-type)
+      (assert (= n n2))
+      (with-nv-input (((ipiv lu)) ipiv% :integer)
+        (with-work-query (lwork% work% common-type)
+          (call-with-info-check procedure n% lu% n% ipiv% work% lwork%
+                                info%)))
+      (make-matrix* common-type n n inverse))))
+
+(defun invert-triangular% (a upper-p unit-diag-p result-kind)
+  "Invert a dense (triangular) matrix using the LAPACK routine *TRTRI.
+UPPER-P indicates if the matrix is in the upper or the lower triangle
+of a (which needs to be a subtype of dense-matrix-like, but the type
+information is not used), UNIT-DIAG-P indicates whether the diagonal
+is supposed to consist of 1s.  *For internal use, NOT EXPORTED*."
+  (bind ((common-type (lla-type a))
+	 (procedure (lb-procedure-name 'trtri common-type)))
+    (with-matrix-input ((a (n n%) n2 :output-to inverse) a% common-type)
+      (assert (= n n2))
+      (with-fortran-atoms ((:char u-char% (if upper-p #\U #\L))
+                           (:char d-char% (if unit-diag-p #\U #\N)))
+        (call-with-info-check procedure u-char% d-char% n% a% n% info%))
+      (make-matrix* common-type n n inverse :kind result-kind))))
+      (make-instance result-class :nrow n :ncol n :data inv-data))))
+  
+(defmethod invert ((a upper-triangular-matrix))
+  (invert-triangular% a t nil :upper-triangular))
+
+(defmethod invert ((a lower-triangular-matrix))
+  (invert-triangular% a nil nil :lower-triangular))
+
+(defmethod invert ((a cholesky-factorization))
+  (bind ((common-type (lla-type a))
+	 (procedure (lb-procedure-name 'potri common-type)))
+    (with-matrix-input ((a (n n%) n2 :output-to inverse) a% common-type)
+      (assert (= n n2))
+      (with-fortran-atoms ((:integer n% n)
+                           (:char u-char% #\U))
+        (call-with-info-check procedure u-char% n% a% n% info%))
+      (make-matrix* common-type n n inverse :kind :hermitian))))
 
 (defgeneric eigen (a &key vectors-p check-real-p &allow-other-keys)
   (:documentation "Calculate the eigenvalues and optionally the right
@@ -116,17 +208,78 @@ type (compex or not).  Complex conjugate pairs of eigenvalues appear
 consecutively with the eigenvalue having the positive imaginary part
 first."))
 
+(defun eigen-dense-real% (a vectors-p check-real-p)
+  "Eigenvalues and vectors for dense, real matrices."
+  ;; This is probably the hairiest function in the whole library.
+  ;; S/DEEV returns real and imaginary parts for eigenvectors and
+  ;; eigenvalues separately, so they have to be "zipped" together,
+  ;; with two utility functions.
+  (bind (((:values real-type complex-type)
+          (ecase (lla-type a)
+            ((:single :integer) (values :single :complex-single))
+            (:double (values :double :complex-double))))
+         (procedure (lb-procedure-name 'geev real-type)))
+    (with-matrix-input ((a (n n%) n2 :copied) a% real-type) ; overwritten
+      (assert (= n n2))
+      (with-work-area (w% real-type (* 2 n)) ; eigenvalues, will be zipped
+        (let (;; imaginary part
+              (wi% (inc-pointer w% (* n (foreign-type-size real-type)))))
+          (with-fortran-atoms ((:char n-char% #\N)
+                               (:char v-char% #\V))
+            (if vectors-p
+                (with-vector-output (vr (expt n 2) vr% :double)
+                  (with-work-query (lwork work :double)
+                    (call-with-info-check procedure n-char% v-char% n% a% n% 
+                                          w% wi% ; eigenvalues
+                                          (null-pointer) n% vr% n% ; eigenvectors
+                                          work lwork info%))
+                  (bind (((:values eigenvalues complex-p)
+                          (zip-eigenvalues w% n real-type complex-type check-real-p)))
+                    (values eigenvalues
+                            (if complex-p
+                                (make-matrix* complex-type n n
+                                              (zip-eigenvectors w% vr% n real-type
+                                                                complex-type))
+                                (make-matrix* real-type n n vr)))))
+                (with-work-query (lwork work :double)
+                  (call-with-info-check procedure n-char% n-char% n% a% n% 
+                                        w% wi%   ; eigenvalues
+                                        (null-pointer) n% (null-pointer) n% ; eigenvectors
+                                        work lwork info%)
+                  (zip-eigenvalues w% n real-type complex-type check-real-p)))))))))
+
+(defun eigen-dense-complex% (a vectors-p)
+  "Eigenvalues and vectors for dense, complex matrices."
+  (bind ((complex-type (lla-type a))
+         (procedure (lb-procedure-name 'geev complex-type)))
+    (assert (lla-complex-p complex-type) () "This function only handles complex matrices.")
+    (with-matrix-input ((a (n n%) n2 :copied) a% complex-type)
+      (assert (= n n2))
+      (with-vector-output (w n w% complex-type)
+        (with-work-area (rwork complex-type n)
+          (with-fortran-atoms ((:char n-char% #\N)
+                               (:char v-char% #\V))
+            (if vectors-p
+                (with-vector-output (vr (expt n 2) vr% complex-type)
+                  (with-work-query (lwork work complex-type)
+                    (call-with-info-check procedure n-char% v-char% n% a% n% w%
+                                          (null-pointer) n% vr% n% work lwork rwork info%)
+                    (values (make-nv* complex-type w)
+                            (make-matrix* complex-type n n vr))))
+                (with-work-query (lwork work complex-type)
+                  (call-with-info-check procedure n-char% n-char% n% a% n% w%
+                                        (null-pointer) n% (null-pointer) n% 
+                                        work lwork rwork info%)
+                  (make-nv* complex-type w)))))))))
+
 (defmethod eigen ((a dense-matrix-like) &key vectors-p check-real-p)
-  ;; The current approach is: convert to double precision (complex or
-  ;; real), so we just need two functions.  Unfortunately, the LAPACK
-  ;; interface for real and complex cases is different.
-  (case (lla-type (data a))
+  ;; Unfortunately, the LAPACK interface for real and complex cases is
+  ;; different.
+  (case (lla-type a)
     ((:integer :single :double)
-       (eigen-dense-matrix-double a :vectors-p vectors-p
-                                  :check-real-p check-real-p))
+       (eigen-dense-real% a vectors-p check-real-p))
     ((:complex-single :complex-double)
-       (eigen-dense-matrix-complex-double a :vectors-p vectors-p
-                                          :check-real-p check-real-p))))
+       (eigen-dense-complex% a vectors-p))))
 
 ;;;  Currently, the setup below triggers floating point exceptions
 ;;;  (divison-by-zero), which is actually expected since it calls
@@ -177,40 +330,54 @@ first."))
 (defmethod eigen ((a hermitian-matrix) &key vectors-p check-real-p)
   ;; Uses simple driver, where "simple" means "silly collection of special cases".
   (declare (ignore check-real-p))       ; eigenvalues are always real
-  (bind (((:slots-read-only (n nrow) (n2 ncol) (a-data data)) a)
-         (lla-type (lla-type a-data))
-         ((:values procedure real-lla-type complex-p) (lb-procedure-name2 'syev 'heev lla-type)))
-    (assert (= n n2))
-    (with-nv-output (w n w% real-lla-type) ; eigenvalues
-      (with-fortran-atoms ((:integer n% n)
-                           (:char nv-char (if vectors-p #\V #\N))
-                           (:char u-char #\U)) ; upper triangle
+  (bind ((common-type (lla-type a))
+         ((:values procedure real-type complex-p)
+          (lb-procedure-name2 'syev 'heev common-type)))
+      (with-fortran-atoms ((:char nv-char% (if vectors-p #\V #\N))
+                           (:char u-char% #\U)) ; upper triangle
         (if complex-p
             ;; *heev require an extra workspace argument
-            (with-work-area (rwork% real-lla-type (max 1 (- (* 3 n) 2)))
-              (if vectors-p
-                  (with-nv-input-output (a-data v-data a% lla-type) ; eigenvectors end up here
-                    (with-work-query (lwork% work% real-lla-type)
-                      (call-with-info-check procedure nv-char u-char n% a% n% w% work% lwork% rwork% info%)
-                      (values w
-                              (make-instance 'dense-matrix :nrow n :ncol n
-                                             :data v-data))))
-                  (with-nv-input-copied (a-data a% lla-type) ; A is overwritten
-                    (with-work-query (lwork% work% real-lla-type)
-                      (call-with-info-check procedure nv-char u-char n% a% n% w% work% lwork% rwork% info%)
+            (if vectors-p
+                ;; complex, with vectors
+                (with-matrix-input ((a (n n%) n2 :output-to v) a% common-type nil)
+                  (assert (= n n2))
+                  (with-vector-output (w n w% real-type) ; eigenvalues
+                    (with-work-area (rwork% real-type (max 1 (- (* 3 n) 2)))
+                      (with-work-query (lwork% work% real-type)
+                        (call-with-info-check procedure nv-char% u-char% n% a% n% w%
+                                              work% lwork% rwork% info%))
+                      (values w (make-matrix* real-type n n v)))))
+                ;; complex, without vectors
+                (with-matrix-input ((a (n n%) n2 :copied) a% common-type nil)
+                  (assert (= n n2))
+                  (with-vector-output (w n w% real-type) ; eigenvalues
+                    (with-work-area (rwork% real-type (max 1 (- (* 3 n) 2)))
+                      (with-work-query (lwork% work% real-type)
+                        (call-with-info-check procedure nv-char% u-char% n% a% n% w%
+                                              work% lwork% rwork% info%))
                       w))))
             (if vectors-p
-                (with-nv-input-output (a-data v-data a% lla-type) ; eigenvectors end up here
-                  (with-work-query (lwork% work% real-lla-type)
-                    (call-with-info-check procedure nv-char u-char n% a% n% w% work% lwork% info%)
-                    (values w
-                            (make-instance 'dense-matrix :nrow n :ncol n
-                                           :data v-data))))
-                (with-nv-input-copied (a-data a% lla-type) ; A is overwritten
-                  (with-work-query (lwork% work% real-lla-type)
-                    (call-with-info-check procedure nv-char u-char n% a% n% w% work% lwork% info%)
-                    w))))))))
+                ;; real, with vectors
+                (with-matrix-input ((a (n n%) n2 :output-to v) a% common-type nil)
+                  (assert (= n n2))
+                  (with-vector-output (w n w% real-type) ; eigenvalues
+                    (with-work-query (lwork% work% real-type)
+                      (call-with-info-check procedure nv-char% u-char% n% a% n% w%
+                                            work% lwork% info%))
+                    (values w (make-matrix* real-type n n v))))
+                ;; real, without vectors
+                (with-matrix-input ((a (n n%) n2 :output-to v) a% common-type nil)
+                  (assert (= n n2))
+                  (with-vector-output (w n w% real-type) ; eigenvalues
+                    (with-work-query (lwork% work% real-type)
+                      (call-with-info-check procedure nv-char% u-char% n% a% n% w%
+                                            work% lwork% info%))
+                    w)))))))
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; moving barrier -- things below are to be rewritten
+;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;;;
 ;;;; least squares calculations
@@ -267,62 +434,6 @@ degrees of freedom."))
 ;;;; inverting matrices
 ;;;;
 
-(defgeneric invert (a)
-  (:documentation "Invert A."))
-
-(defmethod invert ((a dense-matrix-like))
-  (set-restricted a)
-  (invert (lu a)))
-
-(defmethod invert ((lu lu))
-  (bind (((:slots-read-only (n nrow) (n2 ncol) ipiv (lu-data data)) lu)
-	 (common-type (lla-type lu-data))
-	 (procedure (lb-procedure-name 'getri common-type)))
-    (assert (= n n2))
-    (with-nv-input-output (lu-data inverse-data lu% common-type)
-      (with-nv-input (ipiv ipiv% :integer)
-        (with-fortran-atom (:integer n% n)
-          (with-work-query (lwork% work% common-type)
-            (call-with-info-check procedure n% lu% n% ipiv% work% lwork% info%))
-	  (make-instance 'dense-matrix :nrow n :ncol n
-			 :data inverse-data))))))
-
-
-(defun invert-triangular% (a upper-p unit-diag-p result-class)
-  "Invert a dense (triangular) matrix using the LAPACK routine *TRTRI.
-UPPER-P indicates if the matrix is in the upper or the lower triangle
-of a (which needs to be a subtype of dense-matrix-like, but the type
-information is not used), UNIT-DIAG-P indicates whether the diagonal
-is supposed to consist of 1s.
-
-NOTE: for internal use, not exported."
-  (bind (((:slots-read-only (n nrow) (n2 ncol) (a-data data)) a)
-	 (common-type (lla-type a-data))
-	 (procedure (lb-procedure-name 'trtri common-type)))
-    (assert (= n n2))
-    (with-nv-input-output (a-data inv-data a% common-type)
-      (with-fortran-atoms ((:char u-char (if upper-p #\U #\L))
-                           (:char d-char (if unit-diag-p #\U #\N))
-                           (:integer n% n))
-        (call-with-info-check procedure u-char d-char n% a% n% info%))
-      (make-instance result-class :nrow n :ncol n :data inv-data))))
-  
-(defmethod invert ((a upper-triangular-matrix))
-  (invert-triangular% a t nil 'upper-triangular-matrix))
-
-(defmethod invert ((a lower-triangular-matrix))
-  (invert-triangular% a nil nil 'lower-triangular-matrix))
-
-(defmethod invert ((a cholesky))
-  (bind (((:slots-read-only (n nrow) (n2 ncol) (a-data data)) a)
-	 (common-type (lla-type a-data))
-	 (procedure (lb-procedure-name 'potri common-type)))
-    (assert (= n n2))
-    (with-nv-input-output (a-data inv-data a% common-type) ; output: upper triangular
-      (with-fortran-atoms ((:integer n% n)
-                           (:char u-char #\U))
-        (call-with-info-check procedure u-char n% a% n% info%))
-      (make-instance 'hermitian-matrix :nrow n :ncol n :data inv-data))))
 
 ;;;;
 ;;;;  utility functions for least squares
@@ -340,138 +451,6 @@ used as a LOWER-TRIANGULAR-MATRIX for generating random draws. "
     (invert (take 'cholesky (factorization-component qr :R)))))
 
 
-;;;;
-;;;;  matrix multiplication
-;;;; 
-;;;;  Currently, we only support the common alpha parameter alpha*A*B.
-;;;;  ??? In the future, C and beta could be added.  Is it needed? --
-;;;;  Tamas
-
-(defgeneric mm (a b &key alpha)
-  (:documentation "multiply A and B, also by the scalar
-  alpha (defaults to 1)."))
-
-(defmethod mm ((a dense-matrix-like) (b dense-matrix-like) &key (alpha 1))
-  (set-restricted a)
-  (set-restricted b)
-  (bind (((:slots-read-only (m nrow) (k ncol) (a-data data)) a)
-         ((:slots-read-only (k2 nrow) (n ncol) (b-data data)) b)
-         (common-type (smallest-common-target-type
-                       (mapcar #'lla-type (list a-data b-data))))
-         (lisp-type (lla-type->lisp-type common-type))
-         (procedure (lb-procedure-name 'gemm common-type)))
-    (assert (= k k2))
-    (with-nv-input (a-data a% common-type)
-      (with-nv-input (b-data b% common-type)
-        (with-nv-output (c-data (* m n) c% common-type)
-          (with-fortran-atoms ((:integer n% n)
-                               (:integer k% k)
-                               (:integer m% m)
-                               (common-type alpha% (coerce alpha lisp-type))
-                               (common-type z% (coerce 0 lisp-type))
-                               (:char trans% #\N))
-              (funcall procedure trans% trans% m% n% k% alpha% a% m% b% k%
-                       z% c% m%))
-          (make-instance 'dense-matrix :nrow m :ncol n :data c-data))))))
-
-;;; !!! write triangular method, currently I am confused about its
-;;; !!! generality wrt dimensions - does it handle square triangular
-;;; !!! matrices only? currently the dense-matrix version will do just fine.
-
-;; (defun mm-triangular (a b side upper-p unit-diag-p alpha)
-;;   "Utility function for multiplication of triangular matrices.  SIDE
-;; is either :LEFT (AB) or :RIGHT (BA), but A is always the triangular
-;; matrix.  NOTE: not exported, for internal use only."
-;;   (bind (((:slots-read-only (nrow-a nrow) (ncol-a ncol) (a-data data)) a)
-;; 	 ((:slots-read-only (nrow-b nrow) (ncol-b ncol) (b-data data)) b)
-;; 	 (common-type (smallest-common-target-type
-;; 		       (mapcar #'lla-type (list a-data b-data))))
-;;          (lisp-type (lla-type->lisp-type common-type))
-;; 	 (procedure (lb-procedure-name 'trmm common-type)))
-;;     (case side
-;;       (:left (assert (= ncol-a nrow-b)))
-;;       (:right (assert (= ncol-b nrow-a)))
-;;       (otherwise (error "invalide side specification ~A" side)))
-;;     (with-nv-input (a-data a% common-type)
-;;       (with-nv-input-output (b-data x-data b% common-type)
-;;         (with-fortran-scalars ((nrow-a nrow-a% :integer)
-;;                                (ncol-a ncol-a% :integer)
-;;                                (nrow-b nrow-b% :integer)
-;;                                (ncol-b ncol-b% :integer)
-;;                                ((coerce alpha lisp-type) alpha% common-type)
-;;                                ((coerce 0 lisp-type) z% common-type))
-;;           (with-characters ((t-char #\N)
-;;                             (u-char (if upper-p #\U #\L))
-;;                             (d-char (if unit-diag-p #\U #\N))
-;;                             (s-char (if (eq side :left) #\L #\R)))
-;;             (funcall procedure s-char u-char t-char d-char
-;;                      nrow-b% ncol-b% alpha% a% )))
-;; 	  (make-instance 'dense-matrix :nrow m :ncol n :data c-data))))))
-
-
-(defmethod mm ((a numeric-vector) (b dense-matrix-like) &key (alpha 1))
-  (matrix->vector (mm (vector->matrix-row a) b :alpha alpha)))
-
-(defmethod mm ((a dense-matrix-like) (b numeric-vector) &key (alpha 1))
-  (matrix->vector (mm a (vector->matrix-col b) :alpha alpha)))
-
-(defmethod mm ((a numeric-vector) (b numeric-vector) &key (alpha 1))
-  ;; a dot product, basically :-)
-  (xref (mm (vector->matrix-row a) (vector->matrix-col b) :alpha alpha)
-        0 0))
-  
-
-;;;;
-;;;;  Updates for hermitian matrices
-;;;;
-
-;; (defun ntc-operation-char% (operation)
-;;   "Return corresponding character for LAPACK operations."
-;;   (ecase operation
-;;     (:none #\N)
-;;     (:transpose #\T)
-;;     (:conjugate #\C)))
-
-(defun mmx (a op-left-p &key (alpha 1) (beta 0) (c (lla-type a)))
-  "Calculate alpha*A*op(A) + beta*C if OP-LEFT-P is NIL, and
-  alpha*op(A)*A + beta*C otherwise.  ALPHA and BETA default to 1 and
-  0, respectively.  op() is always conjugate transpose, but may be
-  implemented as a transpose if A is real, in which case the two are
-  equivalent.
-
-  C can also be a symbol, denoting an LLA type, in which case a
-  conformable matrix of that type will be created.  The default is the
-  LLA-TYPE of A."
-  (set-restricted a)
-  (bind (((:slots-read-only (nrow-a nrow) (ncol-a ncol) (a-data data)) a)
-         ((:values dim-c other-dim-a op-char)
-          (if op-left-p
-              (values ncol-a nrow-a #\C) ; C is good for real, too
-              (values nrow-a ncol-a #\N))))
-    ;; if C is a symbol, create the requested matrix
-    (if (symbolp c)
-        (setf c (make-matrix 'hermitian-matrix dim-c dim-c :lla-type c))
-        (progn
-          (check-type c hermitian-matrix)
-          (assert (= dim-c (nrow c) (ncol c)))))
-    (bind (((:slots-read-only (c-data data)) c)
-           (common-type (smallest-common-target-type
-                         (mapcar #'lla-type (list c-data c-data))))
-           ((:values procedure real-lla-type) (lb-procedure-name2 'syrk 'herk common-type))
-           (real-lisp-type (lla-type->lisp-type real-lla-type)))
-      (with-nv-input (a-data a% common-type)
-        (with-nv-input-output (c-data result-data c% common-type)
-          (with-fortran-atoms ((:integer nrow-a)
-                               (:integer dim-c)
-                               (:integer other-dim-a)
-                               (real-lla-type alpha (coerce alpha real-lisp-type))
-                               (real-lla-type beta (coerce beta real-lisp-type))
-                               (:char u-char #\U)
-                               (:char op-char))
-            (funcall procedure u-char op-char dim-c other-dim-a
-                     alpha a% nrow-a beta c% dim-c))
-          (make-instance 'hermitian-matrix :data result-data :nrow dim-c :ncol dim-c
-                         :restricted-set-p nil))))))
 
 ;;;;
 ;;;;  Cholesky factorization

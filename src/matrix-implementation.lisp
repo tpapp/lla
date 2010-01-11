@@ -15,7 +15,7 @@
 ;;;
 ;;; !!! write optimized versions
 
-(expand-for-lla-types lla-type
+(expand-for-lla-types (lla-type)
   (let ((class (matrix-class :upper-triangular lla-type))
         (zero (coerce 0 (lla-type->lisp-type lla-type))))
     `(defmethod set-restricted* ((matrix ,class))
@@ -52,8 +52,7 @@
 
 (defmethod set-restricted* ((matrix hermitian-matrix))
   (ensure-unshared matrix)
-  (bind (((:slots-read-only nrow ncol data) matrix)
-         (vector (copy-data data)))
+  (bind (((:slots-read-only nrow ncol elements) matrix))
     ;; set the lower triangle (below diagonal) to conjugate of the
     ;; elements in the upper triangle
     (dotimes (col ncol)
@@ -62,8 +61,8 @@
         (for index
           :from (cm-index2 nrow col col)
           :below (cm-index2 nrow nrow col))
-        (setf (aref vector index)
-              (conjugate (aref vector (cm-index2 nrow col row)))))))
+        (setf (aref elements index)
+              (conjugate (aref elements (cm-index2 nrow col row)))))))
   matrix)
 
 
@@ -93,14 +92,16 @@
 
 ;;; xref for dense matrices
 
-(defmethod xref ((matrix dense-matrix) &rest subscripts)
+(declaim (inline matrix-xref% matrix-setf-xref%))
+(defun matrix-xref% (matrix subscripts)
+  "Reader function for matrices.  Meant to be inlined.  Not exported."
   (bind (((row col) subscripts))
     (with-slots (nrow ncol elements) matrix
       (check-index row nrow)
       (check-index col ncol)
       (aref elements (cm-index2 nrow row col)))))
-
-(defmethod (setf xref) (value (matrix dense-matrix) &rest subscripts)
+(defun matrix-setf-xref% (value matrix subscripts)
+  "Setter function for matrices.  Meant to be inlined.  Not exported."
   (ensure-unshared matrix)
   (bind (((row col) subscripts))
     (with-slots (nrow ncol elements) matrix
@@ -108,6 +109,12 @@
       (check-index col ncol)
       (setf (aref elements (cm-index2 nrow row col))
 	    value))))
+
+(defmethod xref ((matrix dense-matrix) &rest subscripts)
+  (matrix-xref% matrix subscripts))
+
+(defmethod (setf xref) (value (matrix dense-matrix) &rest subscripts)
+  (matrix-setf-xref% value matrix subscripts))
 
 ;;; xref for upper triangular matrices
 
@@ -179,38 +186,42 @@
           (setf (aref elements (cm-index2 nrow row col)) value)
           (setf (aref elements (cm-index2 nrow col row)) (conjugate value))))))
 
+;;;; xref for factorizations
+
+(defmethod xref ((matrix matrix-factorization) &rest subscripts)
+  (matrix-xref% matrix subscripts))
+
+(defmethod (setf xref) (value (matrix matrix-factorization) &rest subscripts)
+  (matrix-setf-xref% value matrix subscripts))
 
 ;;;; matrix creation
 
 (declaim (inline make-matrix*))
-(defun make-matrix* (lla-type nrow ncol elements &key (kind 'dense)
-                     (shared-p nil))
+(defun make-matrix* (lla-type nrow ncol elements &key (kind :dense)
+                     (shared-p nil) (restricted-set-p nil))
   "Create a matrix with given ELEMENTS, TYPE, LLA-TYPE and dimensions.
 Note that there is no type checking, and elements are not copied: this
 is effectively shorthand for a MAKE-INSTANCE call.  For internal use,
 not exported."
-  (make-instance (matrix-class kind lla-type) :nrow nrow :ncol ncol
-                 :elements elements :shared-p shared-p))
+  (aprog1 (make-instance (matrix-class kind lla-type) :nrow nrow :ncol ncol
+                         :elements elements :shared-p shared-p)
+    (set-restricted-set-p it restricted-set-p)))
+    
 
 (defun make-matrix (nrow ncol lla-type &key (kind :dense) initial-element)
   "Create a matrix with given parameters, optionally initialized with
 INITIAL-ELEMENTs (where it makes sense, for restricted matrices)."
-  (let ((lisp-type (lla-type->lisp-type lla-type))
-        (length (* nrow ncol)))
-    (make-matrix* lla-type nrow ncol
-                  (if initial-element
-                      (make-array length :element-type lisp-type
-                                  :initial-element (coerce initial-element lisp-type))
-                      (make-array length :element-type lisp-type))
-                  :kind kind)))
+  (make-matrix* lla-type nrow ncol
+                (make-nv-elements (* nrow ncol) lla-type initial-element)
+                :kind kind))
 
 (defun matrix-elements-from-array (lla-type array)
-  "Return a NUMERIC-VECTOR of LLA-TYPE which has initial contents
-derived from 2d Lisp ARRAY.  Return (VALUES ELEMENTS NROW NCOL).
-Fails if array is not 2D."
+  "Return a lisp vector comforming to LLA-TYPE which has initial
+contents derived from 2d Lisp ARRAY.  Return (VALUES ELEMENTS NROW
+NCOL).  Fails if array is not 2D."
   (bind (((nrow ncol) (array-dimensions array))
 	 (lisp-type (lla-type->lisp-type lla-type))
-	 (elements (make-array (* nrow ncol) :element-type lisp-type)))
+	 (elements (make-nv-elements (* nrow ncol) lla-type)))
     (dotimes (row nrow)
       (dotimes (col ncol)
 	(setf (aref elements (cm-index2 nrow row col))   ; column major
@@ -226,29 +237,32 @@ matrices.  Also see *force-float*."
          ((:values elements nrow ncol) (matrix-elements-from-array lla-type initial-contents)))
     (make-matrix* lla-type nrow ncol elements :kind kind)))
 
+(let ((initial-contents #2A((1 2) (3 4)))
+      (kind :dense)
+      (lla-type nil))
+  (bind ((lla-type (infer-lla-type lla-type (flatten-array initial-contents) *force-float*))
+         ((:values elements nrow ncol) (matrix-elements-from-array lla-type initial-contents)))
+    (make-matrix* lla-type nrow ncol elements :kind kind)))
+  
+
 (defun copy-matrix (matrix &optional (kind (matrix-kind matrix)))
   "Copy matrix.  When applicable, elements will be restricted.  Usage
 note: if you want to get a numeric vector, just use COPY-NV."
   (set-restricted matrix)
-  (bind (((:slots-read-only nrow ncol elements shared-p) matrix)
-         (result (make-matrix* (lla-type matrix) nrow ncol elements
-                               :kind kind :shared-p shared-p)))
-        (when (typep result 'restricted-elements)
-          (setf (restricted-set-p result) t))
-        result))
+  (bind (((:slots-read-only nrow ncol elements shared-p) matrix))
+    (make-matrix* (lla-type matrix) nrow ncol elements
+                  :kind kind :shared-p shared-p
+                  :restricted-set-p t)))
   
 (defun convert-matrix (matrix lla-type &optional (kind :dense))
   "Convert matrix.  When applicable, elements will be restricted.
 Usage note: if you want to get a numeric vector, just use CONVERT-NV."
   (set-restricted matrix)
-  (let ((result (make-matrix* lla-type (nrow matrix) (ncol matrix)
-                              (convert-elements matrix lla-type)
-                              :kind kind)))
-    (when (typep result 'restricted-elements)
-      (setf (restricted-set-p result) t))
-    result))
+  (make-matrix* lla-type (nrow matrix) (ncol matrix)
+                (convert-elements matrix lla-type)
+                :kind kind :restricted-set-p t))
 
-(defun vector->matrix (nv nrow ncol &optional (kind 'dense))
+(defun vector->matrix (nv nrow ncol &optional (kind :dense))
   "Copy numeric vector to a matrix of matching size."
   (let ((elements (elements nv)))
     (assert (= (length elements) (* nrow ncol)))
@@ -333,41 +347,53 @@ Usage note: if you want to get a numeric vector, just use CONVERT-NV."
 ;; (define-dense-matrix-like-take dense-matrix)
 
 ;;;; transpose
-;;;;
-;;;; Methods should take care of returning the correct result type (eg
-;;;; lower-triangular into upper-triangular, etc).  Helper function
-;;;; transpose% can be used for implementation.
+;;;
+;;; Methods should take care of returning the correct result type (eg
+;;; lower-triangular into upper-triangular, etc).  Helper function
+;;; transpose% can be used for implementation.
 
-;; (defun transpose% (matrix transposed-matrix-class)
-;;   "Return the transpose of MATRIX, which will be of class
-;; TRANSPOSED-MATRIX-CLASS.  RESTRICTED-SET-P is propagated if
-;; meaningful.  Meant to be used as a helper function."
-;;   (declare (optimize (speed 3)))
-;;   (bind (((:slots-read-only nrow ncol data) matrix)
-;;          (original-vector (nv-data data))
-;;          (transposed (make-nv (length original-vector) (lla-type data)))
-;;          (transposed-vector (nv-data transposed)))
-;;     (declare (fixnum nrow ncol))
-;;     ;; !!! could do with a bit of optimization, eg methods specialized
-;;     ;; !!! on lla-type, some fixnums are still not recognized --- Tamas
-;;     (dotimes (col ncol)
-;;       (declare (fixnum col))
-;;       (iter
-;;         (declare (iterate:declare-variables))
-;;         (for (the fixnum original-i) :from (cm-index2 nrow 0 col) :below (cm-index2 nrow nrow col))
-;;         (for (the fixnum transposed-i) :from (cm-index2 ncol col 0) :by ncol)
-;;         (setf (aref transposed-vector transposed-i)
-;;               (aref original-vector original-i))))
-;;     (let ((transposed-matrix (make-matrix transposed-matrix-class ncol nrow
-;;                                           :lla-type (lla-type matrix)
-;;                                           :initial-contents transposed
-;;                                           :use-directly-p t)))
-;;       (if (subtypep transposed-matrix-class 'dense-matrix-restricted)
-;;           (setf (restricted-set-p transposed-matrix) (restricted-set-p matrix)))
-;;       transposed-matrix)))
+(defgeneric transpose% (matrix transposed-matrix-kind)
+  (:documentation "Return the transpose of MATRIX, which will be of
+kind TRANSPOSED-MATRIX-KIND.  RESTRICTED-SET-P is propagated if
+meaningful, but SET-RESTRICTED is *NOT* enforced (so the caller has to
+decide whether to enforce it).  Meant to be used as a helper function,
+*NOT EXPORTED*."))
+(expand-for-lla-types (lla-type)
+  `(defmethod transpose% ((matrix ,(nv-class lla-type)) transposed-matrix-kind)
+     (declare (optimize (speed 3) (safety 0)))
+     (bind (((:slots-read-only nrow ncol elements) matrix)
+            (transposed (make-nv-elements (length elements) ,lla-type)))
+       (declare (fixnum nrow ncol)
+                (type ,(nv-array-type lla-type) elements transposed))
+       (dotimes (col ncol)
+         (declare (fixnum col))
+         (iter
+           (declare (iterate:declare-variables))
+           (for (the fixnum elements-i) :from (cm-index2 nrow 0 col)
+                :below (cm-index2 nrow nrow col))
+           (for (the fixnum transposed-i) :from (cm-index2 ncol col 0) :by ncol)
+           (setf (aref transposed transposed-i)
+                 (aref elements elements-i))))
+       (make-matrix* ,lla-type ncol nrow transposed :kind transposed-matrix-kind
+                     :restricted-set-p (restricted-set-p matrix)))))
 
-;; (defmethod transpose ((matrix dense-matrix))
-;;   (transpose% matrix 'dense-matrix))
+(defmethod transpose ((matrix dense-matrix))
+  (transpose% matrix :dense))
+
+(defmethod transpose ((matrix upper-triangular-matrix))
+  (transpose% matrix :lower-triangular))
+
+(defmethod transpose ((matrix lower-triangular-matrix))
+  (transpose% matrix :upper-triangular))
+
+(defmethod transpose ((matrix hermitian-matrix))
+  (set-restricted matrix)
+  (case (lla-type matrix)
+    ((:complex-single :complex-double)
+       (transpose% matrix 'hermitian-matrix))
+    (otherwise
+       (copy-matrix matrix))))
+
 
 ;; (defmethod x* ((a dense-matrix-like) (b number) &key)
 ;;   ;;; !!!! this assumes that all restricted elements are zeros
@@ -381,15 +407,6 @@ Usage note: if you want to get a numeric vector, just use CONVERT-NV."
 ;;   (x* b a))
 
 
-;; (defmethod transpose ((matrix upper-triangular-matrix))
-;;   (transpose% matrix 'lower-triangular-matrix))
-
-;; (defmethod transpose ((matrix lower-triangular-matrix))
-;;   (transpose% matrix 'upper-triangular-matrix))
-
-;; (defmethod transpose ((matrix hermitian-matrix))
-;;   ;; !!! could just leave real matrices alone
-;;   (transpose% matrix 'hermitian-matrix))
 
 
   

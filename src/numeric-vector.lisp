@@ -26,7 +26,9 @@
 
 (define-abstract-class numeric-vector ()
   ((elements :type (simple-array * (*))
-	 :initarg :elements :reader elements)
+             :initarg :elements :reader elements
+             :documentation "Elements, a specialized simple-array.
+             Initialized with zeros by default.")
    (shared-p :type boolean :initarg :shared-p :reader shared-p
              :initform nil :documentation "Whether the elements are
 shared with another numeric vector."))
@@ -51,7 +53,7 @@ designed to promote functional programming (where possible)."))
 
 ;;;; define the subclasses
 
-(expand-for-lla-types lla-type
+(expand-for-lla-types (lla-type)
   (let* ((class-name (nv-class lla-type))
          (lisp-type (lla-type->lisp-type lla-type))
          (array-type (nv-array-type lla-type)))
@@ -79,13 +81,18 @@ effectively shorthand for a MAKE-INSTANCE call.  For internal use, not
 exported."
   (make-instance (nv-class lla-type) :elements elements :shared-p shared-p))
 
-(defun make-nv (length lla-type &optional initial-element)
+(declaim (inline make-nv-elements))
+(defun make-nv-elements (length lla-type &optional (initial-element 0))
+  (expand-for-lla-types (lla-type (ecase lla-type))
+    (let ((lisp-type (lla-type->lisp-type lla-type)))
+      `(,lla-type (make-array length :element-type ',lisp-type
+                              :initial-element (coerce initial-element ',lisp-type))))))
+  
+  
+
+(defun make-nv (length lla-type &optional (initial-element 0))
   "Create a NUMERIC-VECTOR of LLA-TYPE, optionally initialized with INITIAL-ELEMENTs."
-  (let ((lisp-type (lla-type->lisp-type lla-type)))
-    (make-nv* lla-type (if initial-element
-                           (make-array length :element-type lisp-type
-                                       :initial-element (coerce initial-element lisp-type))
-                           (make-array length :element-type lisp-type)))))
+  (make-nv* lla-type (make-nv-elements length lla-type initial-element)))
 
 (defun create-nv (initial-contents &optional lla-type)
   "Create numeric vector with given initial contents (a list or a
@@ -103,7 +110,7 @@ Also see *forced-float*."
   (:documentation "Return a vector that is a copy if ELEMENTS in
 NUMERIC-VECTOR.  Note: to copy a numeric-vector, just use COPY-NV,
 which can make a lazy copy."))
-(expand-for-lla-types lla-type
+(expand-for-lla-types (lla-type)
   `(defmethod copy-elements ((nv ,(nv-class lla-type)))
      (declare (optimize speed))
      (bind (((:slots-read-only elements) nv))
@@ -124,7 +131,7 @@ shared.  Return no values."
   (:documentation "Copy a numeric vector.  ELEMENTS are shared.  If NV
 is an instance of a subclass of NUMERIC-VECTOR, the result is still a
 NUMERIC-VECTOR."))
-(expand-for-lla-types lla-type
+(expand-for-lla-types (lla-type)
   (let ((class (nv-class lla-type)))
     `(defmethod copy-nv ((nv ,class))
        (make-instance ',class
@@ -154,7 +161,7 @@ types."
               `(let ((elements (elements nv)))
                  (declare (type ,(nv-array-type source-type) elements))
                  (let* ((length (length elements))
-                        (result (make-array length :element-type ',target-lisp-type)))
+                        (result (make-nv-elements length ,target-type)))
                    (dotimes (i length)
                      (setf (aref result i)
                            (coerce (aref elements i) ',target-lisp-type)))
@@ -242,13 +249,13 @@ types."
 (defmethod xdims ((nv numeric-vector))
   (list (xsize nv)))
 
-(expand-for-lla-types lla-type
+(expand-for-lla-types (lla-type)
   `(defmethod xref ((nv ,(nv-class lla-type))  &rest subscripts)
      (declare (optimize (speed 3))
               #+sbcl (sb-ext:muffle-conditions sb-ext:compiler-note))
      (aref (the ,(nv-array-type lla-type) (elements nv)) (first subscripts))))
 
-(expand-for-lla-types lla-type
+(expand-for-lla-types (lla-type)
   `(defmethod (setf xref) (value (nv ,(nv-class lla-type)) &rest subscripts)
      (declare (optimize (speed 3))
               #+sbcl (sb-ext:muffle-conditions sb-ext:compiler-note))
@@ -279,9 +286,8 @@ types."
                         (make-instance ',(nv-class common-type)
                                        :elements
                                        (let* ((length (length a-elements))
-                                              (result (make-array length :element-type 
-                                                                  ',(lla-type->lisp-type 
-                                                                     common-type))))
+                                              (result (make-nv-elements length
+                                                                        ,common-type)))
                                          (assert (= length (length b-elements)))
                                          (dotimes (i length)
                                            (setf (aref result i)
