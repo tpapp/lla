@@ -195,11 +195,18 @@ types."
 ;;   (:method ((nv numeric-vector))
 ;;     (lla-type nv)))
 
-;; (defmethod xcreate ((class (eql 'numeric-vector)) dimensions &optional
-;;                     options)
-;;   (bind (((&key (lla-type :double)) options)
-;;          ((n) dimensions))
-;;     (make-nv n lla-type)))
+(defmethod xcreate ((class (eql 'numeric-vector)) dimensions &optional
+                    options)
+  (bind (((&key (lla-type :double)) options)
+         ((n) dimensions))
+    (make-nv n lla-type)))
+
+(expand-for-lla-types (lla-type)
+  `(defmethod xcreate ((class (eql ',(nv-class lla-type))) dimensions &optional options)
+     (bind (((&key (lla-type ,lla-type)) options)
+            ((n) dimensions))
+       (assert (eq lla-type ,lla-type) () "Incompatible options.")
+       (make-nv n ,lla-type))))
 
 ;; (defmethod take ((class-name (eql 'numeric-vector)) (vector vector) &key force-copy-p
 ;;                  options)
