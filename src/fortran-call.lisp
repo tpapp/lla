@@ -254,38 +254,53 @@ when the second value returned by ZIP-EIGENVALUES is non-nil."
 
 ;;; Collecting the matrix/vector at the end.
 
-(defun matrix-from-first-rows (nv m nrhs n)
-  "Extract & return (as a dense-matrix) the first n rows of an m x
-nrhs matrix, stored in nv in column-major view.  NOTE: needed to
-interface to LAPACK routines like xGELS."
-  ;; It is assumed that NV's ELEMENTS has the correct type.
-  (let* ((elements (elements nv))
-         (result (make-nv-elements (* n nrhs) (lla-type nv))))
-    (dotimes (col nrhs)
-      (iter
-        (repeat n)
-        (for elements-index :from (* col m))
-        (for result-index :from (* col n))
-        (setf (aref result result-index) (aref elements elements-index))))
-    (make-matrix* (lla-type nv) n nrhs result)))
 
-(defun sum-last-rows (nv m nrhs n)
-  "Sum & return (as a numeric-vector of the appropriate type) the last
-m-n rows of an m x nrhs matrix, stored in nv in column-major view.
-NOTE: needed to interface to LAPACK routines like xGELS."
-  (let* ((elements (elements nv))
-         (lisp-type (array-element-type elements))
-         (result (make-nv-elements nrhs (lla-type nv))))
-    (dotimes (col nrhs)
-      (setf (aref result col)
-            (coerce 
-             (iter
-               (repeat (- m n))
-               (for elements-index :from (+ (* col m) n))
-               (summing (expt (abs (aref elements elements-index)) 2)))
-             lisp-type)))
-    (make-nv* (lla-type nv) result)))
+(defmacro ifor ((variable from to &optional (name nil))
+                &body body)
+  "FOR loop for integers.  Declares the variables to be fixnums."
+  (check-type variable symbol)
+  (check-type name symbol)
+  (let ((loop-top-name (make-symbol* 'loop-top- name))
+        (end-index (gensym "END")))
+    `(let ((,variable ,from)
+           (,end-index ,to))
+       (declare (fixnum ,variable ,end-index))
+       (block ,name
+         (tagbody
+         ,loop-top-name
+            ,@body
+            (incf ,variable)
+            (when (< ,variable ,end-index)
+              (go ,loop-top-name)))))))
 
+(defgeneric sum-last-rows (vector lla-type m nrhs n)
+  (:documentation "Sum & return (as a NUMERIC-VECTOR) the last m-n
+rows of an m x nrhs matrix, given as a Lisp vector in column-major
+view.  NOTE: needed to interface to LAPACK routines like xGELS."))
+(expand-for-lla-types (lla-type :exclude-integer-p t)
+  (bind (((result-type complex-p) (ecase lla-type
+                                    (:single '(:single nil))
+                                    (:double '(:double nil))
+                                    (:complex-single '(:single t))
+                                    (:complex-double '(:double t)))))
+    `(defmethod sum-last-rows (vector (lla-type (eql ,lla-type)) m nrhs n)
+       (declare (optimize (debug 3)) ; (optimize speed (safety 0))
+                (type ,(nv-array-type lla-type) vector)
+                (type fixnum m nrhs n))
+       (let* ((result (make-nv-elements nrhs ,result-type))
+              (nrow (- m n)))
+         (dotimes (col nrhs)
+           (declare (fixnum col))
+           (let ((sum ,(coerce 0 (lla-type->lisp-type result-type)))
+                 (start-index (the fixnum (+ (the fixnum (* col m)) n))))
+             (ifor (vector-index start-index (the fixnum (+ start-index nrow)))
+               (incf sum ,(if complex-p
+                              ;; here we need the square *modulus*
+                              `(let ((x (aref vector vector-index)))
+                                 (+ (expt (realpart x) 2) (expt (imagpart x) 2)))
+                              `(expt (aref vector vector-index) 2))))
+             (setf (aref result col) sum)))
+         (make-nv* ,result-type result)))))
 
 ;;;; nice interface for matrices, probably the most important macro
 

@@ -82,7 +82,8 @@
         (with-vector-output (c (expt dim-c 2) c% common-type)
           (with-fortran-atoms ((:integer dim-c% dim-c)
                                (:integer other-dim-a% other-dim-a)
-                               (real-type alpha% (coerce alpha real-lisp-type))
+                               (real-type alpha% (coerce alpha 
+                                                         real-lisp-type))
                                (real-type beta% (coerce 0 real-lisp-type))
                                (:char u-char% #\U)
                                (:char op-char% op-char))
@@ -181,7 +182,6 @@ is supposed to consist of 1s.  *For internal use, NOT EXPORTED*."
                            (:char d-char% (if unit-diag-p #\U #\N)))
         (call-with-info-check procedure u-char% d-char% n% a% n% info%))
       (make-matrix* common-type n n inverse :kind result-kind))))
-      (make-instance result-class :nrow n :ncol n :data inv-data))))
   
 (defmethod invert ((a upper-triangular-matrix))
   (invert-triangular% a t nil :upper-triangular))
@@ -328,7 +328,8 @@ first."))
 ;;                   w))))))))
 
 (defmethod eigen ((a hermitian-matrix) &key vectors-p check-real-p)
-  ;; Uses simple driver, where "simple" means "silly collection of special cases".
+  ;; Uses simple driver, where "simple" means "silly collection of
+  ;; special cases for all combinations".
   (declare (ignore check-real-p))       ; eigenvalues are always real
   (bind ((common-type (lla-type a))
          ((:values procedure real-type complex-p)
@@ -385,93 +386,68 @@ first."))
 
 (defgeneric least-squares (a b)
   (:documentation "Return (values x qr ss nu), where x = argmin_x
-L2norm( b-Ax ), solving a least squares problem, qr is the QR
+L2norm( b-Ax ), solving a least squares problem, QR is the QR
 decomposition of A, and SS is the sum of squares for each column of B.
-B can have multiple columns, in which case x will have the same number
-of columns, each corresponding to a different column of b.  nu is the
+B can have multiple columns, in which case X will have the same number
+of columns, each corresponding to a different column of B.  nu is the
 degrees of freedom."))
 
 (defmethod least-squares ((a dense-matrix-like) (b dense-matrix-like))
-  (set-restricted a)
-  (set-restricted b)
-  (bind (((:slots-read-only (m nrow) (n ncol) (a-data data)) a)
-         ((:slots-read-only (m2 nrow) (nrhs ncol) (b-data data)) b)
-         (common-type (smallest-common-target-type
-                       (mapcar #'lla-type (list a-data b-data))))
+  (bind ((common-type (lb-target-type a b))
          (procedure (lb-procedure-name 'gels common-type)))
-    (assert (= m m2))
-    (unless (<= n m)
-      (error "A doesn't have enough columns for least squares"))
-    (with-nv-input-output (a-data qr-data a% common-type) ; output: QR decomposition
-      (with-nv-input-output (b-data x-data b% common-type) ; output: 
-        (with-fortran-atoms ((:integer n% n)
-                             (:integer m% m)
-                             (:integer nrhs% nrhs)
-                             (:char n-char #\N))
-            (with-work-query (lwork% work% :double)
-              (call-with-info-check procedure n-char m% n% nrhs% a% m% b% m%
-                                    work% lwork% info%)))
-        (values 
-          (matrix-from-first-rows x-data m nrhs n)
-          (make-instance 'qr :nrow m :ncol n
-                         :data qr-data)
-          (sum-last-rows x-data m nrhs n)
-          (- m n))))))
+    (with-matrix-inputs (((a (m m%) (n n%) :output-to qr) a% common-type)
+                         ((b m2 (nrhs nrhs%) :output-to x) b% common-type))
+      (assert (= m m2))
+      (unless (<= n m)
+        (error "A doesn't have enough columns for least squares"))
+      (with-fortran-atoms ((:char n-char% #\N))
+        (with-work-query (lwork% work% :double)
+          (call-with-info-check procedure n-char% m% n% nrhs% a% m% b% m%
+                                work% lwork% info%)))
+      (values 
+        (matrix-from-first-rows x common-type m nrhs n)
+        (make-matrix* common-type m n qr :kind :qr)
+        (sum-last-rows x common-type m nrhs n)
+        (- m n)))))
+
 
 ;;; univariate versions of least squares: vector ~ vector, vector ~ matrix
 
 (defmethod least-squares ((a dense-matrix-like) (b numeric-vector))
-  (bind (((:values x qr ss nu) (least-squares a (vector->matrix-col b))))
-    (values (matrix->vector x) qr (xref ss 0) nu)))
+  (bind (((:values x qr ss nu) (least-squares a (vector->column b))))
+    (values (copy-nv x) qr (aref (elements ss) 0) nu)))
 
 (defmethod least-squares ((a numeric-vector) (b numeric-vector))
-  (bind (((:values x qr ss nu) (least-squares (vector->matrix-col a)
-                                           (vector->matrix-col b))))
-    (values (matrix->vector x) qr (xref ss 0) nu)))
+  (bind (((:values x qr ss nu) (least-squares (vector->column a)
+                                              (vector->column b))))
+    (values (aref (elements x) 0) qr (aref (elements ss) 0) nu)))
 
-
-;;;;
-;;;; inverting matrices
-;;;;
-
-
-;;;;
-;;;;  utility functions for least squares
-;;;;
-
-(defun least-squares-raw-variance (qr)
-  "Calculate the residual variance (basically, (X^T X)-1 ) from the qr
-decomposition of X.  Return a CHOLESKY decomposition, which can be
-used as a LOWER-TRIANGULAR-MATRIX for generating random draws. "
+(defun least-squares-xxinverse (qr)
+  "Calculate (X^T X)-1 (which is used for calculating the variance of
+estimates) from the qr decomposition of X.  Return a CHOLESKY
+decomposition, which can be used as a LOWER-TRIANGULAR-MATRIX for
+generating random draws. "
   ;; Notes: X = QR, thus X^T X = R^T Q^T Q R = R^T R because Q is
   ;; orthogonal.  Then we do as if calculating the inverse of a matrix
   ;; using its Cholesky decomposition.
-  (with-slots (nrow ncol data) qr
+  (with-slots (nrow ncol) qr
     (assert (<= ncol nrow))
-    (invert (take 'cholesky (factorization-component qr :R)))))
+    (invert (copy-matrix (factorization-component qr :R) :cholesky))))
 
-
-
-;;;;
-;;;;  Cholesky factorization
-;;;;
+;;;; Cholesky factorization
 
 (defgeneric cholesky (a)
   (:documentation "Cholesky factorization.  Only uses the lower
-  triangle of a dense-matrix, and needs a PSD matrix."))
+  triangle of a dense-matrix, and needs a PSD hermitian matrix."))
 
-(defmethod cholesky ((a dense-matrix-like))
-  (set-restricted a)
-  (bind (((:slots-read-only (n nrow) (n2 ncol) data) a)
-         (common-type (lla-type data))
+(defmethod cholesky ((a hermitian-matrix))
+  (bind ((common-type (lla-type a))
          (procedure (lb-procedure-name 'potrf common-type)))
-    (assert (= n n2))
-    (with-nv-input-output (data cholesky-data data% common-type)
-      (with-fortran-atoms ((:integer n% n)
-                           (:char u-char #\L))
-        (call-with-info-check procedure u-char n% data% n% info%))
-      (make-instance 'cholesky :nrow n :ncol n
-                     :data cholesky-data))))
+    (with-matrix-input ((a (n n%) n2 :output-to cholesky) a% common-type)
+      (assert (= n n2))
+      (with-fortran-atoms ((:char u-char% #\L))
+        (call-with-info-check procedure u-char% n% a% n% info%))
+      (make-matrix* common-type n n cholesky :kind :cholesky))))
 
-(defmethod reconstruct ((mf cholesky))
-  (mmx (take 'lower-triangular-matrix mf) nil))
+(defmethod reconstruct ((mf cholesky-factorization))
+  (mm (copy-matrix mf :lower-triangular) t))

@@ -23,6 +23,14 @@
   interpreted as a matrix: they could be a matrix factorization packed
   into a matrix, etc."))
 
+(define-abstract-class matrix-storage-square (matrix-storage)
+  ()
+  (:documentation "Enforces square dimensions."))
+
+(defmethod initialize-instance :after ((object matrix-storage-square)
+                                       &key &allow-other-keys)
+  (assert (= (nrow object) (ncol object))))
+
 (define-abstract-class dense-matrix-like (matrix-storage) ()
   (:documentation "Subclasses of this class behave like an NROW x NCOL
   matrix, storing the elements in a subset of ELEMENTS, mapped using
@@ -119,9 +127,7 @@ matrix."))
 (defgeneric set-restricted-set-p (matrix value)
   (:documentation "Set the value of the restricted-set-p slot,
   whenever applicable.")
-  (:method ((matrix matrix-storage) value)
-    ;; general case: do nothing
-    (declare (ignore matrix value)))
+  (:method ((matrix numeric-vector) value))
   (:method ((matrix restricted-elements) value)
     (setf (restricted-set-p matrix) value)))
     
@@ -140,7 +146,7 @@ matrix."))
   NOTE: the default behavior is to call set-restricted* if (not
   restricted-set-p), so it is advised to define that method instead
   for classes.")
-  (:method ((matrix matrix-storage))) ;; do nothing
+  (:method ((matrix numeric-vector)))   ; do nothing
   (:method ((matrix restricted-elements))
     (with-slots (restricted-set-p) matrix
       (unless restricted-set-p
@@ -155,7 +161,8 @@ diagonal are not necessarily initialized and not accessed.")
     "A dense, lower triangular matrix.  The elements above the
 diagonal are not necessarily initialized and not accessed.")
 
-(define-matrix-storage-subclass (:hermitian) (restricted-elements)
+(define-matrix-storage-subclass (:hermitian)
+    (restricted-elements matrix-storage-square)
   ;; LLA uses the class HERMITIAN-MATRIX to implement both real
   ;; symmetric and complex Hermitian matrices --- as technically, real
   ;; symmetric matrices are also Hermitian.  Complex symmetric
@@ -166,7 +173,6 @@ diagonal are not necessarily initialized and not accessed.")
 
 
 ;;; Matrix factorizations
-
 
 (defgeneric factorization-component (mf component)
   (:documentation "Return a given component of a matrix factorization."))
@@ -183,7 +189,7 @@ diagonal are not necessarily initialized and not accessed.")
   "QR decomposition of a matrix.")
 
 (define-matrix-storage-subclass (:cholesky factorization)
-    (lower-triangular-matrix)
+    (lower-triangular-matrix matrix-storage-square)
   "Cholesky decomposition R of a matrix=RR^*, where * is the conjugate
 transpose.  Should behave as a matrix, but only the lower-triangular
 part of the decomposition is stored.")

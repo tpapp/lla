@@ -83,7 +83,7 @@ exported."
 
 (declaim (inline make-nv-elements))
 (defun make-nv-elements (length lla-type &optional (initial-element 0))
-  (expand-for-lla-types (lla-type (ecase lla-type))
+  (expand-for-lla-types (lla-type :prologue (ecase lla-type))
     (let ((lisp-type (lla-type->lisp-type lla-type)))
       `(,lla-type (make-array length :element-type ',lisp-type
                               :initial-element (coerce initial-element ',lisp-type))))))
@@ -298,7 +298,40 @@ types."
                                          result))))))
                (coercible-pairs-list))))
 
+(defmacro define-nv-scalar-operation (op &optional (method-name (make-symbol* 'X op)))
+  "Define vector-scalar operation."
+  ;;; !!! not optimized, maybe one of these days
+  ;;; !!! obviously DOESN'T give the correct type for integers and /
+  `(progn
+     (defmethod ,method-name ((a numeric-vector) (b number) &key element-type)
+       (when element-type
+         (error "Not supported."))
+       (let* ((elements (elements a))
+              (length (length elements))
+              (common-type (common-target-type (lla-type a)
+                                               (lisp-type->lla-type (type-of b))))
+              (result (make-nv-elements length common-type)))
+         (dotimes (i length)
+           (setf (aref result i) (,op (aref elements i) b)))
+         (make-nv* common-type result)))
+     (defmethod ,method-name ((a number) (b numeric-vector) &key element-type)
+       (when element-type
+         (error "Not supported."))
+       (let* ((elements (elements b))
+              (length (length elements))
+              (common-type (common-target-type (lla-type a)
+                                               (lisp-type->lla-type (type-of a))))
+              (result (make-nv-elements length common-type)))
+         (dotimes (i length)
+           (setf (aref result i) (,op a (aref elements i))))
+         (make-nv* common-type result)))))
+
 (define-nv-elementwise-operation +)
 (define-nv-elementwise-operation -)
 (define-nv-elementwise-operation *)
 (define-nv-elementwise-operation /)
+
+(define-nv-scalar-operation +)
+(define-nv-scalar-operation *)
+(define-nv-scalar-operation -)
+(define-nv-scalar-operation /)

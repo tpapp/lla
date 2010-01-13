@@ -189,7 +189,8 @@ MAKE-NV and MAKE-MATRIX."
 ;;;; macros for defining subclasses of NUMERIC-VECTOR-*
 
 
-(defmacro expand-for-lla-types ((typevar &optional (prologue '(progn)))
+(defmacro expand-for-lla-types ((typevar &key (prologue '(progn))
+                                         (exclude-integer-p nil))
                                 &body form)
   "Expand FORM (using EVAL) with TYPEVAR bound to all possible LLA
 types, return the results inside a (,@PROLOGUE ...), PROGN by
@@ -200,7 +201,9 @@ default."
   `(,@prologue
     ,@(mapcar (lambda (typename)
                 (eval `(let ((,typevar ',typename)) ,(car form))))
-              +lla-type-list+)))
+              (if exclude-integer-p
+                  '(:single :double :complex-single :complex-double)
+                  +lla-type-list+))))
 
 (defmacro define-lla-class (class &optional (superclasses (list class)))
   "Define subclasses of all NUMERIC-VECTOR types and given
