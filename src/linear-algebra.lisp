@@ -333,48 +333,53 @@ first."))
   (declare (ignore check-real-p))       ; eigenvalues are always real
   (bind ((common-type (lla-type a))
          ((:values procedure real-type complex-p)
-          (lb-procedure-name2 'syev 'heev common-type)))
-      (with-fortran-atoms ((:char nv-char% (if vectors-p #\V #\N))
-                           (:char u-char% #\U)) ; upper triangle
-        (if complex-p
-            ;; *heev require an extra workspace argument
-            (if vectors-p
-                ;; complex, with vectors
-                (with-matrix-input ((a (n n%) n2 :output-to v) a% common-type nil)
-                  (assert (= n n2))
-                  (with-vector-output (w n w% real-type) ; eigenvalues
-                    (with-work-area (rwork% real-type (max 1 (- (* 3 n) 2)))
-                      (with-work-query (lwork% work% real-type)
-                        (call-with-info-check procedure nv-char% u-char% n% a% n% w%
-                                              work% lwork% rwork% info%))
-                      (values w (make-matrix* real-type n n v)))))
-                ;; complex, without vectors
-                (with-matrix-input ((a (n n%) n2 :copied) a% common-type nil)
-                  (assert (= n n2))
-                  (with-vector-output (w n w% real-type) ; eigenvalues
-                    (with-work-area (rwork% real-type (max 1 (- (* 3 n) 2)))
-                      (with-work-query (lwork% work% real-type)
-                        (call-with-info-check procedure nv-char% u-char% n% a% n% w%
-                                              work% lwork% rwork% info%))
-                      w))))
-            (if vectors-p
-                ;; real, with vectors
-                (with-matrix-input ((a (n n%) n2 :output-to v) a% common-type nil)
-                  (assert (= n n2))
-                  (with-vector-output (w n w% real-type) ; eigenvalues
-                    (with-work-query (lwork% work% real-type)
-                      (call-with-info-check procedure nv-char% u-char% n% a% n% w%
-                                            work% lwork% info%))
-                    (values w (make-matrix* real-type n n v))))
-                ;; real, without vectors
-                (with-matrix-input ((a (n n%) n2 :output-to v) a% common-type nil)
-                  (assert (= n n2))
-                  (with-vector-output (w n w% real-type) ; eigenvalues
-                    (with-work-query (lwork% work% real-type)
-                      (call-with-info-check procedure nv-char% u-char% n% a% n% w%
-                                            work% lwork% info%))
-                    w)))))))
-
+          (lb-procedure-name2 'syev 'heev common-type))
+         (n (nrow a))
+         ((:values w v)
+          (with-fortran-atoms ((:char nv-char% (if vectors-p #\V #\N))
+                               (:char u-char% #\U)) ; upper triangle
+            (if complex-p
+                 ;; *heev require an extra workspace argument
+                (if vectors-p
+                    ;; complex, with vectors
+                    (with-matrix-input ((a (n n%) n2 :output-to v) a% common-type nil)
+                      (assert (= n n2))
+                      (with-vector-output (w n w% real-type) ; eigenvalues
+                        (with-work-area (rwork% real-type (max 1 (- (* 3 n) 2)))
+                          (with-work-query (lwork% work% real-type)
+                            (call-with-info-check procedure nv-char% u-char% n% a% n% w%
+                                                  work% lwork% rwork% info%))
+                          (values w v))))
+                    ;; complex, without vectors
+                    (with-matrix-input ((a (n n%) n2 :copied) a% common-type nil)
+                      (assert (= n n2))
+                      (with-vector-output (w n w% real-type) ; eigenvalues
+                        (with-work-area (rwork% real-type (max 1 (- (* 3 n) 2)))
+                          (with-work-query (lwork% work% real-type)
+                            (call-with-info-check procedure nv-char% u-char% n% a% n% w%
+                                                  work% lwork% rwork% info%))
+                          (values w nil)))))
+                (if vectors-p
+                    ;; real, with vectors
+                    (with-matrix-input ((a (n n%) n2 :output-to v) a% common-type nil)
+                      (assert (= n n2))
+                      (with-vector-output (w n w% real-type) ; eigenvalues
+                        (with-work-query (lwork% work% real-type)
+                          (call-with-info-check procedure nv-char% u-char% n% a% n% w%
+                                                work% lwork% info%))
+                        (values w v)))
+                    ;; real, without vectors
+                    (with-matrix-input ((a (n n%) n2 :output-to v) a% common-type nil)
+                      (assert (= n n2))
+                      (with-vector-output (w n w% real-type) ; eigenvalues
+                        (with-work-query (lwork% work% real-type)
+                          (call-with-info-check procedure nv-char% u-char% n% a% n% w%
+                                                work% lwork% info%))
+                        (values w nil))))))))
+    (values (make-nv* real-type w)
+            (if v
+                (make-matrix* real-type n n v)
+                nil))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; moving barrier -- things below are to be rewritten

@@ -228,7 +228,7 @@ when the second value returned by ZIP-EIGENVALUES is non-nil."
          (i 0))
    top
      (let ((column-start-index (cm-index2 n 0 i)))
-       (if (zerop (mem-aref val-pointer (+ n i)))
+       (if (zerop (mem-aref val-pointer real-type (+ n i)))
            ;; real
            (progn
              (iter

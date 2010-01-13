@@ -206,7 +206,7 @@ not exported."
     (set-restricted-set-p it restricted-set-p)))
     
 
-(defun make-matrix (nrow ncol lla-type &key (kind :dense) initial-element)
+(defun make-matrix (nrow ncol lla-type &key (kind :dense) (initial-element 0))
   "Create a matrix with given parameters, optionally initialized with
 INITIAL-ELEMENTs (where it makes sense, for restricted matrices)."
   (make-matrix* lla-type nrow ncol
@@ -331,7 +331,7 @@ Usage note: if you want to get a numeric vector, just use CONVERT-NV."
     (error "Exactly 2 dimensions are needed for a matrix."))
   (bind (((nrow ncol) dimensions)
          ((&key (lla-type :double)) options))
-    (make-matrix nrow ncol lla-type)))
+    (make-matrix  nrow ncol lla-type)))
 
 
 
