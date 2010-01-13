@@ -4,6 +4,7 @@
 ;; (in-package :lla-unit-tests)
 
 (in-package :lla)
+(in-readtable lla-readtable)
 (use-package :lift)
 
 ;; TEST SUITES
@@ -24,9 +25,9 @@
 \(using test) to the data lying at pointer, which can be of a
 different type, specified by lla-type.  If report-p, the first
 discrepancy is reported to *error-output*, before returning nil."
-  (let ((data (nv-data numeric-vector)))
-    (dotimes (i (length data))
-      (let ((nv-elt (aref data i))
+  (let ((elements (elements numeric-vector)))
+    (dotimes (i (length elements))
+      (let ((nv-elt (aref elements i))
 	    (ptr-elt (mem-aref* pointer lla-type i)))
 	(unless (funcall test nv-elt ptr-elt)
 	  (when report-p
@@ -41,29 +42,31 @@ discrepancy is reported to *error-output*, before returning nil."
 elements.  Random is called with random-arg, the default is an integer
 int order to facilitate comparing with = in case of type conversions,
 or if you are using integer for LLA-type."
-  (make-nv length lla-type
-           (iter
-             (repeat length)
-             (collecting (random random-arg)))))
+  (let ((nv (make-nv length lla-type))
+        (lisp-type (lla-type->lisp-type lla-type)))
+    (dotimes (i length)
+      (setf (xref nv i) (coerce (random random-arg) lisp-type)))
+    nv))
 
-(defun test-nv-input (source-type destination-type &key
-		      (report-p t) (length 50))
-  "Generate a random vector copy (and convert), use nv-input and
-check equality.  Tests with-nv-input (and of course nv-copy).  Types
-are LLA-types.  Random integers ensure that all coercions are valid."
+(defun test-nv-input-readonly (source-type destination-type &key
+                               (report-p t) (length 50))
+  "Generate a random vector, copy (and convert), use
+WITH-NV-INPUT-READONLY and check equality.  Types are LLA-types.
+Random numbers are integers, which ensures that all coercions are
+valid."
   (let ((nv (make-random-numeric-vector length source-type 100)))
-    (with-nv-input (nv pointer destination-type)
+    (with-nv-input-readonly (nv pointer destination-type)
       (numeric-vector-pointer= nv pointer destination-type :report-p
 			       report-p))))
 
 (defun test-nv-input-copied (source-type destination-type &key
-		      (report-p t) (length 50))
-  "Generate a random vector copy (and convert), use nv-input-copied
-and check equality.  Tests with-nv-input-copied (and of course
-nv-copy).  Types are LLA-types.  Random integers ensure that all
-coercions are valid."
+                             (report-p t) (length 50))
+  "Generate a random vector, copy (and convert), use
+WITH-NV-INPUT-COPIED and check equality.  Tests WITH-NV-INPUT-COPIED
+and COPY-ELEMENTS.  Types are LLA-types.  Random numbers are integers,
+which ensures that all coercions are valid."
   (let* ((nv (make-random-numeric-vector length source-type 100))
-         (data-copy (copy-seq (nv-data nv))))
+         (elements-copy (copy-seq (elements nv))))
     (with-nv-input-copied (nv pointer destination-type)
       ;; check equality
       (and (numeric-vector-pointer= nv pointer destination-type :report-p
@@ -72,18 +75,18 @@ coercions are valid."
            (progn
              (dotimes (i length)
                (incf (mem-aref* pointer destination-type i) 1))
-             (equalp data-copy (nv-data nv)))))))
+             (equalp elements-copy (elements nv)))))))
 
-(defun test-nv-output (type &key (length 50))
-  "Test with-nv-output by filling the memory are with numbers."
+(defun test-vector-output (type &key (length 50))
+  "Test WITH-VECTOR-OUTPUT by filling the memory are with numbers."
   (let* ((lisp-type (lla-type->lisp-type type))
-         (x (with-nv-output (x length pointer type)
+         (x (with-vector-output (x length pointer type)
               (dotimes (i length)
                 (setf (mem-aref* pointer type i) (coerce i lisp-type)))
               x)))
     (iter
       (for i :from 0 :below length)
-      (always (= (xref x i) i)))))
+      (always (= (aref x i) i)))))
            
 (defparameter *allowed-difference* 1d-5
   ;; default is for catching major mistakes, use smaller value for fine points
@@ -98,22 +101,45 @@ coercions are valid."
   (lambda (a b)
     (x= a b eps)))
 
+(defun == (a b &optional (eps *allowed-difference*))
+  "`Strict' equality: A and B have the same class, same dimensions,
+  elements differ at most by EPS.  Error is signalled on mismatch."
+  (flet ((elements= ()
+           (when (typep a 'matrix-storage)
+             (set-restricted a))
+           (when (typep b 'matrix-storage)
+             (set-restricted b))
+           (let ((a-elements (elements a))
+                 (b-elements (elements a)))
+             (assert (= (length a-elements) (length b-elements)) ()
+                     "elements don't have equal length")
+             (iter
+               (for a :in-vector a-elements)
+               (for b :in-vector b-elements)
+               (let ((diff (abs (- a b))))
+                 (assert (< diff eps) () "elements differ by at least ~A." diff )))
+             t)))
+    (assert (equal (class-of a) (class-of b)) ()
+            "objects don't have the same class")
+    (when (typep a 'matrix-storage)
+      (assert (and (= (nrow a) (nrow b)) (= (ncol a) (ncol b))) ()
+              "the matrices don't have the same dimension"))
+    (elements=)))
+
 (defun make-nv-with-seq (lla-type n)
   "Return a numeric-vector of type LLA-TYPE, holding the integers 0...n-1."
   (bind ((nv (make-nv n lla-type))
-         (data (nv-data nv))
+         (elements (elements nv))
          (lisp-type (xelttype nv)))
     (iter
       (for i :from 0 :below n)
-      (setf (aref data i) (coerce i lisp-type)))
+      (setf (aref elements i) (coerce i lisp-type)))
     nv))
 
 (defun make-matrix-with-seq (lla-type nrow ncol)
   "Return a dense matrix of type LLA-TYPE, holding the integers
 0...n-1 in column-major order."
-  (make-matrix 'dense-matrix nrow ncol :lla-type lla-type
-               :initial-contents (make-nv-with-seq lla-type (* nrow ncol))
-               :use-directly-p t))
+  (vector->matrix (make-nv-with-seq lla-type (* nrow ncol)) nrow ncol))
 
 ;; TESTS
 
@@ -147,58 +173,65 @@ coercions are valid."
 
 (addtest (lla-unit-tests)
   nv-input
-  (for-coercible-pairs (source destination)
+  (iter 
+    (for (source destination) :in (coercible-pairs-list))
     (ensure
-     (test-nv-input source destination))))
+     (test-nv-input-readonly source destination))))
 
 ;; nv-input-copied
 
 (addtest (lla-unit-tests)
   nv-input-copied
-  (for-coercible-pairs (source destination)
+  (iter 
+    (for (source destination) :in (coercible-pairs-list))
     (ensure
      (test-nv-input-copied source destination))))
 
 ;; nv-output
 
 (addtest (lla-unit-tests)
-  nv-output
-  (ensure (test-nv-output :integer))
-  (ensure (test-nv-output :single))
-  (ensure (test-nv-output :double))
-  (ensure (test-nv-output :complex-single))
-  (ensure (test-nv-output :complex-double)))
+  vector-output
+  (ensure (test-vector-output :integer))
+  (ensure (test-vector-output :single))
+  (ensure (test-vector-output :double))
+  (ensure (test-vector-output :complex-single))
+  (ensure (test-vector-output :complex-double)))
 
 
 ;;;;
 ;;;; matrix
 ;;;;
 
+;;;; !!!! tests for lazy copy mechanism working correctly and copying on demand
+;;;;
+
 (addtest (lla-unit-tests)
-  make-matrix
-  (flet ((make (class)
-           (make-matrix class 2 2 :initial-contents '(1 2 3 4))))
-    (ensure-same (make 'dense-matrix)
+  create-matrix
+  ;; Note: here we compare to Lisp arrays.  If we compared to LLA
+  ;; objects created with the #v read macro, we could never detect
+  ;; bugs in CREATE-MATRIX as it is used by the readmacro itself.
+  (flet ((make (kind)
+           (create-matrix 2 '(1 2 3 4) :kind kind)))
+    (ensure-same (make :dense)
                  #2A((1 2) (3 4))
                  :test #'x=)
-    (ensure-same (make 'upper-triangular-matrix)
+    (ensure-same (make :upper-triangular)
                  #2A((1 2) (0 4))
                  :test #'x=)
-    (ensure-same (make 'lower-triangular-matrix)
+    (ensure-same (make :lower-triangular)
                  #2A((1 0) (3 4))
                  :test #'x=)
-    (ensure-same (make 'hermitian-matrix)
+    (ensure-same (make :hermitian)
                  #2A((1 2) (2 4))
                  :test #'x=)))
 
 (addtest (lla-unit-tests)
   transpose
-  (ensure-same (take 'array (transpose (make-matrix-with-seq :double 3 4)))
-               #2A((0.0d0 1.0d0 2.0d0)
-                   (3.0d0 4.0d0 5.0d0)
-                   (6.0d0 7.0d0 8.0d0)
-                   (9.0d0 10.0d0 11.0d0))
-               :test #'x=)
+  (ensure (== (transpose (make-matrix-with-seq :double 3 4))
+              #3vd:dense(0.0d0 1.0d0 2.0d0
+                         3.0d0 4.0d0 5.0d0
+                         6.0d0 7.0d0 8.0d0
+                         9.0d0 10.0d0 11.0d0))))
   ;; !!! test transpose for other classes, lower-upper triangular, symmetric, etc
   ;; !!! check for type of resulting class
   )
@@ -209,19 +242,31 @@ coercions are valid."
 
 (addtest (lla-unit-tests)
   mm-solve-lu
-  (bind ((a (make-matrix 'dense-matrix 2 2 :initial-contents '(1 2 3 4)))
-         (x (make-nv 2 :double '(5 6)))
+  (bind ((a #2v(1 2 3 4))
+         (x #v(5 6))
          (b (mm a x))
          (a-lu (lu a))
          (x-solve (solve a b))
          (x-solve-lu (solve a-lu b)))
-    (ensure-same b #(17d0 39d0) :test #'x=)
-    (ensure-same x-solve x :test #'x=)
-    (ensure-same x-solve-lu x :test #'x=)))
+    (ensure (== b #v(17d0 39d0)))
+    (ensure (== x-solve x))
+    (ensure (== x-solve-lu x))))
+
+(addtest (lla-unit-tests)
+  invert
+  (let ((m #2vs(1 2 3 4)))
+    (flet ((invert (kind)
+             (invert (copy-matrix m kind))))
+      (ensure (== (invert :dense) ; also tests (invert lu)
+                  #2vs(-2 1 1.5 -0.5)))
+      (ensure (== (invert :upper-triangular)
+                  #2vs:upper-triangular(1 -0.5 0 0.25)))
+      (ensure (== (invert :lower-triangular)
+                  #2vs:lower-triangular(1 0 -0.75 0.25))))))
 
 (addtest (lla-unit-tests)
   eigen
-  (bind ((a (make-matrix 'dense-matrix 2 2 :initial-contents '(1 2 3 4)))
+  (bind ((a #2vd(1 2 3 4))
          ((:values eigenvalues eigenvectors)
           (eigen a :vectors-p t :check-real-p t))
          (order (xorder eigenvalues #'<)))
@@ -232,59 +277,10 @@ coercions are valid."
                  #2A((-0.8245648 -0.4159736)
                      (0.5657675 -0.9093767)) :test #'x=)))
 
-;; (bind ((a (make-matrix 'dense-matrix 2 2 :initial-contents '(1 2 0 3)))
-
-(addtest (lla-unit-tests)
-  least-squares
-  (bind ((x (make-matrix 'dense-matrix 5 2 :initial-contents 
-                         '(23 23 22 21 25 20 29 32 24 29)))
-         (y (make-nv 5 :double '(67 63 65 94 84)))
-         ((:values beta qr ss) (least-squares x y))
-         (raw-var (least-squares-raw-variance qr))
-         (variance (xmap 'dense-matrix 
-                         (bind (((row col) (xdims x))
-                                (degf (- row col))
-                                (s (/ ss degf)))
-                           (lambda (x)
-                             (* x s)))
-                         raw-var)))
-    (ensure (x= #(0.7633278 2.2350028) beta))
-    (ensure-same ss 6.724986 :test #'approx=)
-    (ensure-same variance #2A((0.04035491 -0.03885797)
-                              (-0.03885797  0.03810950))
-                 :test #'x=)))
-
-(addtest (lla-unit-tests)
-  invert
-  (flet ((invert (class)
-           (invert (make-matrix class 2 2 :initial-contents '(1 2 3 4)))))
-    (ensure-same (invert 'dense-matrix) ; also tests (invert lu)
-                 #2A((-2 1) (1.5 -0.5))
-                 :test #'x=)
-    (ensure-same (invert 'upper-triangular-matrix)
-                 #2A((1 -0.5) (0 0.25))
-                 :test #'x=)
-    (ensure-same (invert 'lower-triangular-matrix)
-                 #2A((1 0) (-0.75 0.25))
-                 :test #'x=)))
-
-(addtest (lla-unit-tests)
-  cholesky
-  (let* ((a (make-matrix 'dense-matrix 3 3 :initial-contents '(2 -1 0
-                                                               -1 2 -1
-                                                               0 -1 2)))
-         (c (cholesky a)))
-    (ensure-same (take 'lower-triangular-matrix c)
-                 #2A((1.414214 0.000000 0.0000000)
-                     (-0.7071068 1.2247449 0.0000000)
-                     (0.000000 -0.8164966 1.1547005))
-                 :test (x~= 1e-5))
-    (ensure-same (reconstruct c) a :test #'x=)))
-
 (addtest (lla-unit-tests)
   hermitian
-  (bind ((a (make-matrix 'dense-matrix 2 2 :initial-contents '(1 2 3 4)))
-         (aa (mmx a t))
+  (bind ((a #2v(1 2 3 4))
+         (aa (mm t a))
          ((:values eigenvalues eigenvectors)
           (eigen aa :vectors-p t))
          (order (xorder eigenvalues #'<)))
@@ -295,8 +291,37 @@ coercions are valid."
                  #2A(( -0.8174156 0.5760484)
                      (0.5760484 0.8174156)) :test #'x=)))
 
+(addtest (lla-unit-tests)
+  least-squares
+  (bind ((x #2v(23 23
+                22 21
+                25 20
+                29 32
+                24 29))
+         (y #v(67 63 65 94 84))
+         ((:values beta qr ss) (least-squares x y))
+         (raw-var (least-squares-xxinverse qr))
+         (variance (bind (((row col) (xdims x))
+                          (degf (- row col))
+                          (s (/ ss degf)))
+                     (x* raw-var s))))
+    (ensure (== #vd(0.7633278 2.2350028) beta 1d-2))
+    (ensure-same ss 6.724986 :test #'approx=)
+    (ensure (== variance #2vd(0.04035491 -0.03885797
+                             -0.03885797  0.03810950)))))
 
-;;; !!! update-syhe could do with a lot of testing
+(addtest (lla-unit-tests)
+  cholesky
+  (let* ((a #3vd:hermitian(2 -1 0
+                           -1 2 -1
+                            0 -1 2))
+         (c (cholesky a)))
+    (ensure (== (factorization-component c :R)
+                 #3vd:lower-triangular(1.414214 0.000000 0.0000000
+                                       -0.7071068 1.2247449 0.0000000
+                                        0.000000 -0.8164966 1.1547005)))
+    (ensure (== (reconstruct c) a))))
+
 
 ;;;; run all tests
 ;;;; (run-lla-tests)

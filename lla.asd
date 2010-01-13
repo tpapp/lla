@@ -44,13 +44,21 @@
      (:file "fortran-atoms")
      (:file "numeric-vector")
      (:file "numeric-vector-wrappers")
-     ;; (:file "matrix")
-     ;; (:file "fortran-call")
-     ;; (:file "linear-algebra")
+     (:file "matrix-classes")
      (:file "printing")
-)))
+     (:file "matrix-implementation")
+     (:file "readmacros")))
+   (:module
+    "linear-algebra"
+    :pathname #P"src/"
+    :depends-on ("basics")
+    :serial t
+    :components
+     ((:file "fortran-call")
+      (:file "linear-algebra"))))
   :depends-on
-  (:cl-utilities :iterate :metabang-bind :cffi :xarray :lift))
+  (:cl-utilities :iterate :metabang-bind :cffi :xarray :lift
+                 :anaphora :named-readtables))
 
 
 ;;;; !! ASDF loading for unit tests. 
