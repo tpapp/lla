@@ -1,45 +1,88 @@
 (in-package #:lla-asd)
 
 (defpackage #:lla
-  (:use :common-lisp
-	:cl-utilities
-        :iterate
-        :bind
-	:cffi
-	:xarray)
+  (:use :common-lisp :cl-utilities :iterate :bind :cffi :xarray
+        :anaphora :named-readtables)
   (:shadowing-import-from :iterate :collecting :collect)
   (:export 
-   ;; !! exported interface should/will be refined and changed,
-   ;; !! currently it is just a sketch
-
+   ;; utilities -- nothing is exported
+   
    ;; types
    
-   ;; scalar
-   
-   mem-aref* foreign-size* with-fortran-scalar with-fortran-scalars
+   dimension lla-type lla-complex-p lla-double-p not-within-lla-type
+   lisp-type->lla-type lla-type->lisp-type *force-float*
+
+   ;; fortran-atoms -- nothing is exported
    
    ;; numeric-vector
    
-   numeric-vector nv-data shared-p copy-data numeric-vector-integer
+   numeric-vector elements nv-array-type numeric-vector-integer
    numeric-vector-single numeric-vector-double
-   numeric-vector-complex-single numeric-vector-complex-double
-   lla-type make-nv nv-copy-convert nv-copy
+   numeric-vector-complex-single numeric-vector-complex-double make-nv
+   create-nv ensure-unshared copy-nv convert-nv
 
-   ;; matrix
-   
-   matrix nrow ncol data *pring-matrix-aligned* *print-matrix-padding*
-   *print-matrix-precision* dense-matrix cm-index2 make-matrix
-   vector->matrix-col vector->matrix-row matrix->vector
-   restricted-elements set-restricted upper-triangular-matrix
-   lower-triangular-matrix symmetric-matrix cm-index-symmetric
-   hermitian-matrix matrix-factorization factorization-component
-   reconstruct lu ipiv qr cholesky
-   
-   ;; fortran-call
-   
-   lu solve mm eigen least-squares least-squares-raw-variance invert
-   update-syhe cholesky
+   ;; numeric-vector-wrappers -- nothing is exported
 
+   ;; matrix-classes
+
+   matrix-storage nrow ncol matrix-storage-square dense-matrix-like
+   matrix-factorization matrix-class matrix-kind
+
+   dense-matrix dense-matrix-integer dense-matrix-single
+   dense-matrix-double dense-matrix-complex-single
+   dense-matrix-complex-double
+   
+   restricted-elements
+
+   upper-triangular-matrix upper-triangular-matrix-integer
+   upper-triangular-matrix-single upper-triangular-matrix-double
+   upper-triangular-matrix-complex-single
+   upper-triangular-matrix-complex-double
+
+   lower-triangular-matrix lower-triangular-matrix-integer
+   lower-triangular-matrix-single lower-triangular-matrix-double
+   lower-triangular-matrix-complex-single
+   lower-triangular-matrix-complex-double
+
+   hermitian-matrix hermitian-matrix-integer hermitian-matrix-single
+   hermitian-matrix-double hermitian-matrix-complex-single
+   hermitian-matrix-complex-double
+   
+   factorization-component reconstruct
+
+   lu-factorization lu-factorization-integer lu-factorization-single
+   lu-factorization-double lu-factorization-complex-single
+   lu-factorization-complex-double ipiv
+
+   qr-factorization qr-factorization-integer qr-factorization-single
+   qr-factorization-double qr-factorization-complex-single
+   qr-factorization-complex-double
+   
+   cholesky-factorization cholesky-factorization-integer cholesky-factorization-single
+   cholesky-factorization-double cholesky-factorization-complex-single
+   cholesky-factorization-complex-double
+
+   ;; printing
+   
+   *pring-matrix-aligned* *print-matrix-padding*
+   *print-matrix-precision*
+   
+   ;; matrix-implementation
+   
+   cm-index2 make-matrix create-matrix copy-matrix convert-matrix
+   vector->matrix vector->column vector->row transpose 
+
+   ;; readmacros
+
+   lla-readtable
+
+   ;; fortran-call -- nothing is exported
+
+   ;; linear-algebra
+
+   mmm mm lu solve invert eigen least-squares least-squares-xxinverse
+   cholesky 
+   
    ))
 
 (defpackage #:lla-unit-tests
