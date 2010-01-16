@@ -258,22 +258,16 @@ matrices.  Also see *force-float*."
           (matrix-elements-from-sequence ncol lla-type initial-contents)))
     (make-matrix* lla-type nrow ncol elements :kind kind)))
 
-(defun copy-matrix (matrix &optional (kind (matrix-kind matrix)))
-  "Copy matrix.  When applicable, elements will be restricted.  Usage
-note: if you want to get a numeric vector, just use COPY-NV."
+(defun copy-matrix (matrix &key (kind (matrix-kind matrix))
+                    (destination-type (lla-type matrix)) (copy-p nil))
+  "Copy or convert matrix to the given kind and destination-type.
+Copying is forced when COPY-P."
   (set-restricted matrix)
-  (bind (((:slots-read-only nrow ncol elements shared-p) matrix))
+  (bind (((:slots-read-only nrow ncol) matrix)
+         ((:values elements shared-p) (copy-elements* matrix destination-type copy-p)))
     (make-matrix* (lla-type matrix) nrow ncol elements
                   :kind kind :shared-p shared-p
                   :restricted-set-p t)))
-  
-(defun convert-matrix (matrix lla-type &optional (kind :dense))
-  "Convert matrix.  When applicable, elements will be restricted.
-Usage note: if you want to get a numeric vector, just use CONVERT-NV."
-  (set-restricted matrix)
-  (make-matrix* lla-type (nrow matrix) (ncol matrix)
-                (convert-elements matrix lla-type)
-                :kind kind :restricted-set-p t))
 
 (defun vector->matrix (nv nrow ncol &optional (kind :dense))
   "Copy numeric vector to a matrix of matching size."
@@ -448,7 +442,7 @@ like xGELS."))
     (matrix-from-first-rows elements (lla-type mf) nrow ncol ncol :upper-triangular)))
 
 (defmethod factorization-component ((mf cholesky-factorization) (component (eql :R)))
-  (copy-matrix mf :lower-triangular))
+  (copy-matrix mf :kind :lower-triangular))
 
 
 ;;;; elementwise and scalar operations

@@ -437,7 +437,7 @@ generating random draws. "
   ;; using its Cholesky decomposition.
   (with-slots (nrow ncol) qr
     (assert (<= ncol nrow))
-    (invert (copy-matrix (factorization-component qr :R) :cholesky))))
+    (invert (copy-matrix (factorization-component qr :R) :kind :cholesky))))
 
 ;;;; Cholesky factorization
 
@@ -455,4 +455,4 @@ generating random draws. "
       (make-matrix* common-type n n cholesky :kind :cholesky))))
 
 (defmethod reconstruct ((mf cholesky-factorization))
-  (mm (copy-matrix mf :lower-triangular) t))
+  (mm (copy-matrix mf :kind :lower-triangular) t))

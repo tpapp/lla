@@ -227,14 +227,14 @@ which ensures that all coercions are valid."
 
 (addtest (lla-unit-tests)
   transpose
+  ;; !!! test transpose for other classes, lower-upper triangular, symmetric, etc
+  ;; !!! check for type of resulting class
   (ensure (== (transpose (make-matrix-with-seq :double 3 4))
               #3vd:dense(0.0d0 1.0d0 2.0d0
                          3.0d0 4.0d0 5.0d0
                          6.0d0 7.0d0 8.0d0
                          9.0d0 10.0d0 11.0d0))))
-  ;; !!! test transpose for other classes, lower-upper triangular, symmetric, etc
-  ;; !!! check for type of resulting class
-  )
+
 
 ;;;;
 ;;;; linear algebra !!! incorporate stuff below
@@ -256,7 +256,7 @@ which ensures that all coercions are valid."
   invert
   (let ((m #2vs(1 2 3 4)))
     (flet ((invert (kind)
-             (invert (copy-matrix m kind))))
+             (invert (copy-matrix m :kind kind))))
       (ensure (== (invert :dense) ; also tests (invert lu)
                   #2vs(-2 1 1.5 -0.5)))
       (ensure (== (invert :upper-triangular)

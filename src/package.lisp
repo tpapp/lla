@@ -19,8 +19,8 @@
    numeric-vector elements nv-array-type numeric-vector-integer
    numeric-vector-single numeric-vector-double
    numeric-vector-complex-single numeric-vector-complex-double
-   make-nv* make-nv create-nv ensure-unshared copy-elements
-   convert-elements copy-nv convert-nv
+   make-nv* make-nv create-nv copy-elements-into copy-elements
+   ensure-unshared copy-nv
 
    ;; numeric-vector-wrappers -- nothing is exported
 
@@ -71,7 +71,7 @@
    ;; matrix-implementation
    
    cm-index2 make-matrix* make-matrix create-matrix copy-matrix
-   convert-matrix vector->matrix vector->column vector->row transpose
+   vector->matrix vector->column vector->row transpose
 
    ;; readmacros
 

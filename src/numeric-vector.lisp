@@ -106,16 +106,32 @@ Also see *forced-float*."
                             (lambda (x) (coerce x lisp-type))
                             initial-contents))))
 
-(defgeneric copy-elements (nv)
-  (:documentation "Return a vector that is a copy if ELEMENTS in
-NUMERIC-VECTOR.  Note: to copy a numeric-vector, just use COPY-NV,
-which can make a lazy copy."))
-(expand-for-lla-types (lla-type)
-  `(defmethod copy-elements ((nv ,(nv-class lla-type)))
-     (declare (optimize speed))
-     (bind (((:slots-read-only elements) nv))
-       (declare (type ,(nv-array-type lla-type) elements))
-       (copy-seq elements))))
+(defun copy-elements-into (source source-type source-index destination destination-type destination-index length)
+  "Copy LENGTH elements from SOURCE to DESTINATION, starting at the
+given indexes.  Caller promises that SOURCE and DESTINATION are simple
+vectors conforming to the corresponding LLA type.  Return no value.
+
+Usage note: call this function whenever you need to copy/convert
+elements.  It is supposed to contain the optimized versions for
+conversion etc, so nothing else should be optimized."
+  ;; !!! need to optimize this one day
+  (declare (ignore source-type))
+  (let ((type (lla-type->lisp-type destination-type)))
+    (iter
+      (for source-i :from source-index :below (+ source-index length))
+      (for destination-i :from destination-index)
+      (setf (aref destination destination-i) (coerce (aref source source-i) type))))
+  (values))
+
+(defun copy-elements (nv &optional (destination-type (lla-type nv)))
+  "Return a vector that is a copy if ELEMENTS in NUMERIC-VECTOR,
+converting if necessary.  Note: to copy a numeric-vector, just use
+COPY-NV, which can make a lazy copy."
+  (let* ((source (elements nv))
+         (length (length source))
+         (destination (make-nv-elements length destination-type)))
+    (copy-elements-into source (lla-type nv) 0 destination destination-type 0 length)
+    destination))
 
 (defun ensure-unshared (nv)
   "Replace the elements vector of numeric-vector with a copy if it is
@@ -127,53 +143,22 @@ shared.  Return no values."
         (setf elements (copy-elements nv)))
       (values)))
 
-(defgeneric copy-nv (nv)
-  (:documentation "Copy a numeric vector.  ELEMENTS are shared.  If NV
-is an instance of a subclass of NUMERIC-VECTOR, the result is still a
-NUMERIC-VECTOR."))
-(expand-for-lla-types (lla-type)
-  (let ((class (nv-class lla-type)))
-    `(defmethod copy-nv ((nv ,class))
-       (make-instance ',class
-                      :elements (elements nv)))))
+(defun copy-elements* (nv destination-type copy-p)
+  "Copy and return elements if source and destination types don't
+match, or if COPY-P; otherwise just return elements.  The second value
+is NIL iff elements were actually copied."
+  (let ((source-type (lla-type nv)))
+    (if (or copy-p (not (eq destination-type source-type)))
+        (values (copy-elements nv destination-type) nil)
+        (values (elements nv) t))))
 
-(defgeneric convert-elements (nv lla-type)
-  (:documentation "Make a (non-shared) copy of the ELEMENTS of a
-  numeric vector, converting (if necessary) to the target type.  Types
-  are LLA type.")
-  (:method (nv lla-type)
-    ;; fallback method for impossible conversions, signal error
-    (error "can't coerce numeric-vector of type ~A to ~A"
-	   (lla-type nv) lla-type)))
-
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (defun generate-convert-elements (source-type target-type)
-    "Define a method for convert-nv for given source and target
-types."
-    (let ((source-lisp-type (lla-type->lisp-type source-type))
-          (target-lisp-type (lla-type->lisp-type target-type))
-          (class (nv-class source-type)))
-      `(defmethod convert-elements ((nv ,class) (target-type (eql ,target-type)))
-         (declare (optimize speed)
-                  #+sbcl (sb-ext:muffle-conditions sb-ext:compiler-note))
-         ,(if (equal source-lisp-type target-lisp-type)
-              `(copy-elements nv)
-              `(let ((elements (elements nv)))
-                 (declare (type ,(nv-array-type source-type) elements))
-                 (let* ((length (length elements))
-                        (result (make-nv-elements length ,target-type)))
-                   (dotimes (i length)
-                     (setf (aref result i)
-                           (coerce (aref elements i) ',target-lisp-type)))
-                   result)))))))
-
-(defmacro define-convert-elements ()
-  `(progn
-     ,@(mapcar (lambda (pair)
-                 (apply #'generate-convert-elements pair))
-               (coercible-pairs-list))))
-(define-convert-elements)
-
+(defun copy-nv (nv &key (destination-type (lla-type nv)) (copy-p nil))
+  "Copy (or convert) a numeric vector.  If DESTINATION-TYPE is the
+same and COPY-P is nil, then ELEMENTS are shared.  If NV is an
+instance of a subclass of NUMERIC-VECTOR, the result is still a
+NUMERIC-VECTOR."
+  (bind (((:values elements shared-p) (copy-elements* nv destination-type copy-p)))
+    (make-instance (nv-class destination-type) :elements elements :shared-p shared-p)))
 
 ;;;; XARRAY interface for NUMERIC-VECTOR
 
