@@ -479,3 +479,33 @@ matrices.  Note: just dispatches to vector operations."
 (define-matrix-operations /)
 
      
+;;;; stacking
+
+(defun stack-vertically (&rest arguments)
+  "Stack arguments vertically, converting to a common type.  A vector
+  is interpreted as a row matrix."
+  (let* ((matrices (mapcar (lambda (arg)
+                             (etypecase arg
+                               (dense-matrix-like (set-restricted arg))
+                               (numeric-vector (vector->row arg))))
+                           arguments))
+         (common-type (apply #'common-target-type (mapcar #'lla-type matrices)))
+         (nrow-total (reduce #'+ matrices :key #'nrow))
+         (ncol (ncol (first matrices)))
+         (result (make-matrix nrow-total ncol common-type))
+         (result-elements (elements result))
+         (row 0))
+    (iter
+      (for matrix :in matrices)
+      (for nrow := (nrow matrix))
+      (for elements := (elements matrix))
+      (for lla-type := (lla-type matrix))
+      (assert (= ncol (ncol matrix)) () "Matrix columns (or vector lengths) do not match.")
+      (iter
+        (for col :from 0 :below ncol)
+        (copy-elements-into elements lla-type (cm-index2 nrow 0 col)
+                            result-elements common-type (cm-index2 nrow-total row col)
+                            nrow))
+      (incf row nrow))
+    result))
+

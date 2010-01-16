@@ -235,6 +235,14 @@ which ensures that all coercions are valid."
                          6.0d0 7.0d0 8.0d0
                          9.0d0 10.0d0 11.0d0))))
 
+(addtest (lla-unit-tests)
+  stack
+  (ensure (== (stack-vertically #v(1 2 3) #3v(4d0 5 6 7 8 9) #v(-1 -2 -3))
+              #3v(1 2 3
+                  4 5 6
+                  7 8 9
+                  -1 -2 -3))))
+
 
 ;;;;
 ;;;; linear algebra !!! incorporate stuff below

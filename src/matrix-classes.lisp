@@ -127,7 +127,8 @@ matrix."))
 (defgeneric set-restricted-set-p (matrix value)
   (:documentation "Set the value of the restricted-set-p slot,
   whenever applicable.")
-  (:method ((matrix numeric-vector) value))
+  (:method ((matrix numeric-vector) value)
+    value)
   (:method ((matrix restricted-elements) value)
     (setf (restricted-set-p matrix) value)))
     
@@ -141,17 +142,20 @@ matrix."))
   appropriate value in the data vector of matrix.  Useful when calling
   functions which expect a proper dense matrix.  If restricted-set-p,
   or if the object is not a subtype of restricted-elements, do
-  nothing.
+  nothing.  Always return the matrix.
 
   NOTE: the default behavior is to call set-restricted* if (not
   restricted-set-p), so it is advised to define that method instead
   for classes.")
-  (:method ((matrix numeric-vector)))   ; do nothing
+  (:method ((matrix numeric-vector))
+    ;; do nothing
+    matrix)
   (:method ((matrix restricted-elements))
     (with-slots (restricted-set-p) matrix
       (unless restricted-set-p
         (set-restricted* matrix)
-        (setf restricted-set-p t)))))
+        (setf restricted-set-p t)))
+    matrix))
 
 (define-matrix-storage-subclass (:upper-triangular) (restricted-elements)
     "A dense, upper triangular matrix.  The elements below the
