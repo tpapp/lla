@@ -460,3 +460,60 @@ be used to generate random draws, etc."
 (defmethod reconstruct ((mf cholesky))
   (mm t (r-matrix mf)))
 
+
+
+;;; SVD
+
+(defun svd (a left-vector-spec right-vector-spec)
+  "Singular value decomposition.  Valid vector specifications
+are :NONE, :SINGULAR (singular vectors only) and :ALL.  Return values
+S (singular values, descending order), U (left singular vector),
+VT ([conjugate] transpose of right singular vectors)."
+  (bind ((type (lla-type a))
+         ((:values procedure real-type complex-p) (lb-procedure-name2 'gesvd 'gesvd type)))
+    (with-matrix-input ((a (m m%) (n n%) :copied) a% type)
+      (bind ((min-mn (min m n))
+             ((:values u-ncol jobu) (ecase left-vector-spec
+                                      (:none (values 0 #\N))
+                                      (:singular (values min-mn #\S))
+                                      (:all (values m #\A))))
+             ((:values vt-nrow jobvt) (ecase right-vector-spec
+                                        (:none (values 0 #\N))
+                                        (:singular (values min-mn #\S))
+                                        (:all (values n #\A)))))
+        (with-fortran-atoms ((:char jobu% jobu)
+                             (:char jobvt% jobvt)
+                             (:integer vt-nrow% vt-nrow))
+          (with-vector-output (s min-mn s% real-type)
+            (bind (((:values u vt)
+                    (with-vector-outputs ((u (* m u-ncol ) u% type)
+                                          (vt (* vt-nrow n) vt% type))
+                      ;;; !!! compiler complains here about
+                      ;;; !!! optimization, look into it
+                      (if complex-p
+                          (with-work-area (rwork% real-type (* 5 min-mn))
+                            (with-work-query (lwork% work% type)
+                              (call-with-info-check procedure jobu% jobvt% m% n% a% m% s%
+                                                    u% m% vt% vt-nrow% work% lwork% rwork% info%)))
+                          (with-work-query (lwork% work% type)
+                            (call-with-info-check procedure jobu% jobvt% m% n% a% m% s%
+                                                  u% m% vt% vt-nrow% work% lwork% info%)))
+                      (values u vt))))
+              (values (make-nv* type s)
+                      (if (zerop u-ncol)
+                          nil
+                          (make-matrix* type m u-ncol u))
+                      (if (zerop vt-nrow)
+                          nil
+                          (make-matrix* type vt-nrow n vt))))))))))
+
+(in-readtable lla-readtable)
+(bind ((a #2v(1d0 2 3 4))
+       ((:values d u vt) (svd a :all :all)))
+  u)
+
+(bind ((a #2v(1d0 2 3 4 5 6))
+       ((:values d u vt) (svd a :all :all)))
+  vt)
+
+

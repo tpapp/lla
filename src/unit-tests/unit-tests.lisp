@@ -330,6 +330,27 @@ which ensures that all coercions are valid."
                                         0.000000 -0.8164966 1.1547005)))
     (ensure (== (reconstruct c) a))))
 
+(addtest (lla-unit-tests)
+  svd
+  (bind ((a #2v(1d0 2 3 4))
+         ((:values d u vt) (svd a :all :all)))
+    (ensure (== d #vd(5.4649857 0.3659662)))
+    (ensure (== u #2vd(-0.4045536 -0.9145143
+                       -0.9145143  0.4045536)))
+    (ensure (== vt #2vd(-0.5760484 -0.8174156
+                        0.8174156 -0.5760484)))))
+
+(addtest (lla-unit-tests)
+  svd-rectangular
+  (bind ((a #2v(1d0 2 3 4 5 6))
+         ((:values d u vt) (svd a :singular :singular)))
+    (ensure (== d #vd(9.5255181 0.5143006)))
+    (ensure (== u #2vd(0.2298477  0.8834610
+                       0.5247448  0.2407825
+                       0.8196419 -0.4018960)))
+    (ensure (== vt #2vd(0.6196295 0.7848945
+                        -0.7848945 0.6196295)))))
+
 
 ;;;; run all tests
 ;;;; (run-lla-tests)

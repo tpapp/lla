@@ -76,7 +76,7 @@
    ;; linear-algebra
 
    mmm mm lu solve invert eigen least-squares least-squares-xxinverse
-   cholesky 
+   cholesky svd
    
    ))
 

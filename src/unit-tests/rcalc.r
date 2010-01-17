@@ -16,3 +16,6 @@ chol(t(a) %*% a)
 a <- matrix(1:4,2,2,byrow=TRUE)
 aa <- t(a) %*% a
 eigen(aa)
+
+## svd
+La.svd(matrix(1:6,3,2,byrow=TRUE))

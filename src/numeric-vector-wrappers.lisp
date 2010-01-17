@@ -99,12 +99,19 @@ be used as elements in MAKE-NV* and MAKE-MATRIX*), assigned to name."
   "Allocates a memory area of the given type and length for the
 duration of body, and makes sure that the contents are assigned to the
 variable named name at the end as a Lisp array of compatible type.
-The elements are initialized to zero."
+The elements are initialized to zero.  If LENGTH is zero, no vector is
+created, and pointer is bound to the null pointer."
   (check-type name symbol)
   (check-type pointer symbol)
-  (once-only (lla-type)
+  (once-only (length lla-type)
     `(progn
        (check-type ,lla-type lla-type)
-       (let ((,name (make-nv-elements ,length ,lla-type)))
-	 (with-pinned-vector (,name ,pointer)
-	   ,@body)))))
+       (if (zerop ,length)
+           (let (,name
+                 (,pointer (null-pointer)))
+             ,@body)
+           (let ((,name (make-nv-elements ,length ,lla-type)))
+             (with-pinned-vector (,name ,pointer)
+               ,@body))))))
+
+(define-with-multiple-bindings with-vector-output)
