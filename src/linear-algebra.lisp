@@ -488,14 +488,11 @@ VT ([conjugate] transpose of right singular vectors)."
             (bind (((:values u vt)
                     (with-vector-outputs ((u (* m u-ncol ) u% type)
                                           (vt (* vt-nrow n) vt% type))
-                      ;;; !!! compiler complains here about
-                      ;;; !!! optimization, look into it
-                      (if complex-p
-                          (with-work-area (rwork% real-type (* 5 min-mn))
-                            (with-work-query (lwork% work% type)
+                      (with-work-query (lwork% work% type)
+                        (if complex-p
+                            (with-work-area (rwork% real-type (* 5 min-mn))
                               (call-with-info-check procedure jobu% jobvt% m% n% a% m% s%
-                                                    u% m% vt% vt-nrow% work% lwork% rwork% info%)))
-                          (with-work-query (lwork% work% type)
+                                                    u% m% vt% vt-nrow% work% lwork% rwork% info%))
                             (call-with-info-check procedure jobu% jobvt% m% n% a% m% s%
                                                   u% m% vt% vt-nrow% work% lwork% info%)))
                       (values u vt))))
