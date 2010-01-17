@@ -108,11 +108,12 @@
 (defmethod lu ((a dense-matrix-like))
   (bind ((type (lla-type a))
          (procedure (lb-procedure-name 'getrf type)))
-    (with-matrix-input ((a (m m%) (n n%) :output-to lu-elements) a% type)
+    (with-matrix-input ((a (m m%) (n n%) :output-to lu) a% type)
       (with-vector-output (ipiv (min m n) ipiv% :integer)
         (call-with-info-check procedure m% n% a% m% ipiv% info%)
-        (make-instance (matrix-class :lu type) :nrow m :ncol n 
-                       :elements lu-elements :ipiv (make-nv* :integer ipiv))))))
+        (make-instance 'lu 
+                       :lu-matrix (make-matrix* type m n lu)
+                       :ipiv (make-nv* :integer ipiv))))))
 
 ;;;; solving linear equations
 
@@ -136,13 +137,14 @@
         (call-with-info-check procedure n% nrhs% a% n% ipiv% b% n% info%))
       (make-matrix* common-type n nrhs x-elements))))
 
-(defmethod solve ((lu lu-factorization) (b dense-matrix-like))
-  (bind ((common-type (lb-target-type lu b))
+(defmethod solve ((lu lu) (b dense-matrix-like))
+  (bind (((:slots-read-only lu-matrix ipiv) lu)
+         (common-type (lb-target-type lu-matrix b))
          (procedure (lb-procedure-name 'getrs common-type)))
-    (with-matrix-inputs (((lu (n n%) n2) lu% common-type)
+    (with-matrix-inputs (((lu-matrix (n n%) n2) lu% common-type)
                          ((b n3 (nrhs nrhs%) :output-to x) b% common-type))
       (assert (= n n2 n3))
-      (with-nv-input (((ipiv lu)) ipiv% :integer)
+      (with-nv-input ((ipiv) ipiv% :integer)
         (with-fortran-atom (:char trans% #\N)
           (call-with-info-check procedure trans% n% nrhs% lu% n% ipiv% b% n% info%)))
       (make-matrix* common-type n nrhs x))))
@@ -157,12 +159,13 @@
 (defmethod invert ((a dense-matrix-like))
   (invert (lu a)))
 
-(defmethod invert ((lu lu-factorization))
-  (bind ((common-type (lla-type lu))
+(defmethod invert ((lu lu))
+  (bind (((:slots-read-only lu-matrix ipiv) lu)
+         (common-type (lla-type lu-matrix))
 	 (procedure (lb-procedure-name 'getri common-type)))
-    (with-matrix-input ((lu (n n%) n2 :output-to inverse) lu% common-type)
+    (with-matrix-input ((lu-matrix (n n%) n2 :output-to inverse) lu% common-type)
       (assert (= n n2))
-      (with-nv-input (((ipiv lu)) ipiv% :integer)
+      (with-nv-input ((ipiv) ipiv% :integer)
         (with-work-query (lwork% work% common-type)
           (call-with-info-check procedure n% lu% n% ipiv% work% lwork%
                                 info%)))
@@ -189,14 +192,14 @@ is supposed to consist of 1s.  *For internal use, NOT EXPORTED*."
 (defmethod invert ((a lower-triangular-matrix))
   (invert-triangular% a nil nil :lower-triangular))
 
-(defmethod invert ((a cholesky-factorization))
-  (bind ((common-type (lla-type a))
+(defmethod invert ((cholesky cholesky))
+  (bind (((:slots-read-only r-matrix) cholesky)
+         (common-type (lla-type r-matrix))
 	 (procedure (lb-procedure-name 'potri common-type)))
-    (with-matrix-input ((a (n n%) n2 :output-to inverse) a% common-type)
+    (with-matrix-input ((r-matrix (n n%) n2 :output-to inverse) r% common-type)
       (assert (= n n2))
-      (with-fortran-atoms ((:integer n% n)
-                           (:char u-char% #\U))
-        (call-with-info-check procedure u-char% n% a% n% info%))
+      (with-fortran-atom (:char u-char% #\U)
+        (call-with-info-check procedure u-char% n% r% n% info%))
       (make-matrix* common-type n n inverse :kind :hermitian))))
 
 (defgeneric eigen (a &key vectors-p check-real-p &allow-other-keys)
@@ -411,7 +414,7 @@ degrees of freedom."))
                                 work% lwork% info%)))
       (values 
         (matrix-from-first-rows x common-type m nrhs n)
-        (make-matrix* common-type m n qr :kind :qr)
+        (make-instance 'qr :qr-matrix (make-matrix* common-type m n qr))
         (sum-last-rows x common-type m nrhs n)
         (- m n)))))
 
@@ -430,14 +433,14 @@ degrees of freedom."))
 (defun least-squares-xxinverse (qr)
   "Calculate (X^T X)-1 (which is used for calculating the variance of
 estimates) from the qr decomposition of X.  Return a CHOLESKY
-decomposition, which can be used as a LOWER-TRIANGULAR-MATRIX for
-generating random draws. "
+decomposition.  Note: the R-MATRIX of the cholesky decomposition can
+be used to generate random draws, etc."
   ;; Notes: X = QR, thus X^T X = R^T Q^T Q R = R^T R because Q is
   ;; orthogonal.  Then we do as if calculating the inverse of a matrix
-  ;; using its Cholesky decomposition.
-  (with-slots (nrow ncol) qr
+  ;; using its Cholesky factorization.
+  (with-slots (nrow ncol) (qr-matrix qr)
     (assert (<= ncol nrow))
-    (invert (copy-matrix (factorization-component qr :R) :kind :cholesky))))
+    (invert (make-instance 'cholesky :r-matrix (factorization-component qr :R)))))
 
 ;;;; Cholesky factorization
 
@@ -452,8 +455,9 @@ generating random draws. "
       (assert (= n n2))
       (with-fortran-atoms ((:char u-char% #\L))
         (call-with-info-check procedure u-char% n% a% n% info%))
-      (make-matrix* common-type n n cholesky :kind :cholesky))))
+      (make-instance 'cholesky :r-matrix (make-matrix* common-type n n cholesky 
+                                                       :kind :upper-triangular)))))
 
-(defmethod reconstruct ((mf cholesky-factorization))
-  (mm (copy-matrix mf :kind :lower-triangular) t))
+(defmethod reconstruct ((mf cholesky))
+  (mm (r-matrix mf) t))
 

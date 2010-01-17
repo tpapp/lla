@@ -433,13 +433,16 @@ like xGELS."))
              (setf (aref result result-index) (aref vector vector-index))))
          (make-matrix* lla-type n nrhs result :kind kind)))))
 
-(defmethod factorization-component ((mf qr-factorization) (component (eql :R)))
-  (bind (((:slots-read-only nrow ncol elements) mf))
-    (matrix-from-first-rows elements (lla-type mf) nrow ncol ncol :upper-triangular)))
+(defmethod factorization-component ((mf qr) (component (eql :R)) &key copy-p)
+  (declare (ignore copy-p))
+  (bind (((:slots-read-only qr-matrix) mf)
+         ((:slots-read-only nrow ncol elements) qr-matrix))
+    (matrix-from-first-rows elements (lla-type qr-matrix) nrow ncol ncol :upper-triangular)))
 
-(defmethod factorization-component ((mf cholesky-factorization) (component (eql :R)))
-  (copy-matrix mf :kind :lower-triangular))
-
+(defmethod factorization-component ((mf cholesky) (component (eql :R)) &key (copy-p nil))
+  (if copy-p
+      (copy-matrix (r-matrix mf) :copy-p t)
+      (r-matrix mf)))
 
 ;;;; elementwise and scalar operations
 

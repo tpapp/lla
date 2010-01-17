@@ -324,7 +324,7 @@ which ensures that all coercions are valid."
                            -1 2 -1
                             0 -1 2))
          (c (cholesky a)))
-    (ensure (== (factorization-component c :R)
+    (ensure (== (transpose (factorization-component c :R))
                  #3vd:lower-triangular(1.414214 0.000000 0.0000000
                                        -0.7071068 1.2247449 0.0000000
                                         0.000000 -0.8164966 1.1547005)))

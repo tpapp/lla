@@ -26,7 +26,7 @@
 
    ;; matrix-classes
 
-   matrix-storage nrow ncol matrix-storage-square dense-matrix-like
+   dense-matrix-like nrow ncol dense-matrix-like-square
    matrix-factorization matrix-class matrix-kind
 
    dense-matrix dense-matrix-integer dense-matrix-single
@@ -51,17 +51,11 @@
    
    factorization-component reconstruct
 
-   lu-factorization lu-factorization-integer lu-factorization-single
-   lu-factorization-double lu-factorization-complex-single
-   lu-factorization-complex-double ipiv
+   lu-factorization lu-matrix ipiv
 
-   qr-factorization qr-factorization-integer qr-factorization-single
-   qr-factorization-double qr-factorization-complex-single
-   qr-factorization-complex-double
+   qr-factorization qr-matrix
    
-   cholesky-factorization cholesky-factorization-integer cholesky-factorization-single
-   cholesky-factorization-double cholesky-factorization-complex-single
-   cholesky-factorization-complex-double
+   cholesky-factorization r-matrix
 
    ;; printing
    
