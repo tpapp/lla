@@ -506,14 +506,3 @@ VT ([conjugate] transpose of right singular vectors)."
                       (if (zerop vt-nrow)
                           nil
                           (make-matrix* type vt-nrow n vt))))))))))
-
-(in-readtable lla-readtable)
-(bind ((a #2v(1d0 2 3 4))
-       ((:values d u vt) (svd a :all :all)))
-  u)
-
-(bind ((a #2v(1d0 2 3 4 5 6))
-       ((:values d u vt) (svd a :all :all)))
-  vt)
-
-
