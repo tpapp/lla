@@ -146,7 +146,7 @@ diagonal are not necessarily initialized and not accessed.")
 diagonal are not necessarily initialized and not accessed.")
 
 (define-dense-matrix-subclass :hermitian
-    (restricted-elements matrix-storage-square)
+    (restricted-elements dense-matrix-like-square)
   ;; LLA uses the class HERMITIAN-MATRIX to implement both real
   ;; symmetric and complex Hermitian matrices --- as technically, real
   ;; symmetric matrices are also Hermitian.  Complex symmetric
