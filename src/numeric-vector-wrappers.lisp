@@ -72,9 +72,27 @@ the pointer in any way, it is for reading only."
       `(progn
 	 (check-type ,numeric-vector numeric-vector)
 	 (check-type ,lla-type lla-type)
-	 (let ((,elements (copy-elements* ,numeric-vector ,lla-type ,copy-p)))
+	 (let ((,elements (copy-elements% ,numeric-vector ,lla-type ,copy-p)))
 	   (with-pinned-vector (,elements ,pointer)
 	     ,@body))))))
+
+#+sbcl
+(defmacro with-nv-input-output ((numeric-vector output pointer lla-type)
+                               &body body)
+  "A combination of with-nv-input and -output: input is always copied
+\(and converted if necessary), is available during body, and the
+contents end up in a _lisp vector_ of the appropriate type (ie it can
+be used as elements in MAKE-NV* and MAKE-MATRIX*), assigned to name."
+  (check-type output symbol)
+  (check-type pointer symbol)
+  (once-only (numeric-vector lla-type)
+    `(progn
+       (check-type ,numeric-vector numeric-vector)
+       (check-type ,lla-type lla-type)
+       (let* ((,output (copy-elements% ,numeric-vector ,lla-type t)))
+        (with-pinned-vector (,output ,pointer)
+          ,@body)))))
+
 
 #+sbcl
 (defmacro with-vector-output ((name length pointer lla-type) &body body)

@@ -28,16 +28,9 @@
   ((elements :type (simple-array * (*))
              :initarg :elements :reader elements
              :documentation "Elements, a specialized simple-array.
-             Initialized with zeros by default.")
-   (shared-p :type boolean :initarg :shared-p :reader shared-p
-             :initform nil :documentation "Whether the elements are
-shared with another numeric vector."))
+             Initialized with zeros by default."))
   (:documentation "A numeric vector is a wrapper class around a simple
-vector ELEMENTS (which may be accessed directly) and SHARED-P, which
-is non-nil iff another numeric vector shares the same data.
-
-The semantics of copying, implemented by COPY-NV, is lazy and is
-designed to promote functional programming (where possible)."))
+vector ELEMENTS"))
 
 ;;;; helper functions
 
@@ -74,12 +67,12 @@ designed to promote functional programming (where possible)."))
 ;;;; some LLA-specific generic interface and utility functions
 
 (declaim (inline make-nv*))
-(defun make-nv* (lla-type elements &optional (shared-p nil))
+(defun make-nv* (lla-type elements)
   "Create a NUMERIC-VECTOR of LLA-TYPE, with given ELEMENTS.  Note
 that there is no type checking, and elements are not copied: this is
 effectively shorthand for a MAKE-INSTANCE call.  For internal use, not
 exported."
-  (make-instance (nv-class lla-type) :elements elements :shared-p shared-p))
+  (make-instance (nv-class lla-type) :elements elements))
 
 (declaim (inline make-nv-elements))
 (defun make-nv-elements (length lla-type &optional (initial-element 0))
@@ -114,7 +107,7 @@ vectors conforming to the corresponding LLA type.  Return no value.
 Usage note: call this function whenever you need to copy/convert
 elements.  It is supposed to contain the optimized versions for
 conversion etc, so nothing else should be optimized."
-  ;; !!! need to optimize this one day
+  ;; !!! need to optimize this sometime
   (declare (ignore source-type))
   (let ((type (lla-type->lisp-type destination-type)))
     (iter
@@ -126,40 +119,31 @@ conversion etc, so nothing else should be optimized."
 (defun copy-elements (nv &optional (destination-type (lla-type nv)))
   "Return a vector that is a copy if ELEMENTS in NUMERIC-VECTOR,
 converting if necessary.  Note: to copy a numeric-vector, just use
-COPY-NV, which can make a lazy copy."
+COPY-NV."
   (let* ((source (elements nv))
          (length (length source))
          (destination (make-nv-elements length destination-type)))
     (copy-elements-into source (lla-type nv) 0 destination destination-type 0 length)
     destination))
 
-(defun ensure-unshared (nv)
-  "Replace the elements vector of numeric-vector with a copy if it is
-shared.  Return no values."
-    (with-slots (elements shared-p) nv
-      ;; implementation note: we rely on copy-seq being fast
-      (when shared-p
-        (setf shared-p nil)
-        (setf elements (copy-elements nv)))
-      (values)))
-
-(defun copy-elements* (nv destination-type copy-p)
+(defun copy-elements% (nv destination-type copy-p)
   "Copy and return elements if source and destination types don't
-match, or if COPY-P; otherwise just return elements.  The second value
-is NIL iff elements were actually copied."
+match, or if COPY-P; otherwise just return elements.  Usage note:
+meant to be used in functions that implement the DESTINATION-TYPE &
+COPY-P semantics."
   (let ((source-type (lla-type nv)))
     (if (or copy-p (not (eq destination-type source-type)))
-        (values (copy-elements nv destination-type) nil)
-        (values (elements nv) t))))
+        (copy-elements nv destination-type)
+        (elements nv))))
 
 (defun copy-nv (nv &key (destination-type (lla-type nv)) (copy-p nil))
   "Copy (or convert) a numeric vector.  If DESTINATION-TYPE is the
 same and COPY-P is nil, then ELEMENTS are shared.  If NV is an
 instance of a subclass of NUMERIC-VECTOR, the result is still a
 NUMERIC-VECTOR."
-  (bind (((:values elements shared-p) (copy-elements* nv destination-type copy-p)))
-    (make-instance (nv-class destination-type) :elements elements :shared-p shared-p)))
-
+  (make-instance (nv-class destination-type)
+                 :elements (copy-elements% nv destination-type copy-p)))
+  
 ;;;; XARRAY interface for NUMERIC-VECTOR
 
 ;; (defgeneric default-lla-type (object)
@@ -251,7 +235,6 @@ NUMERIC-VECTOR."
   `(defmethod (setf xref) (value (nv ,(nv-class lla-type)) &rest subscripts)
      (declare (optimize (speed 3))
               #+sbcl (sb-ext:muffle-conditions sb-ext:compiler-note))
-     (ensure-unshared nv)
      (setf (aref (the ,(nv-array-type lla-type) (elements nv)) (first subscripts))
            value)))
 

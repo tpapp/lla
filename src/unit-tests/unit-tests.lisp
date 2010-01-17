@@ -55,7 +55,7 @@ WITH-NV-INPUT-READONLY and check equality.  Types are LLA-types.
 Random numbers are integers, which ensures that all coercions are
 valid."
   (let ((nv (make-random-numeric-vector length source-type 100)))
-    (with-nv-input-readonly (nv pointer destination-type)
+    (with-nv-input-only (nv pointer destination-type nil)
       (numeric-vector-pointer= nv pointer destination-type :report-p
 			       report-p))))
 
@@ -67,7 +67,7 @@ and COPY-ELEMENTS.  Types are LLA-types.  Random numbers are integers,
 which ensures that all coercions are valid."
   (let* ((nv (make-random-numeric-vector length source-type 100))
          (elements-copy (copy-seq (elements nv))))
-    (with-nv-input-copied (nv pointer destination-type)
+    (with-nv-input-only (nv pointer destination-type t)
       ;; check equality
       (and (numeric-vector-pointer= nv pointer destination-type :report-p
                                     report-p)

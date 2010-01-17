@@ -20,7 +20,6 @@
         (zero (coerce 0 (lla-type->lisp-type lla-type))))
     `(defmethod set-restricted* ((matrix ,class))
        (declare (optimize speed))
-       (ensure-unshared matrix)
        (bind (((:slots-read-only nrow ncol elements) matrix))
          ;; set the lower triangle (below diagonal) to 0
          (declare (fixnum nrow ncol)
@@ -36,8 +35,7 @@
        matrix)))
 
 (defmethod set-restricted* ((matrix lower-triangular-matrix))
-  (ensure-unshared matrix)
-  (bind (((:slots-read-only nrow ncol elements) matrix)
+   (bind (((:slots-read-only nrow ncol elements) matrix)
          (zero (coerce 0 (array-element-type elements))))
     ;; set the upper triangle (above diagonal) to 0
     (dotimes (col ncol)
@@ -49,7 +47,6 @@
   matrix)
 
 (defmethod set-restricted* ((matrix hermitian-matrix))
-  (ensure-unshared matrix)
   (bind (((:slots-read-only nrow ncol elements) matrix))
     ;; set the lower triangle (below diagonal) to conjugate of the
     ;; elements in the upper triangle
@@ -100,7 +97,6 @@
       (aref elements (cm-index2 nrow row col)))))
 (defun matrix-setf-xref% (value matrix subscripts)
   "Setter function for matrices.  Meant to be inlined.  Not exported."
-  (ensure-unshared matrix)
   (bind (((row col) subscripts))
     (with-slots (nrow ncol elements) matrix
       (check-index row nrow)
@@ -131,12 +127,11 @@
       (check-index row nrow)
       (check-index col ncol)
       (if (<= row col)
-          (progn
-            (ensure-unshared matrix)
-            (setf (aref elements (cm-index2 nrow row col))
-                  value))
-          (unless (zerop value)
-            (error 'xref-setting-readonly))))))
+          (setf (aref elements (cm-index2 nrow row col))
+                value)
+          (if (zerop value)
+              value
+              (error 'xref-setting-readonly))))))
 
 ;;; xref for lower triangular matrices
 
@@ -155,12 +150,10 @@
       (check-index row nrow)
       (check-index col ncol)
       (if (>= row col)
-          (progn
-            (ensure-unshared matrix)
-            (setf (aref elements (cm-index2 nrow row col))
-                  value))
-          (unless (zerop value)
-            (error 'xref-setting-readonly))))))
+          (setf (aref elements (cm-index2 nrow row col)) value)
+          (if (zerop value)
+              value
+              (error 'xref-setting-readonly))))))
 
 ;;; xref for hermitian matrices
 
@@ -174,7 +167,6 @@
           (conjugate (aref elements (cm-index2 nrow col row)))))))
 
 (defmethod (setf xref) (value (matrix hermitian-matrix) &rest subscripts)
-  (ensure-unshared matrix)
   (bind (((row col) subscripts))
     (with-slots (nrow ncol elements restricted-set-p) matrix
       (check-index row nrow)
@@ -196,13 +188,13 @@
 
 (declaim (inline make-matrix*))
 (defun make-matrix* (lla-type nrow ncol elements &key (kind :dense)
-                     (shared-p nil) (restricted-set-p nil))
+                     (restricted-set-p nil))
   "Create a matrix with given ELEMENTS, TYPE, LLA-TYPE and dimensions.
 Note that there is no type checking, and elements are not copied: this
 is effectively shorthand for a MAKE-INSTANCE call.  For internal use,
 not exported."
   (aprog1 (make-instance (matrix-class kind lla-type) :nrow nrow :ncol ncol
-                         :elements elements :shared-p shared-p)
+                         :elements elements)
     (set-restricted-set-p it restricted-set-p)))
     
 
@@ -263,31 +255,29 @@ matrices.  Also see *force-float*."
   "Copy or convert matrix to the given kind and destination-type.
 Copying is forced when COPY-P."
   (set-restricted matrix)
-  (bind (((:slots-read-only nrow ncol) matrix)
-         ((:values elements shared-p) (copy-elements* matrix destination-type copy-p)))
-    (make-matrix* (lla-type matrix) nrow ncol elements
-                  :kind kind :shared-p shared-p
-                  :restricted-set-p t)))
+  (make-matrix* (lla-type matrix) (nrow matrix) (ncol matrix)
+                (copy-elements% matrix destination-type copy-p)
+                :kind kind :restricted-set-p t))
 
-(defun vector->matrix (nv nrow ncol &optional (kind :dense))
+(defun vector->matrix (nv nrow ncol &key (kind :dense) (copy-p nil))
   "Copy numeric vector to a matrix of matching size."
   (let ((elements (elements nv)))
     (assert (= (length elements) (* nrow ncol)))
-    (make-matrix* (lla-type nv) nrow ncol elements
-                  :kind kind :shared-p (shared-p nv))))
+    (make-matrix* (lla-type nv) nrow ncol
+                  (if copy-p (copy-seq elements) elements)
+                  :kind kind)))
 
-(defun vector->column (nv)
+(defun vector->column (nv &key (copy-p nil))
   "Return vector as a nx1 dense matrix of the same type."
   (let ((elements (elements nv)))
-    (make-matrix* (lla-type nv) (length elements) 1 elements
-                  :shared-p (shared-p nv))))
+    (make-matrix* (lla-type nv) (length elements) 1
+                  (if copy-p (copy-seq elements) elements))))
 
-(defun vector->row (nv)
+(defun vector->row (nv &key (copy-p nil))
   "Return vector as a 1xn dense matrix of the same type."
   (let ((elements (elements nv)))
-    (make-matrix* (lla-type nv) 1 (length elements) elements
-                  :shared-p (shared-p nv))))
-
+    (make-matrix* (lla-type nv) 1 (length elements)
+                  (if copy-p (copy-seq elements) elements))))
 
 (defun xsimilar% (rank object)
   ;; not exported
@@ -357,46 +347,52 @@ Copying is forced when COPY-P."
 ;;; lower-triangular into upper-triangular, etc).  Helper function
 ;;; transpose% can be used for implementation.
 
-(defgeneric transpose% (matrix transposed-matrix-kind)
+(defgeneric transpose% (matrix transposed-matrix-kind conjugate-p)
   (:documentation "Return the transpose of MATRIX, which will be of
 kind TRANSPOSED-MATRIX-KIND.  RESTRICTED-SET-P is propagated if
 meaningful, but SET-RESTRICTED is *NOT* enforced (so the caller has to
 decide whether to enforce it).  Meant to be used as a helper function,
 *NOT EXPORTED*."))
 (expand-for-lla-types (lla-type)
-  `(defmethod transpose% ((matrix ,(nv-class lla-type)) transposed-matrix-kind)
-     (declare (optimize (speed 3) (safety 0)))
-     (bind (((:slots-read-only nrow ncol elements) matrix)
-            (transposed (make-nv-elements (length elements) ,lla-type)))
-       (declare (fixnum nrow ncol)
-                (type ,(nv-array-type lla-type) elements transposed))
-       (dotimes (col ncol)
-         (declare (fixnum col))
-         (iter
-           (declare (iterate:declare-variables))
-           (for (the fixnum elements-i) :from (cm-index2 nrow 0 col)
-                :below (cm-index2 nrow nrow col))
-           (for (the fixnum transposed-i) :from (cm-index2 ncol col 0) :by ncol)
-           (setf (aref transposed transposed-i)
-                 (aref elements elements-i))))
-       (make-matrix* ,lla-type ncol nrow transposed :kind transposed-matrix-kind
-                     :restricted-set-p (restricted-set-p matrix)))))
+  (let ((complex-p (lla-complex-p lla-type)))
+    `(defmethod transpose% ((matrix ,(nv-class lla-type)) transposed-matrix-kind conjugate-p)
+       ,@(unless complex-p
+           '((declare (ignore conjugate-p))))
+       (declare (optimize (speed 3) (safety 0)))
+       (bind (((:slots-read-only nrow ncol elements) matrix)
+              (transposed (make-nv-elements (length elements) ,lla-type)))
+         (declare (fixnum nrow ncol)
+                  (type ,(nv-array-type lla-type) elements transposed))
+         (dotimes (col ncol)
+           (declare (fixnum col))
+           (iter
+             (declare (iterate:declare-variables))
+             (for (the fixnum elements-i) :from (cm-index2 nrow 0 col)
+                  :below (cm-index2 nrow nrow col))
+             (for (the fixnum transposed-i) :from (cm-index2 ncol col 0) :by ncol)
+             (setf (aref transposed transposed-i)
+                   ,(if complex-p
+                        '(let ((elt (aref elements elements-i)))
+                          (if conjugate-p (conjugate elt) elt))
+                        '(aref elements elements-i)))))
+         (make-matrix* ,lla-type ncol nrow transposed :kind transposed-matrix-kind
+                       :restricted-set-p (restricted-set-p matrix))))))
 
-(defgeneric transpose (matrix)
+(defgeneric transpose (matrix &optional conjugate-p)
   (:documentation "Return the transpose of a matrix.")
-  (:method ((matrix dense-matrix))
-    (transpose% matrix :dense))
-  (:method ((matrix upper-triangular-matrix))
-    (transpose% matrix :lower-triangular))
-  (:method ((matrix lower-triangular-matrix))
-    (transpose% matrix :upper-triangular))
-  (:method ((matrix hermitian-matrix))
+  (:method ((matrix dense-matrix) &optional (conjugate-p t))
+    (transpose% matrix :dense conjugate-p))
+  (:method ((matrix upper-triangular-matrix) &optional (conjugate-p t))
+    (transpose% matrix :lower-triangular conjugate-p))
+  (:method ((matrix lower-triangular-matrix) &optional (conjugate-p t))
+    (transpose% matrix :upper-triangular conjugate-p))
+  (:method ((matrix hermitian-matrix) &optional (conjugate-p t))
     (set-restricted matrix)
     (case (lla-type matrix)
       ((:complex-single :complex-double)
-         (transpose% matrix 'hermitian-matrix))
+         (transpose% matrix :hermitian conjugate-p))
       (otherwise
-         (copy-matrix matrix)))))
+         (copy-matrix matrix :copy-p t)))))
 
 
 ;; (defmethod x* ((a dense-matrix-like) (b number) &key)
