@@ -105,9 +105,9 @@ which ensures that all coercions are valid."
   "`Strict' equality: A and B have the same class, same dimensions,
   elements differ at most by EPS.  Error is signalled on mismatch."
   (flet ((elements= ()
-           (when (typep a 'matrix-storage)
+           (when (typep a 'restricted-elements)
              (set-restricted a))
-           (when (typep b 'matrix-storage)
+           (when (typep b 'restricted-elements)
              (set-restricted b))
            (let ((a-elements (elements a))
                  (b-elements (elements a)))
@@ -121,7 +121,7 @@ which ensures that all coercions are valid."
              t)))
     (assert (equal (class-of a) (class-of b)) ()
             "objects don't have the same class")
-    (when (typep a 'matrix-storage)
+    (when (typep a 'dense-matrix-like)
       (assert (and (= (nrow a) (nrow b)) (= (ncol a) (ncol b))) ()
               "the matrices don't have the same dimension"))
     (elements=)))

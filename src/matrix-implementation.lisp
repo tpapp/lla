@@ -18,7 +18,7 @@
 (expand-for-lla-types (lla-type)
   (let ((class (matrix-class :upper-triangular lla-type))
         (zero (coerce 0 (lla-type->lisp-type lla-type))))
-    `(defmethod set-restricted* ((matrix ,class))
+    `(defmethod set-restricted ((matrix ,class))
        (declare (optimize speed))
        (bind (((:slots-read-only nrow ncol elements) matrix))
          ;; set the lower triangle (below diagonal) to 0
@@ -34,7 +34,7 @@
              (setf (aref elements index) ,zero))))
        matrix)))
 
-(defmethod set-restricted* ((matrix lower-triangular-matrix))
+(defmethod set-restricted ((matrix lower-triangular-matrix))
    (bind (((:slots-read-only nrow ncol elements) matrix)
          (zero (coerce 0 (array-element-type elements))))
     ;; set the upper triangle (above diagonal) to 0
@@ -46,7 +46,7 @@
         (setf (aref elements index) zero))))
   matrix)
 
-(defmethod set-restricted* ((matrix hermitian-matrix))
+(defmethod set-restricted ((matrix hermitian-matrix))
   (bind (((:slots-read-only nrow ncol elements) matrix))
     ;; set the lower triangle (below diagonal) to conjugate of the
     ;; elements in the upper triangle
@@ -168,10 +168,9 @@
 
 (defmethod (setf xref) (value (matrix hermitian-matrix) &rest subscripts)
   (bind (((row col) subscripts))
-    (with-slots (nrow ncol elements restricted-set-p) matrix
+    (with-slots (nrow ncol elements) matrix
       (check-index row nrow)
       (check-index col ncol)
-      (setf restricted-set-p nil)
       (if (<= row col)
           (setf (aref elements (cm-index2 nrow row col)) value)
           (setf (aref elements (cm-index2 nrow col row)) (conjugate value))))))
@@ -187,20 +186,17 @@
 ;;;; matrix creation
 
 (declaim (inline make-matrix*))
-(defun make-matrix* (lla-type nrow ncol elements &key (kind :dense)
-                     (restricted-set-p nil))
+(defun make-matrix* (lla-type nrow ncol elements &key (kind :dense))
   "Create a matrix with given ELEMENTS, TYPE, LLA-TYPE and dimensions.
 Note that there is no type checking, and elements are not copied: this
 is effectively shorthand for a MAKE-INSTANCE call.  For internal use,
 not exported."
-  (aprog1 (make-instance (matrix-class kind lla-type) :nrow nrow :ncol ncol
-                         :elements elements)
-    (set-restricted-set-p it restricted-set-p)))
-    
+  (make-instance (matrix-class kind lla-type) :nrow nrow :ncol ncol
+                 :elements elements))
 
 (defun make-matrix (nrow ncol lla-type &key (kind :dense) (initial-element 0))
   "Create a matrix with given parameters, optionally initialized with
-INITIAL-ELEMENTs (where it makes sense, for restricted matrices)."
+INITIAL-ELEMENTs."
   (make-matrix* lla-type nrow ncol
                 (make-nv-elements (* nrow ncol) lla-type initial-element)
                 :kind kind))
@@ -241,7 +237,8 @@ If NCOL is zero, return a row matrix."
 sequence).  Unless LLA-TYPE is given, it is inferred from the
 elements.  NCOL gives the number of columns, while the number of rows
 is inferred from the length of the sequence.  An error is signalled if
-there are remainder elements.
+there are remainder elements.  Elements corresponding to restricted
+elements are just ignored.
 
 Usage note: This is a convenience function for easily creation of
 matrices.  Also see *force-float*."
@@ -254,10 +251,9 @@ matrices.  Also see *force-float*."
                     (destination-type (lla-type matrix)) (copy-p nil))
   "Copy or convert matrix to the given kind and destination-type.
 Copying is forced when COPY-P."
-  (set-restricted matrix)
   (make-matrix* (lla-type matrix) (nrow matrix) (ncol matrix)
                 (copy-elements% matrix destination-type copy-p)
-                :kind kind :restricted-set-p t))
+                :kind kind))
 
 (defun vector->matrix (nv nrow ncol &key (kind :dense) (copy-p nil))
   "Copy numeric vector to a matrix of matching size."
@@ -349,10 +345,9 @@ Copying is forced when COPY-P."
 
 (defgeneric transpose% (matrix transposed-matrix-kind conjugate-p)
   (:documentation "Return the transpose of MATRIX, which will be of
-kind TRANSPOSED-MATRIX-KIND.  RESTRICTED-SET-P is propagated if
-meaningful, but SET-RESTRICTED is *NOT* enforced (so the caller has to
-decide whether to enforce it).  Meant to be used as a helper function,
-*NOT EXPORTED*."))
+kind TRANSPOSED-MATRIX-KIND.  SET-RESTRICTED is *NOT* enforced (so the
+caller has to decide whether to enforce it).  Meant to be used as a
+helper function, *NOT EXPORTED*."))
 (expand-for-lla-types (lla-type)
   (let ((complex-p (lla-complex-p lla-type)))
     `(defmethod transpose% ((matrix ,(nv-class lla-type)) transposed-matrix-kind conjugate-p)
@@ -375,8 +370,7 @@ decide whether to enforce it).  Meant to be used as a helper function,
                         '(let ((elt (aref elements elements-i)))
                           (if conjugate-p (conjugate elt) elt))
                         '(aref elements elements-i)))))
-         (make-matrix* ,lla-type ncol nrow transposed :kind transposed-matrix-kind
-                       :restricted-set-p (restricted-set-p matrix))))))
+         (make-matrix* ,lla-type ncol nrow transposed :kind transposed-matrix-kind)))))
 
 (defgeneric transpose (matrix &optional conjugate-p)
   (:documentation "Return the transpose of a matrix.")

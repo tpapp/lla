@@ -69,7 +69,6 @@
   transpose, but may be implemented as a transpose if A is real, in
   which case the two are equivalent.  This function is meant to be
   used internally, and is *NOT EXPORTED*."
-  (set-restricted a)
   (bind ((common-type (lla-type a))
          ((:values procedure real-type)
           (lb-procedure-name2 'syrk 'herk common-type)))
@@ -459,5 +458,5 @@ be used to generate random draws, etc."
                                                        :kind :upper-triangular)))))
 
 (defmethod reconstruct ((mf cholesky))
-  (mm (r-matrix mf) t))
+  (mm t (r-matrix mf)))
 
