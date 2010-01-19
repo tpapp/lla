@@ -498,8 +498,9 @@ be used to generate random draws, etc."
 (defun svd (a left-vector-spec right-vector-spec)
   "Singular value decomposition.  Valid vector specifications
 are :NONE, :SINGULAR (singular vectors only) and :ALL.  Return values
-S (singular values, descending order), U (left singular vector),
-VT ([conjugate] transpose of right singular vectors)."
+S (singular values, descending order, as a DIAGONAL), U (left singular
+vectors, DENSE-MATRIX), VT ([conjugate] transpose of right singular
+vectors, DENSE-MATRIX)."
   (bind ((type (lla-type a))
          ((:values procedure real-type complex-p) (lb-procedure-name2 'gesvd 'gesvd type)))
     (with-matrix-input ((a (m m%) (n n%) :copied) a% type)
@@ -527,7 +528,7 @@ VT ([conjugate] transpose of right singular vectors)."
                             (call-with-info-check procedure jobu% jobvt% m% n% a% m% s%
                                                   u% m% vt% vt-nrow% work% lwork% info%)))
                       (values u vt))))
-              (values (make-nv* type s)
+              (values (make-diagonal* type s)
                       (if (zerop u-ncol)
                           nil
                           (make-matrix* type m u-ncol u))
