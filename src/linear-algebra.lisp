@@ -179,17 +179,17 @@
           (call-with-info-check procedure trans% n% nrhs% lu% n% ipiv% b% n% info%)))
       (make-matrix* common-type n nrhs x))))
 
-(defgeneric invert (a)
+(defgeneric invert (a &key &allow-other-keys)
   (:documentation "Invert A.  Usage note: inverting matrices is
   unnecessary and unwise in most cases, because it is numerically
   unstable.  If you are solving many Ax=b equations with the same A,
   use a matrix factorization like LU.  Most INVERT methods use a
   matrix factorization anyway."))
 
-(defmethod invert ((a dense-matrix-like))
+(defmethod invert ((a dense-matrix-like) &key)
   (invert (lu a)))
 
-(defmethod invert ((lu lu))
+(defmethod invert ((lu lu) &key)
   (bind (((:slots-read-only lu-matrix ipiv) lu)
          (common-type (lla-type lu-matrix))
 	 (procedure (lb-procedure-name 'getri common-type)))
@@ -216,13 +216,13 @@ is supposed to consist of 1s.  *For internal use, NOT EXPORTED*."
         (call-with-info-check procedure u-char% d-char% n% a% n% info%))
       (make-matrix* common-type n n inverse :kind result-kind))))
   
-(defmethod invert ((a upper-triangular-matrix))
+(defmethod invert ((a upper-triangular-matrix) &key)
   (invert-triangular% a t nil :upper-triangular))
 
-(defmethod invert ((a lower-triangular-matrix))
+(defmethod invert ((a lower-triangular-matrix) &key)
   (invert-triangular% a nil nil :lower-triangular))
 
-(defmethod invert ((cholesky cholesky))
+(defmethod invert ((cholesky cholesky) &key)
   (bind (((:slots-read-only r-matrix) cholesky)
          (common-type (lla-type r-matrix))
 	 (procedure (lb-procedure-name 'potri common-type)))
@@ -231,6 +231,25 @@ is supposed to consist of 1s.  *For internal use, NOT EXPORTED*."
       (with-fortran-atom (:char u-char% #\U)
         (call-with-info-check procedure u-char% n% r% n% info%))
       (make-matrix* common-type n n inverse :kind :hermitian))))
+
+(defmethod invert ((d diagonal) &key (tolerance 0))
+  "For pseudoinverse, suppressing diagonal elements below TOLERANCE
+\(if given, otherwise / is just used without any checking."
+  (bind (((:values elements type) (float-elements% d))
+         (zero (coerce* 0 type)))
+    (make-diagonal* type (map (nv-array-type type)
+                              (cond
+                                ((null tolerance) #'/)
+                                ((and (numberp tolerance) (<= 0 tolerance))
+                                 (let ((tolerance (coerce* tolerance
+                                                           type)))
+                                   (lambda (x)
+                                     (if (<= (abs x) tolerance) zero (/ x)))))
+                                ((and (numberp tolerance) (zerop tolerance))
+                                 (lambda (x)
+                                   (if (zerop x) zero (/ x))))
+                                (t (error "Invalid tolerance argument.")))
+                              elements))))
 
 (defgeneric eigen (a &key vectors-p check-real-p &allow-other-keys)
   (:documentation "Calculate the eigenvalues and optionally the right

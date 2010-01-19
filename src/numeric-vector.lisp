@@ -136,6 +136,16 @@ COPY-P semantics."
         (copy-elements nv destination-type)
         (elements nv))))
 
+(defun float-elements% (nv &optional (float-type :double))
+  "If NV has integer elements, convert to FLOAT-TYPE and return,
+otherwise just return elements.  Return element type as a second
+value.  Usage note: for use in operations which are not closed on
+integers (eg /).  *Not exported*."
+  (let ((type (lla-type nv)))
+    (if (eq type :integer)
+        (values (copy-elements nv float-type) float-type)
+        (values (elements nv) type))))
+
 (defun copy-nv (nv &key (destination-type (lla-type nv)) (copy-p nil))
   "Copy (or convert) a numeric vector.  If DESTINATION-TYPE is the
 same and COPY-P is nil, then ELEMENTS are shared.  If NV is an
