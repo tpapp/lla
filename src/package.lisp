@@ -61,7 +61,8 @@
    
    diagonal diagonal-integer diagonal-single diagonal-double
    diagonal-complex-single diagonal-complex-double make-diagonal
-   create-diagonal matrix->diagonal diagonal->matrix
+   create-diagonal nv->diagonal diagonal->nv matrix->diagonal
+   diagonal->matrix
 
    ;; printing
    
