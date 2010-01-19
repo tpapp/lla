@@ -72,3 +72,5 @@ plural of the old one (generated using format)."
   (make-array (array-total-size array)
               :element-type (array-element-type array)
               :displaced-to array))
+
+(define-modify-macro multf (&rest values) * "Multiply by the arguments.")

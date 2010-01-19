@@ -83,6 +83,11 @@ floats can be upgraded to complex."
 (defgeneric lla-type (numeric-vector)
   (:documentation "Return the lla-type of the elements of the
   object."))
+(expand-for-lla-types (lla-type)
+  ;; LLA types are types of themselves, so functions can be passed
+  ;; objects or types.
+  `(defmethod lla-type ((type (eql ',lla-type)))
+     ,lla-type))
 
 (define-condition not-within-lla-type (error)
   ()
@@ -112,6 +117,9 @@ floats can be upgraded to complex."
 (defun coerce* (value lla-type)
   "Coerce VALUE to type given by LLA-TYPE."
   (coerce value (lla-type->lisp-type lla-type)))
+
+(defmethod lla-type ((object number))
+  (lisp-type->lla-type (type-of object)))
 
 (defmacro append-lla-type (prefix lla-type)
   "Return prefix-LLA-TYPE."
@@ -160,11 +168,13 @@ should only influence type autodetection, not operations.")
     (#.+complex-single+ :complex-single)
     (#.+complex-double+ :complex-double)))
 
-(defun common-target-type (&rest types)
-  "Find the smallest supertype that all types can be coerced to.  Does
-NOT force floats."
+(defun common-target-type (&rest objects)
+  "Find the smallest supertype that all objects can be coerced to.
+Uses LLA-TYPE, so it also accepts LLA-TYPE keywords.  Does NOT force
+floats."
   (binary-code->lla-type
-   (reduce #'logior types :key #'lla-type->binary-code)))
+   (reduce #'logior objects :key (compose #'lla-type->binary-code
+                                          #'lla-type))))
 
 (defun find-element-type (sequence &optional (force-float-p *force-float*))
   "Finds the smallest LLA-TYPE that can accomodate the elements of

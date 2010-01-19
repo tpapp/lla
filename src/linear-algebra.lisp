@@ -98,6 +98,37 @@
   ;; A^T A
   (mm-hermitian% b t alpha))
 
+(defmethod mm ((a diagonal) (b dense-matrix-like) &optional (alpha 1))
+  (bind ((common-type (common-target-type a b alpha))
+         ((:slots-read-only (diagonal-elements elements)) a)
+         ((:slots-read-only nrow ncol (matrix-elements elements)) b)
+         (result (make-matrix nrow ncol common-type :kind (matrix-kind b)))
+         ((:slots-read-only (result-elements elements)) result)
+         (i 0))
+    (assert (= (length diagonal-elements) nrow) () "Dimension mismatch.")
+    (dotimes (col ncol)
+      (dotimes (row nrow)
+        (setf (aref result-elements i)
+              (* (aref matrix-elements i) (aref diagonal-elements row) alpha))
+        (incf i)))
+    result))
+
+(defmethod mm ((a dense-matrix-like) (b diagonal) &optional (alpha 1))
+  (bind ((common-type (common-target-type a b alpha))
+         ((:slots-read-only nrow ncol (matrix-elements elements)) a)
+         ((:slots-read-only (diagonal-elements elements)) b)
+         (result (make-matrix nrow ncol common-type :kind (matrix-kind a)))
+         ((:slots-read-only (result-elements elements)) result)
+         (i 0))
+    (assert (= (length diagonal-elements) ncol) () "Dimension mismatch.")
+    (dotimes (col ncol)
+      (let ((d*alpha (* (aref diagonal-elements col) alpha)))
+        (dotimes (row nrow)
+          (setf (aref result-elements i)
+                (* (aref matrix-elements i) d*alpha))
+          (incf i))))
+    result))
+
 
 ;;;; LU factorization
 

@@ -198,6 +198,31 @@ which ensures that all coercions are valid."
   (ensure (test-vector-output :complex-double)))
 
 
+;;;; diagonal
+
+(addtest (lla-unit-tests)
+  diagonal
+  (ensure (== (diagonal->matrix #v:diagonal(1 2 3 4))
+              #4vd(1 0 0 0
+                   0 2 0 0
+                   0 0 3 0
+                   0 0 0 4)))
+  (ensure (== (matrix->diagonal #3vd(5 0 0
+                                     0 7 0))
+              #v:diagonal(5 7))))
+
+(addtest (lla-unit-tests)
+  diagonal-mm
+  (let ((a #3v(1 2 3
+               4 5 6))
+        (left-d #v:diagonal(7 8))
+        (right-d #v:diagonal(9 10 11)))
+    (ensure (== (mm (diagonal->matrix left-d) a)
+                (mm left-d a)))
+    (ensure (== (mm a (diagonal->matrix right-d))
+                (mm a right-d)))))
+
+
 ;;;;
 ;;;; matrix
 ;;;;

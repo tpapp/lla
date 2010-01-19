@@ -51,17 +51,16 @@ upper-triangular, lower-triangular, hermitian).  Examples
                                          ("cs" . :complex-single)
                                          ("cd" . :complex-double))))
             (elements (read-delimited-list #\) stream t)))
-        (if n
-            (create-matrix n elements :lla-type lla-type :kind
-                           (find-or-default kind-string :dense "a matrix kind"
-                                            '(("dense" . :dense)
-                                              ("upper-triangular" . :upper-triangular)
-                                              ("lower-triangular" . :lower-triangular)
-                                              ("hermitian" . :hermitian))))
-            (progn 
-              (when kind-string
-                (error "vectors don't have kinds."))
-              (create-nv elements lla-type)))))))
+        (cond
+          (n (create-matrix n elements :lla-type lla-type :kind
+                            (find-or-default kind-string :dense "a matrix kind"
+                                             '(("dense" . :dense)
+                                               ("upper-triangular" . :upper-triangular)
+                                               ("lower-triangular" . :lower-triangular)
+                                               ("hermitian" . :hermitian)))))
+          ((string= kind-string "diagonal") (create-diagonal elements lla-type))
+          (kind-string (error "vectors don't have kinds."))
+          (t (create-nv elements lla-type)))))))
 
 (defreadtable lla-readtable
   (:merge :standard)

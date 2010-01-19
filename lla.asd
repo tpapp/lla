@@ -47,6 +47,7 @@
      (:file "matrix-classes")
      (:file "printing")
      (:file "matrix-implementation")
+     (:file "diagonal")
      (:file "readmacros")))
    (:module
     "linear-algebra"
