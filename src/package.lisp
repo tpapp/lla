@@ -57,6 +57,12 @@
    
    cholesky-factorization r-matrix
 
+   ;; diagonal
+   
+   diagonal diagonal-integer diagonal-single diagonal-double
+   diagonal-complex-single diagonal-complex-double make-diagonal
+   create-diagonal matrix->diagonal diagonal->matrix
+
    ;; printing
    
    *pring-matrix-aligned* *print-matrix-padding*
