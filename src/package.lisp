@@ -73,6 +73,7 @@
    
    cm-index2 make-matrix* make-matrix create-matrix copy-matrix
    vector->matrix vector->column vector->row transpose
+   stack-horizontally stack-vertically
 
    ;; readmacros
 

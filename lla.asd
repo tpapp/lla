@@ -46,8 +46,9 @@
      (:file "numeric-vector-wrappers")
      (:file "matrix-classes")
      (:file "printing")
-     (:file "matrix-implementation")
+     (:file "matrix-interface")
      (:file "diagonal")
+     (:file "matrix-operations")
      (:file "readmacros")))
    (:module
     "linear-algebra"
