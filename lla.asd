@@ -59,13 +59,7 @@
      ((:file "fortran-call")
       (:file "linear-algebra"))))
   :depends-on
-  (:cl-utilities :iterate :metabang-bind :cffi :xarray :lift
-                 :anaphora :named-readtables))
+  (:cl-utilities :iterate :metabang-bind :cffi :xarray
+                 :anaphora :named-readtables :alexandria))
 
-
-;;;; !! ASDF loading for unit tests. 
-;;;;
-;;;; ?? I think it should go into a separate defsystem so it could be
-;;;;    loaded separately -- Tamas
-;;;;
 ;;;; ?? providing something else besides ASDF?  Mudballs? -- Tamas

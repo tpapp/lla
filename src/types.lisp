@@ -86,7 +86,7 @@ floats can be upgraded to complex."
 (expand-for-lla-types (lla-type)
   ;; LLA types are types of themselves, so functions can be passed
   ;; objects or types.
-  `(defmethod lla-type ((type (eql ',lla-type)))
+  `(defmethod lla-type ((type (eql ,lla-type)))
      ,lla-type))
 
 (define-condition not-within-lla-type (error)
@@ -156,13 +156,33 @@ floats can be upgraded to complex."
     (:complex-double +complex-double+)))
 
 (defvar *force-float* t "If non-nil, sequences with automatically
-detected :integer types will be converted to +FORCED-FLOAT+.  This
-should only influence type autodetection, not operations.")
+detected :integer types will be converted to float (see
+*FORCE-DOUBLE*). This should only influence type autodetection, not
+operations.")
 
-(defun binary-code->lla-type (binary-code &optional force-float-p)
+(defvar *force-double* t "If non-nil, automatically detected types
+will be converted to double precision.")
+
+(defun determine-forced-type (type)
+  "Convert type according to *force-float* and *force-double*."
+  (ecase type
+    (:integer (if *force-float*
+                  (if *force-double*
+                      :double
+                      :single)
+                  :integer))
+    (:single (if *force-double*
+                 :double
+                 :single))
+    (:complex-single (if *force-double*
+                         :complex-double
+                         :complex-single))
+    ((:double :complex-double) type)))
+
+(defun binary-code->lla-type (binary-code)
   "Convert bits to LLA type."
   (ecase binary-code
-    (#.+integer+ (if force-float-p +forced-float+ :integer))
+    (#.+integer+ :integer)
     (#.+single+ :single)
     (#.+double+ :double)
     (#.+complex-single+ :complex-single)
@@ -176,28 +196,25 @@ floats."
    (reduce #'logior objects :key (compose #'lla-type->binary-code
                                           #'lla-type))))
 
-(defun find-element-type (sequence &optional (force-float-p *force-float*))
+(defun find-element-type (sequence)
   "Finds the smallest LLA-TYPE that can accomodate the elements of
-  sequence.  If no such LLA-TYPE can be found, return nil."
-  (binary-code->lla-type
-   (reduce #'logior sequence :key (compose #'lla-type->binary-code #'lisp-type->lla-type #'type-of))
-   force-float-p))
+  sequence.  If no such LLA-TYPE can be found, return nil.  Uses
+  *FORCE-FLOAT* and *FORCE-DOUBLE*."
+  (determine-forced-type 
+   (binary-code->lla-type
+    (reduce #'logior sequence :key (compose #'lla-type->binary-code #'lisp-type->lla-type #'type-of)))))
 
-(defun infer-lla-type (lla-type initial-contents &optional (force-float-p *force-float*))
+(defun infer-lla-type (lla-type initial-contents)
   "Infer LLA-TYPE from given type and/or INITIAL-CONTENTS.  Useful for
-MAKE-NV and MAKE-MATRIX."
+MAKE-NV and MAKE-MATRIX.  Uses *FORCE-FLOAT* and *FORCE-DOUBLE*."
   (cond
     (lla-type lla-type)
     ((null initial-contents) (error "Could not infer LLA-TYPE without initial-contents."))
-    ((numberp initial-contents) (let ((lla-type (lisp-type->lla-type (type-of initial-contents))))
-                                  (if (and force-float-p (eq lla-type :integer))
-                                      +forced-float+ lla-type)))
-    ((typep initial-contents 'sequence) (find-element-type initial-contents force-float-p))
+    ((numberp initial-contents) (determine-forced-type (lisp-type->lla-type (type-of initial-contents))))
+    ((typep initial-contents 'sequence) (find-element-type initial-contents))
     (t (error "~A is not valid as INITIAL-CONTENTS." initial-contents))))
 
-
 ;;;; macros for defining subclasses of NUMERIC-VECTOR-*
-
 
 (defmacro expand-for-lla-types ((typevar &key (prologue '(progn))
                                          (exclude-integer-p nil))

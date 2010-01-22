@@ -10,7 +10,7 @@
    ;; types
    
    dimension lla-type lla-complex-p lla-double-p not-within-lla-type
-   lisp-type->lla-type lla-type->lisp-type *force-float*
+   lisp-type->lla-type lla-type->lisp-type *force-float* *force-double*
 
    ;; fortran-atoms -- nothing is exported
    
@@ -33,7 +33,7 @@
    dense-matrix-double dense-matrix-complex-single
    dense-matrix-complex-double
    
-   restricted-elements
+   restricted-elements set-restricted
 
    upper-triangular-matrix upper-triangular-matrix-integer
    upper-triangular-matrix-single upper-triangular-matrix-double
@@ -77,7 +77,7 @@
 
    ;; readmacros
 
-   lla-readtable
+   read-vector-or-matrix v-syntax
 
    ;; fortran-call -- nothing is exported
 
@@ -87,13 +87,6 @@
    cholesky svd
    
    ))
-
-(defpackage #:lla-unit-tests
-  (:documentation "Unit, validation, and regression testing for lla")
-  (:use :common-lisp
-	:lift
-	:lla)
-  (:export run-lla-tests))
 
 ;;;; ??? !!! maybe an lla-user package for playing around, once things
 ;;;; stabilize

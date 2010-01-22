@@ -91,8 +91,8 @@ exported."
   "Create numeric vector with given initial contents (a list or a
 vector).  Unless LLA-TYPE is given, it is inferred from the elements.
 This is a convenience function for easily creation of NUMERIC-VECTORs.
-Also see *forced-float*."
-  (let* ((lla-type (infer-lla-type lla-type initial-contents *force-float*))
+Also see *FORCE-FLOAT* and *FORCE-DOUBLE*."
+  (let* ((lla-type (infer-lla-type lla-type initial-contents))
          (lisp-type (lla-type->lisp-type lla-type))
          (length (length initial-contents)))
     (make-nv* lla-type (map (nv-array-type lla-type length)
@@ -174,15 +174,19 @@ NUMERIC-VECTOR."
 ;;   (:method ((nv numeric-vector))
 ;;     (lla-type nv)))
 
+
+(defun extract-only-lla-type (options &optional (default :double))
+  (bind (((&key (lla-type default)) options))
+    lla-type))
+
 (defmethod xcreate ((class (eql 'numeric-vector)) dimensions &optional
                     options)
-  (bind (((&key (lla-type :double)) options)
-         ((n) dimensions))
-    (make-nv n lla-type)))
+  (bind (((n) dimensions))
+    (make-nv n (extract-only-lla-type options))))
 
 (expand-for-lla-types (lla-type)
   `(defmethod xcreate ((class (eql ',(nv-class lla-type))) dimensions &optional options)
-     (bind (((&key (lla-type ,lla-type)) options)
+     (bind ((lla-type (extract-only-lla-type options ,lla-type))
             ((n) dimensions))
        (assert (eq lla-type ,lla-type) () "Incompatible options.")
        (make-nv n ,lla-type))))

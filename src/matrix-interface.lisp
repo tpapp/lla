@@ -242,7 +242,7 @@ elements are just ignored.
 
 Usage note: This is a convenience function for easily creation of
 matrices.  Also see *force-float*."
-  (bind ((lla-type (infer-lla-type lla-type initial-contents *force-float*))
+  (bind ((lla-type (infer-lla-type lla-type initial-contents))
          ((:values elements nrow)
           (matrix-elements-from-sequence ncol lla-type initial-contents)))
     (make-matrix* lla-type nrow ncol elements :kind kind)))
