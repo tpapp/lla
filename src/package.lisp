@@ -26,7 +26,7 @@
 
    ;; matrix-classes
 
-   dense-matrix-like nrow ncol dense-matrix-like-square
+   dense-matrix-like nrow ncol square-matrix-p square-matrix
    matrix-factorization matrix-class matrix-kind
 
    dense-matrix dense-matrix-integer dense-matrix-single

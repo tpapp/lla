@@ -30,13 +30,13 @@
   SET-RESTRICTED is called, it has to ensure that all values in
   ELEMENTS reflect the constant or inferred cells in the matrix."))
 
-(define-abstract-class dense-matrix-like-square (dense-matrix-like)
-  ()
-  (:documentation "Enforces square dimensions."))
+(defun square-matrix-p (matrix)
+  "Test if a matrix is square."
+  (= (nrow matrix) (ncol matrix)))
 
-(defmethod initialize-instance :after ((object dense-matrix-like-square)
-                                       &key &allow-other-keys)
-  (assert (= (nrow object) (ncol object))))
+(deftype square-matrix ()
+  '(and dense-matrix-like
+    (satisfies square-matrix-p)))
 
 (defmacro define-matrix-class ()
   "Define the function MATRIX-CLASS."
@@ -120,6 +120,12 @@ diagonal are not necessarily initialized and not accessed.")
   ;; don't have any special properties (eg real eigenvalues, etc).
   "A dense Hermitian matrix, with elements stored in the upper
   triangle.")
+
+(defmethod initialize-instance :after ((object hermitian-matrix)
+                                       &key &allow-other-keys)
+  (check-type object square-matrix))
+
+
 
 
 ;;; Matrix factorizations
