@@ -55,7 +55,7 @@
 
    qr-factorization qr-matrix
    
-   cholesky-factorization r-matrix
+   cholesky-factorization factor hermitian-factorization
 
    ;; diagonal
    
@@ -69,7 +69,7 @@
    *pring-matrix-aligned* *print-matrix-padding*
    *print-matrix-precision*
    
-   ;; matrix-implementation
+   ;; matrix-operations
    
    cm-index2 make-matrix* make-matrix create-matrix copy-matrix
    vector->matrix vector->column vector->row transpose
@@ -84,7 +84,7 @@
    ;; linear-algebra
 
    mmm mm lu solve invert eigen least-squares least-squares-xxinverse
-   cholesky svd
+   cholesky svd hermitian-factorization
    
    ))
 

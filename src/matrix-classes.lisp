@@ -111,8 +111,7 @@ diagonal are not necessarily initialized and not accessed.")
     "A dense, lower triangular matrix.  The elements above the
 diagonal are not necessarily initialized and not accessed.")
 
-(define-dense-matrix-subclass :hermitian
-    (restricted-elements dense-matrix-like-square)
+(define-dense-matrix-subclass :hermitian (restricted-elements)
   ;; LLA uses the class HERMITIAN-MATRIX to implement both real
   ;; symmetric and complex Hermitian matrices --- as technically, real
   ;; symmetric matrices are also Hermitian.  Complex symmetric
@@ -154,10 +153,23 @@ diagonal are not necessarily initialized and not accessed.")
   (:documentation "QR decomposition of a matrix."))
 
 (defclass cholesky (matrix-factorization)
-  ((r-matrix :type upper-triangular-matrix :initarg :r-matrix :reader r-matrix
-             :documentation "upper triangular matrix R such that R^*R
-             is equal to the original matrix"))
+  ((factor :type (or lower-triangular-matrix upper-triangular-matrix)
+           :initarg :factor :reader factor
+             :documentation "upper/lower triangular matrix U/L such
+             that U^*U or LL^* is equal to the original matrix"))
   (:documentation "Cholesky decomposition a matrix."))
 
 (defmethod initialize-instance :after ((instance cholesky) &key &allow-other-keys)
-  (assert (typep (r-matrix instance) 'upper-triangular-matrix)))
+  (assert (typep (factor instance) '(and square-matrix
+                                     (or lower-triangular-matrix
+                                         upper-triangular-matrix)))))
+
+(defclass hermitian-factorization (matrix-factorization)
+  ((factor :type (or lower-triangular-matrix upper-triangular-matrix)
+           :initarg :factor :reader factor
+           :documentation "upper/lower triangular matrix M such
+             that MDM^* is equal to the original matrix")
+      (ipiv :type numeric-vector-integer :initarg :ipiv :reader ipiv
+            :documentation "pivot indices"))
+  (:documentation "Factorization for an indefinite hermitian matrix
+  with pivoting."))

@@ -145,6 +145,26 @@
                        :lu-matrix (make-matrix* type m n lu)
                        :ipiv (make-nv* :integer ipiv))))))
 
+;;;; Hermitian factorization
+
+(defun hermitian-factorization (a &key (component :U))
+  (check-type a hermitian-matrix)
+  (bind ((type (lla-type a))
+         (procedure (lb-procedure-name2 'sytrf 'hetrf type))
+         ((:values u-char kind set-restricted-p) (ecase component
+                                                   (:U (values #\U :upper-triangular nil))
+                                                   (:D (values #\L :lower-triangular t)))))
+    (with-matrix-input ((a (n n%) n2 :output-to factor) a% type set-restricted-p)
+      (assert (= n n2) () "Hermitian matrix is not square.")
+      (with-vector-output (ipiv n ipiv% :integer)
+        (with-fortran-atom (:char u-char% u-char)
+          (with-work-query (lwork% work% type)
+            (call-with-info-check procedure u-char% n% a% n% ipiv% work% lwork% info%)))
+        (make-instance 'hermitian-factorization 
+                       :factor (make-matrix* type n n factor :kind kind)
+                       :ipiv (make-nv* :integer ipiv))))))
+  
+
 ;;;; solving linear equations
 
 (defgeneric solve (a b)
@@ -179,12 +199,41 @@
           (call-with-info-check procedure trans% n% nrhs% lu% n% ipiv% b% n% info%)))
       (make-matrix* common-type n nrhs x))))
 
+(defmethod solve ((cholesky cholesky) (b dense-matrix-like))
+  (bind (((:slots-read-only factor) cholesky)
+         (common-type (lla-type factor))
+	 (procedure (lb-procedure-name 'potrs common-type)))
+    (with-matrix-inputs (((factor (n n%) n2) factor% common-type)
+                         ((b n3 (nrhs nrhs%) :output-to x) b% common-type))
+      (assert (= n n2 n3))
+      (with-fortran-atom (:char u-char% (etypecase factor
+                                          (upper-triangular-matrix #\U)
+                                          (lower-triangular-matrix #\L)))
+        (call-with-info-check procedure u-char% n% nrhs% factor% n% b% n% info%))
+      (make-matrix* common-type n n x))))
+
+(defmethod solve ((hermitian-factorization hermitian-factorization) (b dense-matrix-like))
+  (bind (((:slots-read-only factor ipiv) hermitian-factorization)
+         (common-type (lla-type factor))
+	 (procedure (lb-procedure-name2 'sytrs 'hetrs common-type)))
+    (with-matrix-inputs (((factor (n n%) n2) factor% common-type)
+                         ((b n3 (nrhs nrhs%) :output-to x) b% common-type))
+      (assert (= n n2 n3))
+      (with-nv-input ((ipiv) ipiv% :integer)
+        (with-fortran-atom (:char u-char% (etypecase factor
+                                            (upper-triangular-matrix #\U)
+                                            (lower-triangular-matrix #\L)))
+          (call-with-info-check procedure u-char% n% nrhs% factor% n% ipiv% b% n% info%))
+        (make-matrix* common-type n n x)))))
+
 (defgeneric invert (a &key &allow-other-keys)
   (:documentation "Invert A.  Usage note: inverting matrices is
   unnecessary and unwise in most cases, because it is numerically
   unstable.  If you are solving many Ax=b equations with the same A,
   use a matrix factorization like LU.  Most INVERT methods use a
-  matrix factorization anyway."))
+  matrix factorization anyway.  Methods for factorizations may take a
+  RECONSTRUCT-P argument (defaults to T), if this is nil, the
+  factorization itself is inverted."))
 
 (defmethod invert ((a dense-matrix-like) &key)
   (invert (lu a)))
@@ -200,6 +249,26 @@
           (call-with-info-check procedure n% lu% n% ipiv% work% lwork%
                                 info%)))
       (make-matrix* common-type n n inverse))))
+
+(defmethod invert ((a hermitian-matrix) &key)
+   (invert (hermitian-factorization a)))
+
+(defmethod invert ((hf hermitian-factorization) &key)
+  ;; If the FACTOR is lower triangular, we need to transpose it, as
+  ;; hermitian matrices always store the upper triangle.
+  (bind (((:slots-read-only factor ipiv) hf)
+         (factor (aetypecase factor
+                   (lower-triangular-matrix (transpose it))
+                   (upper-triangular-matrix it)))
+         (common-type (lla-type factor))
+         (procedure (lb-procedure-name2 'sytri 'hetri common-type)))
+    (with-matrix-input ((factor (n n%) n2 :output-to inverse) factor% common-type)
+      (assert (= n n2))
+      (with-work-area (work% common-type n)
+        (with-nv-input ((ipiv) ipiv% :integer)
+          (with-fortran-atom (:char u-char% #\U)
+            (call-with-info-check procedure u-char% n% factor% n% ipiv% work% info%))))
+      (make-matrix* common-type n n inverse :kind :hermitian))))
 
 (defun invert-triangular% (a upper-p unit-diag-p result-kind)
   "Invert a dense (triangular) matrix using the LAPACK routine *TRTRI.
@@ -222,15 +291,22 @@ is supposed to consist of 1s.  *For internal use, NOT EXPORTED*."
 (defmethod invert ((a lower-triangular-matrix) &key)
   (invert-triangular% a nil nil :lower-triangular))
 
-(defmethod invert ((cholesky cholesky) &key)
-  (bind (((:slots-read-only r-matrix) cholesky)
-         (common-type (lla-type r-matrix))
-	 (procedure (lb-procedure-name 'potri common-type)))
-    (with-matrix-input ((r-matrix (n n%) n2 :output-to inverse) r% common-type)
-      (assert (= n n2))
-      (with-fortran-atom (:char u-char% #\U)
-        (call-with-info-check procedure u-char% n% r% n% info%))
-      (make-matrix* common-type n n inverse :kind :hermitian))))
+(defmethod invert ((cholesky cholesky) &key (reconstruct-p t))
+  ;; If the FACTOR of CHOLESKY is lower triangular, we need to
+  ;; transpose it, as hermitian matrices always store the upper
+  ;; triangle.
+  (if reconstruct-p
+      (bind ((factor (aetypecase (factor cholesky)
+                       (lower-triangular-matrix (transpose it))
+                       (upper-triangular-matrix it)))
+             (common-type (lla-type factor))
+             (procedure (lb-procedure-name 'potri common-type)))
+        (with-matrix-input ((factor (n n%) n2 :output-to inverse) factor% common-type)
+          (assert (= n n2))
+          (with-fortran-atom (:char u-char% #\U)
+            (call-with-info-check procedure u-char% n% factor% n% info%))
+          (make-matrix* common-type n n inverse :kind :hermitian)))
+      (make-instance 'cholesky :factor (invert (factor cholesky)))))
 
 (defmethod invert ((d diagonal) &key (tolerance 0))
   "For pseudoinverse, suppressing diagonal elements below TOLERANCE
@@ -482,33 +558,38 @@ degrees of freedom."))
 (defun least-squares-xxinverse (qr)
   "Calculate (X^T X)-1 (which is used for calculating the variance of
 estimates) from the qr decomposition of X.  Return a CHOLESKY
-decomposition.  Note: the R-MATRIX of the cholesky decomposition can
-be used to generate random draws, etc."
+decomposition.  Note: the FACTOR of the cholesky decomposition can be
+used to generate random draws, etc."
   ;; Notes: X = QR, thus X^T X = R^T Q^T Q R = R^T R because Q is
   ;; orthogonal.  Then we do as if calculating the inverse of a matrix
   ;; using its Cholesky factorization.
   (with-slots (nrow ncol) (qr-matrix qr)
     (assert (<= ncol nrow))
-    (invert (make-instance 'cholesky :r-matrix (factorization-component qr :R)))))
+    (invert (make-instance 'cholesky :factor (factorization-component qr :R)))))
 
 ;;;; Cholesky factorization
 
-(defgeneric cholesky (a)
-  (:documentation "Cholesky factorization.  Only uses the lower
-  triangle of a dense-matrix, and needs a PSD hermitian matrix."))
+(defgeneric cholesky (a &optional component)
+  (:documentation "Cholesky factorization.  Component is :L or :U (default)."))
 
-(defmethod cholesky ((a hermitian-matrix))
+(defmethod cholesky ((a hermitian-matrix) &optional (component :U))
   (bind ((common-type (lla-type a))
-         (procedure (lb-procedure-name 'potrf common-type)))
+         (procedure (lb-procedure-name 'potrf common-type))
+         ((:values u-char kind) (ecase component
+                                  (:U (values #\U :upper-triangular))
+                                  (:L (values #\L :lower-triangular)))))
     (with-matrix-input ((a (n n%) n2 :output-to cholesky) a% common-type)
       (assert (= n n2))
-      (with-fortran-atoms ((:char u-char% #\L))
+      (with-fortran-atoms ((:char u-char% u-char))
         (call-with-info-check procedure u-char% n% a% n% info%))
-      (make-instance 'cholesky :r-matrix (make-matrix* common-type n n cholesky 
-                                                       :kind :upper-triangular)))))
+      (make-instance 'cholesky :factor (make-matrix* common-type n n cholesky 
+                                                     :kind kind)))))
 
 (defmethod reconstruct ((mf cholesky))
-  (mm t (r-matrix mf)))
+  (bind (((:slots-read-only factor) mf))
+    (etypecase factor
+      (upper-triangular-matrix (mm t factor))
+      (lower-triangular-matrix (mm factor t)))))
 
 
 

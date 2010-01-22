@@ -96,10 +96,21 @@ like xGELS."))
          ((:slots-read-only nrow ncol elements) qr-matrix))
     (matrix-from-first-rows elements (lla-type qr-matrix) nrow ncol ncol :upper-triangular)))
 
-(defmethod factorization-component ((mf cholesky) (component (eql :R)) &key (copy-p nil))
-  (if copy-p
-      (copy-matrix (r-matrix mf) :copy-p t)
-      (r-matrix mf)))
+(defmethod factorization-component ((mf cholesky) component &key (copy-p nil))
+  (flet ((copy-maybe (matrix)
+           (if copy-p
+               (copy-matrix matrix :copy-p t)
+               matrix)))
+    (bind (((:slots-read-only factor) mf))
+      (etypecase factor
+        (lower-triangular-matrix
+           (ecase component
+             (:U (copy-maybe (transpose factor)))
+             (:L factor)))
+        (upper-triangular-matrix
+           (ecase component
+             (:U factor)
+             (:L (copy-maybe (transpose factor)))))))))
 
 ;;;; elementwise and scalar operations
 

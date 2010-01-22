@@ -331,8 +331,8 @@ bound to variables.  NROW and NCOL have the following syntax:
            ((ncol-name ncol-fortran-atom-expansion) (parse-dimspec ncol)))
       (once-only (matrix)
         `(bind (((:slots-read-only (,nrow-name nrow) (,ncol-name ncol)) ,matrix))
-           ,@(if set-restricted
-                 `((set-restricted ,matrix)))
+           (if ,set-restricted
+               (set-restricted ,matrix))
            (with-fortran-atoms (,@nrow-fortran-atom-expansion
                                 ,@ncol-fortran-atom-expansion)
              (with-nv-input ((,matrix ,keyword ,output) ,pointer ,lla-type)
