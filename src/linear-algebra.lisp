@@ -391,9 +391,9 @@ first."))
                 (with-vector-output (vr (expt n 2) vr% complex-type)
                   (with-work-query (lwork work complex-type)
                     (call-with-info-check procedure n-char% v-char% n% a% n% w%
-                                          (null-pointer) n% vr% n% work lwork rwork info%)
-                    (values (make-nv* complex-type w)
-                            (make-matrix* complex-type n n vr))))
+                                          (null-pointer) n% vr% n% work lwork rwork info%))
+                  (values (make-nv* complex-type w)
+                          (make-matrix* complex-type n n vr)))
                 (with-work-query (lwork work complex-type)
                   (call-with-info-check procedure n-char% n-char% n% a% n% w%
                                         (null-pointer) n% (null-pointer) n% 

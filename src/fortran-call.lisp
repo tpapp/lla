@@ -162,7 +162,8 @@ the allocated memory area (pointer) are assigned to these."
                                              pointers foreign-sizes)
                ,@body
                ,@(mapcar (lambda (returned-size pointer lla-type size)
-                           `(setf ,returned-size (floor (mem-aref* ,pointer ,lla-type))
+                           ;; POINTER can be complex, we have to use ABS too
+                           `(setf ,returned-size (floor (abs (mem-aref* ,pointer ,lla-type)))
                                   (mem-ref ,size :int32) ,returned-size))
                          returned-sizes pointers lla-types sizes))
              ;; allocate and call body again
