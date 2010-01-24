@@ -2,6 +2,14 @@ LLA stands for Lisp Linear Algebra, and aims to provide a convenient
 and fast library for matrix operations in Common Lisp, by binding to
 LAPACK and other libraries.
 
+STATUS:
+
+Although I have made LLA available to the public, I don't consider it
+to be properly released yet.  What's the difference?  I cannot
+guarantee that there will be no API changes or major reorganizations
+if they prove to be beneficial.
+
+
 ** LLA aims to conform to the following design principles:
 
 1. High level, user-friendly interface.
