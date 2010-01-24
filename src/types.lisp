@@ -48,6 +48,22 @@ enumerated here for convenience."))
   "Non-nil iff double-precision type."
   (or (eq lla-type :double) (eq lla-type :complex-double)))
 
+(defmacro expand-for-lla-types ((typevar &key (prologue '(progn))
+                                         (exclude-integer-p nil))
+                                &body form)
+  "Expand FORM (using EVAL) with TYPEVAR bound to all possible LLA
+types, return the results inside a (,@PROLOGUE ...), PROGN by
+default."
+  (when (cadr form)
+    ;; FORM is a &body argument only for saner indentation.
+    (error "Multiple forms provided."))
+  `(,@prologue
+    ,@(mapcar (lambda (typename)
+                (eval `(let ((,typevar ',typename)) ,(car form))))
+              (if exclude-integer-p
+                  '(:single :double :complex-single :complex-double)
+                  +lla-type-list+))))
+
 (defun coercible-p (lla-source-type lla-target-type)
   "Permitted coercions for LLA types.  It is guaranteed that
 CL:COERCE can perform these coercions on the corresponding lisp
@@ -216,21 +232,6 @@ MAKE-NV and MAKE-MATRIX.  Uses *FORCE-FLOAT* and *FORCE-DOUBLE*."
 
 ;;;; macros for defining subclasses of NUMERIC-VECTOR-*
 
-(defmacro expand-for-lla-types ((typevar &key (prologue '(progn))
-                                         (exclude-integer-p nil))
-                                &body form)
-  "Expand FORM (using EVAL) with TYPEVAR bound to all possible LLA
-types, return the results inside a (,@PROLOGUE ...), PROGN by
-default."
-  (when (cadr form)
-    ;; FORM is a &body argument only for saner indentation.
-    (error "Multiple forms provided."))
-  `(,@prologue
-    ,@(mapcar (lambda (typename)
-                (eval `(let ((,typevar ',typename)) ,(car form))))
-              (if exclude-integer-p
-                  '(:single :double :complex-single :complex-double)
-                  +lla-type-list+))))
 
 (defmacro define-lla-class (class &optional (superclasses (list class)))
   "Define subclasses of all NUMERIC-VECTOR types and given
