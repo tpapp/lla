@@ -292,7 +292,7 @@ Copying is forced when COPY-P."
 (defmethod make-load-form ((matrix dense-matrix-like) &optional environment)
   (declare (ignore environment))
   `(make-matrix* ,(lla-type matrix) ,(nrow matrix) ,(ncol matrix) 
-                 ,(make-elements-load-form matrix) :kind (matrix-kind matrix)))
+                 ,(make-elements-load-form matrix) :kind ,(matrix-kind matrix)))
 
 
 ;; (defmethod take ((class (eql 'dense-matrix)) object &key force-copy-p options)
