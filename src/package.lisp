@@ -20,7 +20,7 @@
    numeric-vector-single numeric-vector-double
    numeric-vector-complex-single numeric-vector-complex-double
    make-nv* make-nv create-nv copy-elements-into copy-elements
-   ensure-unshared copy-nv
+   copy-nv
 
    ;; numeric-vector-wrappers -- nothing is exported
 
