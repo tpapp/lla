@@ -43,6 +43,15 @@ vector ELEMENTS"))
   `(simple-array ,(upgraded-array-element-type (lla-type->lisp-type lla-type))
                  (,(if length length '*)))))
 
+(defun make-elements-load-form (nv)
+  (bind (((:slots-read-only elements) nv))
+    `(make-array ,(length elements)
+                 :element-type ',(lla-type->lisp-type (lla-type nv))
+                 :initial-contents ,elements)))
+
+(defmethod make-load-form ((nv numeric-vector) &optional environment)
+  (declare (ignore environment))
+  `(make-nv* ,(lla-type nv) ,(make-elements-load-form nv)))
 
 ;;;; define the subclasses
 
