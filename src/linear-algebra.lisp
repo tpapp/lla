@@ -210,7 +210,7 @@
                                           (upper-triangular-matrix #\U)
                                           (lower-triangular-matrix #\L)))
         (call-with-info-check procedure u-char% n% nrhs% factor% n% b% n% info%))
-      (make-matrix* common-type n n x))))
+      (make-matrix* common-type n nrhs x))))
 
 (defmethod solve ((hermitian-factorization hermitian-factorization) (b dense-matrix-like))
   (bind (((:slots-read-only factor ipiv) hermitian-factorization)
