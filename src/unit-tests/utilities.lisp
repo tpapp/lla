@@ -72,7 +72,7 @@ which ensures that all coercions are valid."
     (iter
       (for i :from 0 :below length)
       (always (= (aref x i) i)))))
-           
+
 (defparameter *allowed-difference* 1d-5
   ;; default is for catching major mistakes, use smaller value for fine points
   "Maximum allowed difference used by approx=.")

@@ -15,7 +15,7 @@
   "Return the size of an LLA-TYPE or :CHAR, in bytes."
   (ecase type
     (:char (load-time-value (foreign-type-size :char)))
-    (:integer (load-time-value (foreign-type-size :uint32)))
+    (:integer (load-time-value (foreign-type-size #+int32 :uint32 #+int64 :uint64)))
     (:single (load-time-value (foreign-type-size :float)))
     (:double (load-time-value (foreign-type-size :double)))
     (:complex-single (load-time-value (* 2 (foreign-type-size :float))))
@@ -26,7 +26,7 @@
   "Accessing 1d arrays in memory.  TYPE is LLA-TYPE or :CHAR."
   (ecase type
     (:char (code-char (mem-aref ptr :char index)))
-    (:integer (mem-aref ptr :uint32 index))
+    (:integer (mem-aref ptr #+int32 :uint32 #+int64 :uint64 index))
     (:single (mem-aref ptr :float index))
     (:double (mem-aref ptr :double index))
     (:complex-single
@@ -41,7 +41,7 @@
   "Setf expander for accessing 1d arrays in memory.  TYPE is LLA-TYPE or :CHAR"
   (ecase type
     (:char (setf (mem-aref ptr :char index) (char-code value)))
-    (:integer (setf (mem-aref ptr :uint32 index) value))
+    (:integer (setf (mem-aref ptr #+int32 :uint32 #+int64 :uint64 index) value))
     (:single (setf (mem-aref ptr :float index) value))
     (:double (setf (mem-aref ptr :double index) value))
     (:complex-single

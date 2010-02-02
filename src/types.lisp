@@ -115,7 +115,7 @@ floats can be upgraded to complex."
     ((subtypep lisp-type 'double-float) :double)
     ((subtypep lisp-type '(complex single-float)) :complex-single)
     ((subtypep lisp-type '(complex double-float)) :complex-double)
-    ((subtypep lisp-type '(signed-byte 32)) :integer)
+    ((subtypep lisp-type '(signed-byte #+int32 32 #+int64 64)) :integer)
     (t (if (eq value-if-not-recognized 'error)
            (error 'not-within-lla-type)
            value-if-not-recognized))))
@@ -126,7 +126,7 @@ floats can be upgraded to complex."
     (:double 'double-float)
     (:complex-single '(complex single-float))
     (:complex-double '(complex double-float))
-    (:integer '(signed-byte 32))
+    (:integer '(signed-byte #+int32 32 #+int64 64))
     ;; !! should define & use conditions -- Tamas
     (otherwise (error "~a is not a valid LLA type" lla-type))))
 

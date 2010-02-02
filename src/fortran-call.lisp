@@ -97,10 +97,10 @@ afterwards, signalling an lapack-error condition if info is nonzero."
   (check-type info-pointer symbol)
   (check-type procedure-name symbol)
   (with-unique-names (info-value)
-    `(with-foreign-object (,info-pointer :int32)
+    `(with-foreign-object (,info-pointer :int)
        (multiple-value-prog1
 	   (progn ,@body)
-	 (let ((,info-value (mem-aref ,info-pointer :int32)))
+	 (let ((,info-value (mem-aref ,info-pointer :int)))
 	   (unless (zerop ,info-value)
              ;; ??? two different conditions should be thrown,
              ;; depending on the value of INFO.  Positive INFO usually
@@ -154,9 +154,9 @@ the allocated memory area (pointer) are assigned to these."
          ;; placeholder variables for returned-sizes
          (let ,returned-sizes
            ;; allocate memory for sizes
-           (with-foreign-objects ,(mapcar (lambda (size) `(,size :int32 1)) sizes)
+           (with-foreign-objects ,(mapcar (lambda (size) `(,size :int 1)) sizes)
              ;; query returned sizes
-             ,@(mapcar (lambda (size) `(setf (mem-ref ,size :int32) -1)) sizes)
+             ,@(mapcar (lambda (size) `(setf (mem-ref ,size :int) -1)) sizes)
              (with-foreign-pointers ,(mapcar (lambda (pointer foreign-size)
                                                `(,pointer ,foreign-size))
                                              pointers foreign-sizes)
@@ -164,7 +164,7 @@ the allocated memory area (pointer) are assigned to these."
                ,@(mapcar (lambda (returned-size pointer lla-type size)
                            ;; POINTER can be complex, we have to use ABS too
                            `(setf ,returned-size (floor (abs (mem-aref* ,pointer ,lla-type)))
-                                  (mem-ref ,size :int32) ,returned-size))
+                                  (mem-ref ,size :int) ,returned-size))
                          returned-sizes pointers lla-types sizes))
              ;; allocate and call body again
              (with-foreign-pointers ,(mapcar (lambda (pointer foreign-size returned-size)

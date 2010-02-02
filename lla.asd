@@ -29,7 +29,8 @@
     :pathname #P"src/"
     :serial t
     :components
-    ((:file "load-libs")
+    ((:file "architecture")
+     (:file "load-libs")
      (:file "fortran-types")
      (:file "blas-cffi")
      (:file "lapack-cffi")))
