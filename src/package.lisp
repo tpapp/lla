@@ -83,7 +83,7 @@
 
    ;; linear-algebra
 
-   mmm mm lu solve invert eigen least-squares least-squares-xxinverse
+   mmm mm lu solve invert eigen least-squares least-squares-xx-inverse
    cholesky svd hermitian-factorization
    
    ))

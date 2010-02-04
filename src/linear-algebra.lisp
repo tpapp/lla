@@ -555,7 +555,7 @@ degrees of freedom."))
                                               (vector->column b))))
     (values (aref (elements x) 0) qr (aref (elements ss) 0) nu)))
 
-(defun least-squares-xxinverse (qr)
+(defun least-squares-xx-inverse (qr &key (reconstruct-p t) )
   "Calculate (X^T X)-1 (which is used for calculating the variance of
 estimates) from the qr decomposition of X.  Return a CHOLESKY
 decomposition.  Note: the FACTOR of the cholesky decomposition can be
@@ -565,7 +565,8 @@ used to generate random draws, etc."
   ;; using its Cholesky factorization.
   (with-slots (nrow ncol) (qr-matrix qr)
     (assert (<= ncol nrow))
-    (invert (make-instance 'cholesky :factor (factorization-component qr :R)))))
+    (invert (make-instance 'cholesky :factor (factorization-component qr :R))
+            :reconstruct-p reconstruct-p)))
 
 ;;;; Cholesky factorization
 
