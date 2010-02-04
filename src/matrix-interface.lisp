@@ -203,11 +203,11 @@ INITIAL-ELEMENTs."
 
 (defun matrix-elements-from-sequence (ncol lla-type sequence)
   "Return a lisp vector comforming to LLA-TYPE which has initial
-contents derived from 2d Lisp ARRAY.  Return (VALUES ELEMENTS NROW).
+contents derived from 2d Lisp ARRAY.  Return (VALUES ELEMENTS NROW NCOL).
 If NCOL is zero, return a row matrix."
   (bind ((length (length sequence))
          ((:values nrow ncol) (if (zerop ncol)
-                                  (values length 1)
+                                  (values 1 length)
                                   (bind (((:values nrow remainder) (floor length ncol)))
                                     (unless (zerop remainder)
                                       (error "Length of sequence (~A) is not ~
@@ -230,7 +230,7 @@ If NCOL is zero, return a row matrix."
         (vector (iter
                   (for x :in-vector sequence)
                   (store-element x)))))
-    (values elements nrow)))
+    (values elements nrow ncol)))
 
 (defun create-matrix (ncol initial-contents &key (kind :dense) lla-type)
   "Create matrix of given TYPE vector with given initial contents (a
@@ -243,7 +243,7 @@ elements are just ignored.
 Usage note: This is a convenience function for easily creation of
 matrices.  Also see *force-float*."
   (bind ((lla-type (infer-lla-type lla-type initial-contents))
-         ((:values elements nrow)
+         ((:values elements nrow ncol)
           (matrix-elements-from-sequence ncol lla-type initial-contents)))
     (make-matrix* lla-type nrow ncol elements :kind kind)))
 
