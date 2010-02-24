@@ -68,11 +68,3 @@ only.  Destructive, changes class of NV."
       (setf (aref diagonal-elements i)
             (aref matrix-elements (cm-index2 n i i))))
     (make-diagonal* lla-type diagonal-elements)))
-
-(defmethod xcreate ((class (eql 'diagonal)) dimensions &optional
-                    options)
-  (bind (((n) dimensions))
-    (make-diagonal n (extract-only-lla-type options))))
-
-(defmethod xsimilar ((rank (eql 1)) (object diagonal))
-  `(diagonal :lla-type ,(lla-type object)))

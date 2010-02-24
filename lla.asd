@@ -51,7 +51,8 @@
      (:file "diagonal")
      (:file "matrix-operations")
      (:file "readmacros")
-     (:file "bind-extensions")))
+     (:file "bind-extensions")
+     (:file "creation-conversion")))
    (:module
     "linear-algebra"
     :pathname #P"src/"

@@ -184,53 +184,6 @@ NUMERIC-VECTOR."
 ;;     (lla-type nv)))
 
 
-(defun extract-only-lla-type (options &optional (default :double))
-  (bind (((&key (lla-type default)) options))
-    lla-type))
-
-(defmethod xcreate ((class (eql 'numeric-vector)) dimensions &optional
-                    options)
-  (bind (((n) dimensions))
-    (make-nv n (extract-only-lla-type options))))
-
-(expand-for-lla-types (lla-type)
-  `(defmethod xcreate ((class (eql ',(nv-class lla-type))) dimensions &optional options)
-     (bind ((lla-type (extract-only-lla-type options ,lla-type))
-            ((n) dimensions))
-       (assert (eq lla-type ,lla-type) () "Incompatible options.")
-       (make-nv n ,lla-type))))
-
-;; (defmethod take ((class-name (eql 'numeric-vector)) (vector vector) &key force-copy-p
-;;                  options)
-;;   ;; this method tries to guess the type from the provided vector, or
-;;   ;; use a default
-;;   (declare (ignore force-copy-p))
-;;   (bind (((&key (lla-type (default-lla-type vector))) options))
-;;     (unless lla-type
-;;       (error "could not determine lla-type"))
-;;     (make-nv nil lla-type vector)))
-             
-
-;; (defmethod take ((class-name (eql 'numeric-vector)) (view view) &key
-;;                  options force-copy-p)
-;;   (declare (ignore force-copy-p))
-;;   (bind (((&key (lla-type (default-lla-type view))) options))
-;;     (unless lla-type
-;;       (error "could not determined lla-type"))
-;;     (bind ((vector (take 'array view
-;;                          :options `(:element-type
-;;                                     ,(lla-type->lisp-type lla-type))
-;;                          :force-copy-p t)))
-;;       (make-instance (nv-class lla-type) :elements vector))))
-
-;; (defmethod take ((class-name (eql 'numeric-vector))
-;;                  (nv numeric-vector) &key options force-copy-p)
-;;   (bind (((&key (lla-type :double)) options))
-;;     (if (eq lla-type (lla-type nv))
-;;         (copy-nv nv (not force-copy-p))
-;;         (convert-nv nv lla-type))))
-
-
 ;; !! also check for speed? -- Tamas
 
 (defmethod xrank ((nv numeric-vector))

@@ -275,71 +275,7 @@ Copying is forced when COPY-P."
     (make-matrix* (lla-type nv) 1 (length elements)
                   (if copy-p (copy-seq elements) elements))))
 
-(defun xsimilar% (rank object)
-  ;; not exported
-  (let ((lla-type (lla-type object))
-        (rank (if (eq t rank) (xrank object) rank)))
-    (ecase rank
-      (1 (list (nv-class lla-type)))
-      (2 `(dense-matrix :lla-type ,lla-type)))))
-
-(defmethod xsimilar (rank (nv numeric-vector))
-  (xsimilar% rank nv))
-
-(defmethod xsimilar (rank (m dense-matrix-like))
-  (xsimilar% rank m))
-
 (defmethod make-load-form ((matrix dense-matrix-like) &optional environment)
   (declare (ignore environment))
   `(make-matrix* ,(lla-type matrix) ,(nrow matrix) ,(ncol matrix) 
                  ,(make-elements-load-form matrix) :kind ,(matrix-kind matrix)))
-
-
-;; (defmethod take ((class (eql 'dense-matrix)) object &key force-copy-p options)
-;;   (declare (ignore force-copy-p))
-;;   (bind (((&key (lla-type :double)) options)
-;;          (dims (xdims object)))
-;;     (unless (= (length dims) 2)
-;;       (error "OBJECT needs to have 2 dimensions for conversion into matrix."))
-;;     (bind (((nrow ncol) dims)
-;;            (contents (make-array (* nrow ncol)
-;;                                  :element-type (lla-type->lisp-type lla-type)))
-;;            (index 0))
-;;       (dotimes (col ncol)
-;;         (dotimes (row nrow)
-;;           (setf (aref contents index) (xref object row col))
-;;           (incf index)))
-;;       (make-matrix nrow ncol lla-type :initial-contents contents
-;;                    :type 'dense-matrix))))
-
-(defmethod xcreate ((class (eql 'dense-matrix)) dimensions &optional options)
-  (unless (= (length dimensions) 2)
-    (error "Exactly 2 dimensions are needed for a matrix."))
-  (bind (((nrow ncol) dimensions)
-         ((&key (lla-type :double)) options))
-    (make-matrix  nrow ncol lla-type)))
-
-
-
-;; (defun take-dense-matrix-like (class matrix force-copy-p lla-type)
-;;   "INTERNAL function.  Use data in a dense-matrix matrix in another
-;;   dense-matrix-like object (with given class), copying and converting
-;;   if necessary."
-;;   (with-slots (nrow ncol data) matrix
-;;     (make-instance class :nrow nrow :ncol ncol
-;;                    :data (if (or force-copy-p (not (eq lla-type (lla-type matrix))))
-;;                              (nv-copy-convert data lla-type)
-;;                              (nv-copy data)))))
-
-;; (defmacro define-dense-matrix-like-take (class)
-;;   "Define a take method for class from dense-matrices."
-;;   `(defmethod take ((class (eql ',class)) (matrix dense-matrix-like)
-;;                     &key force-copy-p options)
-;;      ;; set zeros
-;;      (set-restricted matrix)
-;;      ;; create new structure
-;;      (bind (((&key (lla-type (lla-type matrix))) options))
-;;        (take-dense-matrix-like ',class matrix force-copy-p lla-type))))
-
-;; (define-dense-matrix-like-take dense-matrix)
-
