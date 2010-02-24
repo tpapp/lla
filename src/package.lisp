@@ -1,8 +1,8 @@
 (in-package #:lla-asd)
 
 (defpackage #:lla
-  (:use :common-lisp :cl-utilities :iterate :bind :cffi :xarray
-        :anaphora :named-readtables)
+    (:use :common-lisp :cl-utilities :iterate :bind :cffi :xarray
+          :anaphora :named-readtables)
   (:shadowing-import-from :iterate :collecting :collect)
   (:export 
    ;; utilities -- nothing is exported
@@ -72,7 +72,7 @@
    ;; matrix-operations
    
    cm-index2 make-matrix* make-matrix create-matrix copy-matrix
-   vector->matrix vector->column vector->row transpose
+   reshape vector->column vector->row transpose
    stack-horizontally stack-vertically
 
    ;; readmacros

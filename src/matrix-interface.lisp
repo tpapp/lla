@@ -255,8 +255,9 @@ Copying is forced when COPY-P."
                 (copy-elements% matrix destination-type copy-p)
                 :kind kind))
 
-(defun vector->matrix (nv nrow ncol &key (kind :dense) (copy-p nil))
-  "Copy numeric vector to a matrix of matching size."
+(defun reshape (nv nrow ncol &key (kind :dense) (copy-p nil))
+  "Copy numeric vector (can be a matrix) to a matrix of matching
+size."
   (let ((elements (elements nv)))
     (assert (= (length elements) (* nrow ncol)))
     (make-matrix* (lla-type nv) nrow ncol
