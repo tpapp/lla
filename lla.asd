@@ -50,7 +50,8 @@
      (:file "matrix-interface")
      (:file "diagonal")
      (:file "matrix-operations")
-     (:file "readmacros")))
+     (:file "readmacros")
+     (:file "bind-extensions")))
    (:module
     "linear-algebra"
     :pathname #P"src/"
