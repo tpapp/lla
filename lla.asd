@@ -52,7 +52,8 @@
      (:file "matrix-operations")
      (:file "readmacros")
      (:file "bind-extensions")
-     (:file "creation-conversion")))
+     (:file "creation-conversion")
+     (:file "binary-operations")))
    (:module
     "linear-algebra"
     :pathname #P"src/"

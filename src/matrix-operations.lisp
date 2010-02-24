@@ -51,19 +51,6 @@ helper function, *NOT EXPORTED*."))
       (otherwise
          (copy-matrix matrix :copy-p t)))))
 
-
-;; (defmethod x* ((a dense-matrix-like) (b number) &key)
-;;   ;;; !!!! this assumes that all restricted elements are zeros
-;;   (if (typep a 'restricted-elements)
-;;       (make-instance (class-of a) :nrow (nrow a) :ncol (ncol a)
-;;                      :data (x* (data a) b) :restricted-set-p (restricted-set-p a))
-;;       (make-instance (class-of a) :nrow (nrow a) :ncol (ncol a)
-;;                      :data (x* (data a) b))))
-
-;; (defmethod x* ((a number) (b dense-matrix-like) &key)
-;;   (x* b a))
-
-
 ;;;; extraction methods for factorization components
 
 (defgeneric matrix-from-first-rows (vector lla-type m nrhs n &optional kind)
@@ -111,39 +98,6 @@ like xGELS."))
            (ecase component
              (:U factor)
              (:L (copy-maybe (transpose factor)))))))))
-
-;;;; elementwise and scalar operations
-
-(defmacro define-matrix-operations (op &optional (method-name (make-symbol* 'X op)))
-  "Define bivariate (both elementwise and with scalar) operations for
-matrices.  Note: just dispatches to vector operations."
-  `(progn
-     (defmethod ,method-name ((a dense-matrix-like) (b dense-matrix-like)
-                              &key element-type)
-       (declare (ignore element-type))
-       (set-restricted a)
-       (set-restricted b)
-       (bind (((:slots-read-only nrow ncol) a))
-         (assert (and (= nrow (nrow b)) (= ncol (ncol b))) ()
-                 "Incompatible dimensions.")
-         (vector->matrix (,method-name (copy-nv a) (copy-nv b)) nrow ncol)))
-     (defmethod ,method-name ((a dense-matrix-like) (b number)
-                              &key element-type)
-       (declare (ignore element-type))
-       (set-restricted a)
-       (bind (((:slots-read-only nrow ncol) a))
-         (vector->matrix (,method-name (copy-nv a) b) nrow ncol)))
-     (defmethod ,method-name ((a number) (b dense-matrix-like)
-                              &key element-type)
-       (declare (ignore element-type))
-       (set-restricted b)
-       (bind (((:slots-read-only nrow ncol) b))
-         (vector->matrix (,method-name a (copy-nv b)) nrow ncol)))))
-
-(define-matrix-operations +)
-(define-matrix-operations *)
-(define-matrix-operations -)
-(define-matrix-operations /)
 
      
 ;;;; stacking
