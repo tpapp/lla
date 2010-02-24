@@ -7,18 +7,18 @@
   :components
   ((:module 
     "package-init"
-    :pathname #P"src/unit-tests/"
+    :pathname #P"unit-tests/"
     :components
     ((:file "package")))
    (:module
     "utilities-and-setup"
-    :pathname #P"src/unit-tests/"
+    :pathname #P"unit-tests/"
     :components
     ((:file "setup")
      (:file "utilities")))
    (:module 
     "tests"
-    :pathname #P"src/unit-tests/"
+    :pathname #P"unit-tests/"
     :components
     ((:file "test-basics")
      (:file "test-linear-algebra"))))
