@@ -11,7 +11,7 @@
 (defun make-symbol* (&rest args)
   "Build a symbol by concatenating each element of ARGS, and intern it
   in LLA.  Elements can be strings or symbols."
-  (intern (concat-to-string args)) :LLA)
+  (intern (concat-to-string args) :lla))
 
 (defun make-keyword* (&rest args)
   (intern (concat-to-string args) :keyword))
