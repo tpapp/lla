@@ -1,25 +1,25 @@
 (in-package :lla)
 
-(defun make-symbol* (&rest args)
-  "Build a symbol by concatenating each element of ARGS, and intern it
-  in LLA.  Elements can be strings or symbols."
-  (intern (apply #'concatenate 'string
+(defun concat-to-string (args)
+  (apply #'concatenate 'string
                  (mapcar (lambda (arg)
                            (etypecase arg
                              (symbol (symbol-name arg))
                              (string arg)))
-                         args))
-          'lla))
+                         args)))
+
+(defun make-symbol* (&rest args)
+  "Build a symbol by concatenating each element of ARGS, and intern it
+  in LLA.  Elements can be strings or symbols."
+  (intern (concat-to-string args)) :LLA)
+
+(defun make-keyword* (&rest args)
+  (intern (concat-to-string args) :keyword))
 
 (defun gensym* (&rest args)
   "A version of GENSYM that concatenates args before generating the
 symbol.  Also accepts symbols."
-  (gensym (apply #'concatenate 'string
-                 (mapcar (lambda (arg)
-                           (etypecase arg
-                             (symbol (symbol-name arg))
-                             (string arg)))
-                         args))))
+  (gensym (concat-to-string args)))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (pushnew :muffle-notes cl:*features*))
