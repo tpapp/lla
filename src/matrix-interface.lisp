@@ -87,25 +87,25 @@
 
 (defun matrix-xref% (matrix subscripts)
   "Reader function for matrices.  Meant to be inlined.  Not exported."
-  (bind (((row col) subscripts))
-    (with-slots (nrow ncol elements) matrix
-      (check-index row nrow)
-      (check-index col ncol)
-      (aref elements (cm-index2 nrow row col)))))
+  (bind (((row col) subscripts)
+         ((:accessors-read-only leading-dimension nrow ncol elements) matrix))
+    (check-index row nrow)
+    (check-index col ncol)
+    (aref elements (cm-index2 leading-dimension row col))))
 
 (defun matrix-setf-xref% (value matrix subscripts)
   "Setter function for matrices.  Meant to be inlined.  Not exported."
-  (bind (((row col) subscripts))
-    (with-slots (nrow ncol elements) matrix
-      (check-index row nrow)
-      (check-index col ncol)
-      (setf (aref elements (cm-index2 nrow row col))
-	    value))))
+  (bind (((row col) subscripts)
+         ((:accessors-read-only leading-dimension nrow ncol elements) matrix))
+    (check-index row nrow)
+    (check-index col ncol)
+    (setf (aref elements (cm-index2 leading-dimension row col))
+          value)))
 
-(defmethod xref ((matrix dense-matrix) &rest subscripts)
+(defmethod xref ((matrix dense-matrix-like) &rest subscripts)
   (matrix-xref% matrix subscripts))
 
-(defmethod (setf xref) (value (matrix dense-matrix) &rest subscripts)
+(defmethod (setf xref) (value (matrix dense-matrix-like) &rest subscripts)
   (matrix-setf-xref% value matrix subscripts))
 
 ;;; xref for upper triangular matrices
