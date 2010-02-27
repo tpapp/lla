@@ -38,7 +38,7 @@ constraint is binding."
     (with-slots (elements) obj
       (let* ((length (length elements))
 	     (truncated-length (min *print-length* length)))
-	(format stream "~a elements: " length)
+	(format stream "~a with ~a elements: " (lla-type obj) length)
 	(dotimes (i truncated-length)
 	  (princ (standard-numeric-formatter (aref elements i)) stream)
 	  (when (< (1+ i) truncated-length)
@@ -128,10 +128,9 @@ printed instead (should be a string)."
   (check-type stream symbol)
   `(defmethod print-object ((,instance ,class) ,stream)
      (print-unreadable-object (,instance ,stream :type t)
-       (format ,stream "~a x ~a elements~&" (nrow ,instance) (ncol ,instance))
+       (format ,stream "~a with ~a x ~a elements~&" (lla-type ,instance) (nrow ,instance) (ncol ,instance))
        (with-slots ,slots ,instance
          ,@body))))
-
 
 (define-matrix-like-printer (matrix dense-matrix-like stream) ()
   (print-matrix matrix stream))

@@ -4,25 +4,14 @@
 ;;; matrix, or a diagonal matrix.  They are a subclass of
 ;;; NUMERIC-VECTOR.
 
-(define-abstract-class diagonal (numeric-vector)
+(defclass diagonal (numeric-vector)
   ()
   (:documentation "Elements representing a diagonal of a matrix or a
   diagonal matrix."))
 
-(define-lla-class diagonal)
-
-(defun diagonal-class (lla-type)
-  "Return the class name corresponding to LLA-TYPE."
-  (append-lla-type diagonal lla-type))
-
-(defun nv->diagonal% (nv)
-  "Convert numeric vector to diagonal.  Not exported, internal use
-only.  Destructive, changes class of NV."
-  (change-class nv (diagonal-class (lla-type nv))))
-
 (defun make-diagonal* (lla-type elements)
   "Like MAKE-NV*, but for diagonals."
-  (make-instance (diagonal-class lla-type) :elements elements))
+  (make-instance 'diagonal :lla-type lla-type :elements elements))
 
 (defmethod make-load-form ((diagonal diagonal) &optional environment)
   (declare (ignore environment))
@@ -33,25 +22,28 @@ only.  Destructive, changes class of NV."
   (make-diagonal* (lla-type nv) (if copy-p
                                     (copy-elements nv)
                                     (elements nv))))
+
 (defun diagonal->nv (diagonal &key (copy-p nil))
   "Convert numeric vector to diagonal."
   (make-nv* (lla-type diagonal) (if copy-p
-                              (copy-elements diagonal)
-                              (elements diagonal))))
+                                    (copy-elements diagonal)
+                                    (elements diagonal))))
 
-(defun make-diagonal (length lla-type &optional (initial-element 0))
+(defun make-diagonal (lla-type length &optional (initial-element 0))
   "Make a diagonal."
-  (nv->diagonal% (make-nv length lla-type initial-element)))
+  (change-class (make-nv lla-type length initial-element)
+                'diagonal))
 
 (defun create-diagonal (initial-contents &optional lla-type)
   "Create a diagonal from initial-contents."
-  (nv->diagonal% (create-nv initial-contents lla-type)))
+  (change-class (create-nv initial-contents lla-type)
+                'diagonal))
                 
 (defun diagonal->matrix (diagonal &optional (kind :dense))
   "Create a matrix of given KIND from DIAGONAL."
   (let* ((diagonal-elements (elements diagonal))
          (n (length diagonal-elements))
-         (matrix (make-matrix n n (lla-type diagonal) :kind kind))
+         (matrix (make-matrix (lla-type diagonal) n n :kind kind))
          (matrix-elements (elements matrix)))
     (dotimes (i n)
       (setf (aref matrix-elements (cm-index2 n i i))
@@ -63,7 +55,7 @@ only.  Destructive, changes class of NV."
   (bind (((:slots-read-only nrow ncol (matrix-elements elements)) matrix)
          (n (min nrow ncol))
          (lla-type (lla-type matrix))
-         (diagonal-elements (make-nv-elements n lla-type)))
+         (diagonal-elements (make-nv-elements lla-type n)))
     (dotimes (i n)
       (setf (aref diagonal-elements i)
             (aref matrix-elements (cm-index2 n i i))))

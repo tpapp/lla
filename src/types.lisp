@@ -130,6 +130,15 @@ floats can be upgraded to complex."
     ;; !! should define & use conditions -- Tamas
     (otherwise (error "~a is not a valid LLA type" lla-type))))
 
+(defun zero* (lla-type)
+  "Return 0, coerced to the desired LLA-TYPE."
+  (ecase lla-type
+    (:single 0.0)
+    (:double 0d0)
+    (:complex-single #C(0.0 0.0))
+    (:complex-double #C(0.0d0 0.0d0))
+    (:integer 0)))
+
 (defun coerce* (value lla-type)
   "Coerce VALUE to type given by LLA-TYPE."
   (coerce value (lla-type->lisp-type lla-type)))

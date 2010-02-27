@@ -46,12 +46,12 @@
      (:file "numeric-vector")
      (:file "numeric-vector-wrappers")
      (:file "matrix-classes")
+     (:file "bind-extensions")
      (:file "printing")
      (:file "matrix-interface")
      (:file "diagonal")
      (:file "matrix-operations")
      (:file "readmacros")
-     (:file "bind-extensions")
      (:file "creation-conversion")
      (:file "binary-operations")))
    (:module

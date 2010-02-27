@@ -6,34 +6,31 @@
 ;;; lower-triangular into upper-triangular, etc).  Helper function
 ;;; transpose% can be used for implementation.
 
-(defgeneric transpose% (matrix transposed-matrix-kind conjugate-p)
-  (:documentation "Return the transpose of MATRIX, which will be of
-kind TRANSPOSED-MATRIX-KIND.  SET-RESTRICTED is *NOT* enforced (so the
+(defun transpose% (matrix transposed-matrix-kind conjugate-p)
+  "Return the transpose of MATRIX, which will be of kind
+TRANSPOSED-MATRIX-KIND.  SET-RESTRICTED is *NOT* enforced (so the
 caller has to decide whether to enforce it).  Meant to be used as a
-helper function, *NOT EXPORTED*."))
-(expand-for-lla-types (lla-type)
-  (let ((complex-p (lla-complex-p lla-type)))
-    `(defmethod transpose% ((matrix ,(nv-class lla-type)) transposed-matrix-kind conjugate-p)
-       ,@(unless complex-p
-           '((declare (ignore conjugate-p))))
-       (declare (optimize (speed 3) (safety 0)))
-       (bind (((:slots-read-only nrow ncol elements) matrix)
-              (transposed (make-nv-elements (length elements) ,lla-type)))
-         (declare (fixnum nrow ncol)
-                  (type ,(nv-array-type lla-type) elements transposed))
-         (dotimes (col ncol)
-           (declare (fixnum col))
-           (iter
-             (declare (iterate:declare-variables))
-             (for (the fixnum elements-i) :from (cm-index2 nrow 0 col)
-                  :below (cm-index2 nrow nrow col))
-             (for (the fixnum transposed-i) :from (cm-index2 ncol col 0) :by ncol)
-             (setf (aref transposed transposed-i)
-                   ,(if complex-p
-                        '(let ((elt (aref elements elements-i)))
-                          (if conjugate-p (conjugate elt) elt))
-                        '(aref elements elements-i)))))
-         (make-matrix* ,lla-type ncol nrow transposed :kind transposed-matrix-kind)))))
+helper function, *NOT EXPORTED*."
+  (declare (optimize (speed 3) (safety 0)))
+  (expand-for-lla-types (lla-type :prologue (ecase (lla-type matrix)))
+    (let ((complex-p (lla-complex-p lla-type)))
+      `(,lla-type (bind (((:slots-read-only nrow ncol elements) matrix)
+                         (transposed (make-nv-elements ,lla-type (length elements))))
+                    (declare (fixnum nrow ncol)
+                             (type ,(nv-array-type lla-type) elements transposed))
+                    (dotimes (col ncol)
+                      (declare (fixnum col))
+                      (iter
+                        (declare (iterate:declare-variables))
+                        (for (the fixnum elements-i) :from (cm-index2 nrow 0 col)
+                             :below (cm-index2 nrow nrow col))
+                        (for (the fixnum transposed-i) :from (cm-index2 ncol col 0) :by ncol)
+                        (setf (aref transposed transposed-i)
+                              ,(if complex-p
+                                   '(let ((elt (aref elements elements-i)))
+                                     (if conjugate-p (conjugate elt) elt))
+                                   '(aref elements elements-i)))))
+                    (make-matrix* ,lla-type ncol nrow transposed :kind transposed-matrix-kind))))))
 
 (defgeneric transpose (matrix &optional conjugate-p)
   (:documentation "Return the transpose of a matrix.")
@@ -51,39 +48,35 @@ helper function, *NOT EXPORTED*."))
       (otherwise
          (copy-matrix matrix :copy-p t)))))
 
-;;;; extraction methods for factorization components
+;;;; extraction methods for factorization components and related
+;;;; utility functions
 
-(defgeneric matrix-from-first-rows (vector lla-type m nrhs n &optional kind)
-  (:documentation "Extract & return (as KIND, default is :DENSE) the
-first N rows of an MxNRHS matrix, given as a Lisp vector with
+(defun copy-columns% (lla-type nrow ncol source source-size destination destination-size
+                      &optional (destination-offset 0))
+  "Copy columns from source to destination."
+  (dotimes (col ncol)
+    (copy-elements-into source lla-type (* col source-size)
+                        destination lla-type (+ destination-offset (* col destination-size))
+                        nrow))
+  (values))
+
+(defun matrix-from-first-rows (lla-type vector nrow ncol leading-dimension &optional (kind :dense))
+  "Extract & return (as KIND, default is :DENSE) the first NROW rows
+of an LEADING-DIMENSIONxNCOL matrix, given as a Lisp vector with
 column-major indexing.  NOTE: needed to interface to LAPACK routines
-like xGELS."))
-(expand-for-lla-types (lla-type)
-  (let ((array-type (nv-array-type lla-type)))
-    `(defmethod matrix-from-first-rows (vector (lla-type (eql ,lla-type)) m nrhs n
-                                        &optional (kind :dense))
-       ;; It is assumed that NV's ELEMENTS has the correct type.
-       (declare (optimize speed (safety 0))
-                (type ,array-type vector)
-                (type fixnum m nrhs n))
-       (let ((result (make-nv-elements (the fixnum (* n nrhs)) ,lla-type)))
-         (dotimes (col nrhs)
-           (declare (fixnum col))
-           (iter
-             (declare (iterate:declare-variables))
-             (repeat n)
-             (for (the fixnum vector-index) :from (the fixnum (* col m)))
-             (for (the fixnum result-index) :from (the fixnum (* col n)))
-             (setf (aref result result-index) (aref vector vector-index))))
-         (make-matrix* lla-type n nrhs result :kind kind)))))
+like xGELS."
+  (let ((result (make-matrix lla-type nrow ncol :kind kind)))
+    (copy-columns% lla-type nrow ncol vector leading-dimension
+                   (elements result) nrow)
+    result))
 
-(defmethod factorization-component ((mf qr) (component (eql :R)) &key copy-p)
+(defmethod component ((mf qr) (component (eql :R)) &key copy-p)
   (declare (ignore copy-p))
   (bind (((:slots-read-only qr-matrix) mf)
          ((:slots-read-only nrow ncol elements) qr-matrix))
-    (matrix-from-first-rows elements (lla-type qr-matrix) nrow ncol ncol :upper-triangular)))
+    (matrix-from-first-rows (lla-type qr-matrix) elements ncol ncol nrow :upper-triangular)))
 
-(defmethod factorization-component ((mf cholesky) component &key (copy-p nil))
+(defmethod component ((mf cholesky) component &key (copy-p nil))
   (flet ((copy-maybe (matrix)
            (if copy-p
                (copy-matrix matrix :copy-p t)
@@ -114,7 +107,7 @@ like xGELS."))
          (common-type (apply #'common-target-type (mapcar #'lla-type matrices)))
          (nrow-total (reduce #'+ matrices :key #'nrow))
          (ncol (ncol (first matrices)))
-         (result (make-matrix nrow-total ncol common-type))
+         (result (make-matrix common-type nrow-total ncol))
          (result-elements (elements result))
          (row 0))
     (iter

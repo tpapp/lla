@@ -21,13 +21,13 @@ discrepancy is reported to *error-output*, before returning nil."
 	  (return-from numeric-vector-pointer= nil))))
     t))
 	
-(defun make-random-numeric-vector (length lla-type &optional
+(defun make-random-numeric-vector (lla-type length &optional
 				   (random-arg 100))
   "Make a numeric-vector of the given type, filled with random
 elements.  Random is called with random-arg, the default is an integer
 int order to facilitate comparing with = in case of type conversions,
 or if you are using integer for LLA-type."
-  (let ((nv (make-nv length lla-type))
+  (let ((nv (make-nv lla-type length))
         (lisp-type (lla-type->lisp-type lla-type)))
     (dotimes (i length)
       (setf (xref nv i) (coerce (random random-arg) lisp-type)))
@@ -39,7 +39,7 @@ or if you are using integer for LLA-type."
 WITH-NV-INPUT-READONLY and check equality.  Types are LLA-types.
 Random numbers are integers, which ensures that all coercions are
 valid."
-  (let ((nv (make-random-numeric-vector length source-type 100)))
+  (let ((nv (make-random-numeric-vector source-type length 100)))
     (with-nv-input ((nv) pointer destination-type)
       (numeric-vector-pointer= nv pointer destination-type :report-p
 			       report-p))))
@@ -50,7 +50,7 @@ valid."
 WITH-NV-INPUT-COPIED and check equality.  Tests WITH-NV-INPUT-COPIED
 and COPY-ELEMENTS.  Types are LLA-types.  Random numbers are integers,
 which ensures that all coercions are valid."
-  (let* ((nv (make-random-numeric-vector length source-type 100))
+  (let* ((nv (make-random-numeric-vector source-type length 100))
          (elements-copy (copy-seq (elements nv))))
     (with-nv-input ((nv :copied) pointer destination-type)
       ;; check equality
@@ -113,7 +113,7 @@ which ensures that all coercions are valid."
 
 (defun make-nv-with-seq (lla-type n)
   "Return a numeric-vector of type LLA-TYPE, holding the integers 0...n-1."
-  (bind ((nv (make-nv n lla-type))
+  (bind ((nv (make-nv lla-type n))
          (elements (elements nv))
          (lisp-type (xelttype nv)))
     (iter
@@ -124,4 +124,4 @@ which ensures that all coercions are valid."
 (defun make-matrix-with-seq (lla-type nrow ncol)
   "Return a dense matrix of type LLA-TYPE, holding the integers
 0...n-1 in column-major order."
-  (vector->matrix (make-nv-with-seq lla-type (* nrow ncol)) nrow ncol))
+  (reshape (make-nv-with-seq lla-type (* nrow ncol)) nrow ncol))

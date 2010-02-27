@@ -49,7 +49,7 @@
    hermitian-matrix-double hermitian-matrix-complex-single
    hermitian-matrix-complex-double
    
-   factorization-component reconstruct
+   component reconstruct
 
    lu-factorization lu-matrix ipiv
 

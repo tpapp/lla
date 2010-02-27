@@ -12,31 +12,27 @@
   (the fixnum (+ (the fixnum (* nrow col)) row)))
 
 ;;; set-restricted* methods
-;;;
-;;; !!! write optimized versions
 
-(expand-for-lla-types (lla-type)
-  (let ((class (matrix-class :upper-triangular lla-type))
-        (zero (coerce 0 (lla-type->lisp-type lla-type))))
-    `(defmethod set-restricted ((matrix ,class))
-       (declare (optimize speed))
-       (bind (((:slots-read-only nrow ncol elements) matrix))
+(defmethod set-restricted ((matrix lower-triangular-matrix))
+  (declare (optimize speed))
+  (bind (((:slots-read-only nrow ncol elements) matrix)
+         (zero (coerce* 0 (lla-type matrix))))
          ;; set the lower triangle (below diagonal) to 0
-         (declare (fixnum nrow ncol)
-                  (type ,(nv-array-type lla-type) elements))
-         (dotimes (col ncol)
-           (declare (fixnum col ncol))
-           (iter
-             (declare (iterate:declare-variables))
-             (for (the fixnum index)
-                  :from (1+ (cm-index2 nrow col col))
-                  :below (cm-index2 nrow nrow col))
-             (setf (aref elements index) ,zero))))
-       matrix)))
+    (declare (fixnum nrow ncol)
+             (type simple-array elements))
+    (dotimes (col ncol)
+      (declare (fixnum col ncol))
+      (iter
+        (declare (iterate:declare-variables))
+        (for (the fixnum index)
+             :from (1+ (cm-index2 nrow col col))
+             :below (cm-index2 nrow nrow col))
+        (setf (aref elements index) zero))))
+  matrix)
 
 (defmethod set-restricted ((matrix lower-triangular-matrix))
    (bind (((:slots-read-only nrow ncol elements) matrix)
-         (zero (coerce 0 (array-element-type elements))))
+         (zero (zero* (lla-type matrix))))
     ;; set the upper triangle (above diagonal) to 0
     (dotimes (col ncol)
       (iter
@@ -88,6 +84,7 @@
 ;;; xref for dense matrices
 
 (declaim (inline matrix-xref% matrix-setf-xref%))
+
 (defun matrix-xref% (matrix subscripts)
   "Reader function for matrices.  Meant to be inlined.  Not exported."
   (bind (((row col) subscripts))
@@ -95,6 +92,7 @@
       (check-index row nrow)
       (check-index col ncol)
       (aref elements (cm-index2 nrow row col)))))
+
 (defun matrix-setf-xref% (value matrix subscripts)
   "Setter function for matrices.  Meant to be inlined.  Not exported."
   (bind (((row col) subscripts))
@@ -119,7 +117,7 @@
       (check-index col ncol)
       (if (<= row col)
           (aref elements (cm-index2 nrow row col))
-          (coerce 0 (xelttype matrix))))))
+          (zero* (lla-type matrix))))))
 
 (defmethod (setf xref) (value (matrix upper-triangular-matrix) &rest subscripts)
   (bind (((row col) subscripts))
@@ -142,7 +140,7 @@
       (check-index col ncol)
       (if (>= row col)
           (aref elements (cm-index2 nrow row col))
-          (coerce 0 (xelttype matrix))))))
+          (zero* (lla-type matrix))))))
 
 (defmethod (setf xref) (value (matrix lower-triangular-matrix) &rest subscripts)
   (bind (((row col) subscripts))
@@ -175,14 +173,6 @@
           (setf (aref elements (cm-index2 nrow row col)) value)
           (setf (aref elements (cm-index2 nrow col row)) (conjugate value))))))
 
-;;;; xref for factorizations
-
-(defmethod xref ((matrix matrix-factorization) &rest subscripts)
-  (matrix-xref% matrix subscripts))
-
-(defmethod (setf xref) (value (matrix matrix-factorization) &rest subscripts)
-  (matrix-setf-xref% value matrix subscripts))
-
 ;;;; matrix creation
 
 (declaim (inline make-matrix*))
@@ -191,14 +181,14 @@
 Note that there is no type checking, and elements are not copied: this
 is effectively shorthand for a MAKE-INSTANCE call.  For internal use,
 not exported."
-  (make-instance (matrix-class kind lla-type) :nrow nrow :ncol ncol
-                 :elements elements))
+  (make-instance (matrix-class kind) :nrow nrow :ncol ncol
+                 :lla-type lla-type :elements elements))
 
-(defun make-matrix (nrow ncol lla-type &key (kind :dense) (initial-element 0))
+(defun make-matrix (lla-type nrow ncol &key (kind :dense) (initial-element 0))
   "Create a matrix with given parameters, optionally initialized with
 INITIAL-ELEMENTs."
   (make-matrix* lla-type nrow ncol
-                (make-nv-elements (* nrow ncol) lla-type initial-element)
+                (make-nv-elements lla-type (* nrow ncol) initial-element)
                 :kind kind))
 
 (defun matrix-elements-from-sequence (ncol lla-type sequence)
@@ -214,7 +204,7 @@ If NCOL is zero, return a row matrix."
                                               a multiple of ncol (~A)." length ncol))
                                     (values nrow ncol))))
 	 (lisp-type (lla-type->lisp-type lla-type))
-	 (elements (make-nv-elements length lla-type))
+	 (elements (make-nv-elements lla-type length))
          (col 0)
          (row 0))
     (flet ((store-element (x)

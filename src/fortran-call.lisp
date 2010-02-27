@@ -12,7 +12,6 @@ used in LAPACK."
                                    (lla-type->binary-code
                                     (lla-type object))))))
 
-
 ;;; Helper functions that generate the correct LAPACK/BLAS function
 ;;; names based on a "root" function name.  For some functions
 ;;; (usually those involving Hermitian matrices), the roots actually
@@ -172,8 +171,6 @@ the allocated memory area (pointer) are assigned to these."
                                              pointers foreign-sizes returned-sizes)
                ,@body)))))))
 
-
-
 (defmacro with-work-query ((size pointer lla-type) &body body)
   "Single-variable version of WITH-WORK-QUERIES."
   `(with-work-queries ((,size ,pointer ,lla-type)) ,@body))
@@ -207,13 +204,13 @@ separately, we have to assemble them. *NOT EXPORTED*."
                                                 real-type (+ n i))))))))
     (if real-p
         ;; no complex eigenvalues
-        (let ((elements (make-nv-elements n real-type)))
+        (let ((elements (make-nv-elements real-type n)))
           (iter
             (for i :from 0 :below n)
             (setf (aref elements i) (mem-aref val-pointer real-type i)))
           (values (make-nv* real-type elements) nil))
         ;; complex eigenvalues
-        (let ((elements (make-nv-elements n complex-type)))
+        (let ((elements (make-nv-elements complex-type n)))
           (iter
             (for i :from 0 :below n)
             (setf (aref elements i) (complex (mem-aref val-pointer
@@ -225,7 +222,7 @@ separately, we have to assemble them. *NOT EXPORTED*."
 (defun zip-eigenvectors (val-pointer vec-pointer n real-type complex-type)
   "Collect complex eigenvectors from S/DGEEV.  Should only be called
 when the second value returned by ZIP-EIGENVALUES is non-nil."
-  (prog ((vec (make-nv-elements (* n n) complex-type))
+  (prog ((vec (make-nv-elements complex-type (* n n)))
          (i 0))
    top
      (let ((column-start-index (cm-index2 n 0 i)))
@@ -254,7 +251,6 @@ when the second value returned by ZIP-EIGENVALUES is non-nil."
          (return vec))))
 
 ;;; Collecting the matrix/vector at the end.
-
 
 (defmacro ifor ((variable from to &optional (name nil))
                 &body body)
@@ -288,7 +284,7 @@ view.  NOTE: needed to interface to LAPACK routines like xGELS."))
        (declare (optimize (debug 3)) ; (optimize speed (safety 0))
                 (type ,(nv-array-type lla-type) vector)
                 (type fixnum m nrhs n))
-       (let* ((result (make-nv-elements nrhs ,result-type))
+       (let* ((result (make-nv-elements ,result-type nrhs))
               (nrow (- m n)))
          (dotimes (col nrhs)
            (declare (fixnum col))
@@ -305,7 +301,7 @@ view.  NOTE: needed to interface to LAPACK routines like xGELS."))
 
 ;;;; nice interface for matrices, probably the most important macro
 
-(defmacro with-matrix-input (((matrix nrow ncol &optional
+(defmacro with-matrix-input (((matrix nrow ncol leading-dimension &optional
                                       keyword output)
                               pointer lla-type
                               &optional (set-restricted t)) &body body)
@@ -335,7 +331,8 @@ bound to variables.  NROW and NCOL have the following syntax:
            (if ,set-restricted
                (set-restricted ,matrix))
            (with-fortran-atoms (,@nrow-fortran-atom-expansion
-                                ,@ncol-fortran-atom-expansion)
+                                ,@ncol-fortran-atom-expansion
+                                (:integer ,leading-dimension (leading-dimension ,matrix)))
              (with-nv-input ((,matrix ,keyword ,output) ,pointer ,lla-type)
                ,@body)))))))
 

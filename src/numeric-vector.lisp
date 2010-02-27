@@ -24,56 +24,24 @@
 ;;; Naming convention: class names have NUMERIC-VECTOR spelled out,
 ;;; but functions/macros abbreviate it as nv.
 
-(define-abstract-class numeric-vector ()
-  ((elements :type (simple-array * (*))
+(defclass numeric-vector ()
+  ((lla-type :accessor lla-type :initarg :lla-type)
+   (elements :type (simple-array * (*))
              :initarg :elements :reader elements
              :documentation "Elements, a specialized simple-array.
              Initialized with zeros by default."))
   (:documentation "A numeric vector is a wrapper class around a simple
 vector ELEMENTS"))
 
-;;;; helper functions
+;;;; object creation functions
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (defun nv-class (lla-type)
-    "Return the class name corresponding to LLA-TYPE."
-    (append-lla-type numeric-vector lla-type))
-  (defun nv-array-type (lla-type &optional length)
-  "Return Lisp array type for a NUMERIC-VECTOR of LLA-TYPE."
-  `(simple-array ,(upgraded-array-element-type (lla-type->lisp-type lla-type))
-                 (,(if length length '*)))))
-
-(defun make-elements-load-form (nv)
-  (bind (((:slots-read-only elements) nv))
-    `(make-array ,(length elements)
-                 :element-type ',(lla-type->lisp-type (lla-type nv))
-                 :initial-contents ,elements)))
-
-(defmethod make-load-form ((nv numeric-vector) &optional environment)
-  (declare (ignore environment))
-  `(make-nv* ,(lla-type nv) ,(make-elements-load-form nv)))
-
-;;;; define the subclasses
-
-(expand-for-lla-types (lla-type)
-  (let* ((class-name (nv-class lla-type))
-         (lisp-type (lla-type->lisp-type lla-type))
-         (array-type (nv-array-type lla-type)))
-    `(progn
-       ;; class definition
-       (defclass ,class-name (numeric-vector)
-         ((data :type ,array-type))
-         (:documentation ,(format nil "numeric vector of type ~a"
-                                  lla-type)))
-       ;; LLA-type
-       (defmethod lla-type ((numeric-vector ,class-name))
-         ',lla-type)
-       ;; XELTTYPE
-       (defmethod xelttype ((numeric-vector ,class-name))
-         ',lisp-type))))
-
-
-;;;; some LLA-specific generic interface and utility functions
+(defun nv-array-type (&optional lla-type length)
+  "Return Lisp array type for a NUMERIC-VECTOR of LLA-TYPE.  If the
+latter is not given, simply return SIMPLE-ARRAY."
+  (if lla-type
+      `(simple-array ,(upgraded-array-element-type (lla-type->lisp-type lla-type))
+                     (,(if length length '*)))
+      'simple-array))
 
 (declaim (inline make-nv*))
 (defun make-nv* (lla-type elements)
@@ -81,20 +49,18 @@ vector ELEMENTS"))
 that there is no type checking, and elements are not copied: this is
 effectively shorthand for a MAKE-INSTANCE call.  For internal use, not
 exported."
-  (make-instance (nv-class lla-type) :elements elements))
+  (make-instance 'numeric-vector :lla-type lla-type :elements elements))
 
 (declaim (inline make-nv-elements))
-(defun make-nv-elements (length lla-type &optional (initial-element 0))
+(defun make-nv-elements (lla-type length &optional (initial-element 0))
   (expand-for-lla-types (lla-type :prologue (ecase lla-type))
     (let ((lisp-type (lla-type->lisp-type lla-type)))
       `(,lla-type (make-array length :element-type ',lisp-type
                               :initial-element (coerce initial-element ',lisp-type))))))
-  
-  
 
-(defun make-nv (length lla-type &optional (initial-element 0))
+(defun make-nv (lla-type length &optional (initial-element 0))
   "Create a NUMERIC-VECTOR of LLA-TYPE, optionally initialized with INITIAL-ELEMENTs."
-  (make-nv* lla-type (make-nv-elements length lla-type initial-element)))
+  (make-nv* lla-type (make-nv-elements lla-type length initial-element)))
 
 (defun create-nv (initial-contents &optional lla-type)
   "Create numeric vector with given initial contents (a list or a
@@ -108,7 +74,23 @@ Also see *FORCE-FLOAT* and *FORCE-DOUBLE*."
                             (lambda (x) (coerce x lisp-type))
                             initial-contents))))
 
-(defun copy-elements-into (source source-type source-index destination destination-type destination-index length)
+;;;; load forms
+
+(defun make-elements-load-form (nv)
+  (bind (((:slots-read-only elements) nv))
+    `(make-array ,(length elements)
+                 :element-type ',(lla-type->lisp-type (lla-type nv))
+                 :initial-contents ,elements)))
+
+(defmethod make-load-form ((nv numeric-vector) &optional environment)
+  (declare (ignore environment))
+  `(make-nv* ,(lla-type nv) ,(make-elements-load-form nv)))
+
+;;;; some LLA-specific generic interface and utility functions
+
+(defun copy-elements-into (source source-type source-index
+                           destination destination-type destination-index
+                           length)
   "Copy LENGTH elements from SOURCE to DESTINATION, starting at the
 given indexes.  Caller promises that SOURCE and DESTINATION are simple
 vectors conforming to the corresponding LLA type.  Return no value.
@@ -116,7 +98,7 @@ vectors conforming to the corresponding LLA type.  Return no value.
 Usage note: call this function whenever you need to copy/convert
 elements.  It is supposed to contain the optimized versions for
 conversion etc, so nothing else should be optimized."
-  ;; !!! need to optimize this sometime
+  ;; !!! need to optimize this some day
   (declare (ignore source-type))
   (let ((type (lla-type->lisp-type destination-type)))
     (iter
@@ -131,7 +113,7 @@ converting if necessary.  Note: to copy a numeric-vector, just use
 COPY-NV."
   (let* ((source (elements nv))
          (length (length source))
-         (destination (make-nv-elements length destination-type)))
+         (destination (make-nv-elements destination-type length)))
     (copy-elements-into source (lla-type nv) 0 destination destination-type 0 length)
     destination))
 
@@ -160,31 +142,13 @@ integers (eg /).  *Not exported*."
 same and COPY-P is nil, then ELEMENTS are shared.  If NV is an
 instance of a subclass of NUMERIC-VECTOR, the result is still a
 NUMERIC-VECTOR."
-  (make-instance (nv-class destination-type)
+  (make-instance 'numeric-vector :lla-type (lla-type nv)
                  :elements (copy-elements% nv destination-type copy-p)))
   
-;;;; XARRAY interface for NUMERIC-VECTOR
+;;; XARRAY interface
 
-;; (defgeneric default-lla-type (object)
-;;   (:documentation "Try to determine default lla-type for object.  If
-;;   this cannot be done, return nil.")
-;;   (:method ((vector vector))
-;;     (bind ((vector-lla-type (lisp-type->lla-type 
-;;                              (array-element-type vector)
-;;                              nil)))
-;;       (if vector-lla-type vector-lla-type
-;;           (find-element-type vector))))
-;;   (:method ((array array))
-;;     (default-lla-type (make-array (array-total-size array)
-;;                                   :element-type (array-element-type array)
-;;                                   :displaced-to array)))
-;;   (:method ((view view))
-;;     (default-lla-type (original-ancestor view)))
-;;   (:method ((nv numeric-vector))
-;;     (lla-type nv)))
-
-
-;; !! also check for speed? -- Tamas
+(defmethod xelttype ((nv numeric-vector))
+  (lla-type->lisp-type (lla-type nv)))
 
 (defmethod xrank ((nv numeric-vector))
   (declare (ignore nv))
@@ -194,22 +158,17 @@ NUMERIC-VECTOR."
   (length (elements nv)))
 
 (defmethod xdim ((nv numeric-vector) axis-number)
-  (unless (zerop axis-number)
-    (error "numeric-vectors are of rank 1"))
+  (assert (zerop axis-number) () 'xdim-invalid-axis-number)
   (xsize nv))
 
 (defmethod xdims ((nv numeric-vector))
   (list (xsize nv)))
 
-(expand-for-lla-types (lla-type)
-  `(defmethod xref ((nv ,(nv-class lla-type))  &rest subscripts)
-     (declare (optimize (speed 3))
-              #+sbcl (sb-ext:muffle-conditions sb-ext:compiler-note))
-     (aref (the ,(nv-array-type lla-type) (elements nv)) (first subscripts))))
+(defmethod xref ((nv numeric-vector) &rest subscripts)
+  (assert (not (cdr subscripts)) () 'xref-wrong-number-of-subscripts)
+  (aref (elements nv) (first subscripts)))
 
-(expand-for-lla-types (lla-type)
-  `(defmethod (setf xref) (value (nv ,(nv-class lla-type)) &rest subscripts)
-     (declare (optimize (speed 3))
-              #+sbcl (sb-ext:muffle-conditions sb-ext:compiler-note))
-     (setf (aref (the ,(nv-array-type lla-type) (elements nv)) (first subscripts))
-           value)))
+(defmethod (setf xref) (value (nv numeric-vector) &rest subscripts)
+  (assert (not (cdr subscripts)) () 'xref-wrong-number-of-subscripts)
+  (setf (aref (elements nv) (first subscripts))
+        value))

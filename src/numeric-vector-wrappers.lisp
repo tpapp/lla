@@ -63,7 +63,7 @@ used directly in other files, ie it is not part of the interface."
 #+sbcl
 (defmacro with-nv-input-only ((numeric-vector pointer lla-type copy-p) &body body)
   "Makes sure that the contents of numeric-vector are available at
-pointer for the duration of body, with the type lla-type (converting
+pointer for the duration of body, with the type LLA-type (converting
 if necessary).  Unless COPY-P, the body should NOT change the data at
 the pointer in any way, it is for reading only."
   (check-type pointer symbol)
@@ -106,7 +106,7 @@ vector is created, and pointer is bound to the null pointer."
   (once-only (length lla-type)
     `(progn
        (check-type ,lla-type lla-type)
-       (let ((,name (make-nv-elements ,length ,lla-type)))
+       (let ((,name (make-nv-elements ,lla-type ,length)))
          (if (zerop ,length)
              (let ((,pointer (null-pointer)))
                ,@body)
