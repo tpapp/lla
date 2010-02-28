@@ -2,11 +2,14 @@
 
 (in-package :lla-unit-tests)
 
+(deftestsuite basic-tests (lla-unit-tests)
+  ())
+
 ;;;;
 ;;;; utilities
 ;;;;
 
-(addtest (lla-unit-tests)
+(addtest (basic-tests)
   ;; This is basically testing that your system is ASCII.  If this
   ;; fails, then you should consider buying a more recent computer.
   ascii-characters
@@ -31,7 +34,7 @@
 
 ;; nv-input
 
-(addtest (lla-unit-tests)
+(addtest (basic-tests)
   nv-input
   (iter 
     (for (source destination) :in (coercible-pairs-list))
@@ -40,7 +43,7 @@
 
 ;; nv-input-copied
 
-(addtest (lla-unit-tests)
+(addtest (basic-tests)
   nv-input-copied
   (iter 
     (for (source destination) :in (coercible-pairs-list))
@@ -49,7 +52,7 @@
 
 ;; nv-output
 
-(addtest (lla-unit-tests)
+(addtest (basic-tests)
   vector-output
   (ensure (test-vector-output :integer))
   (ensure (test-vector-output :single))
@@ -60,7 +63,7 @@
 
 ;;;; diagonal
 
-(addtest (lla-unit-tests)
+(addtest (basic-tests)
   diagonal
   (ensure (== (diagonal->matrix 
                (create-diagonal '(1 2 3 4)))
@@ -73,7 +76,7 @@
                                   0 7 0)))
               (create-diagonal '(5 7)))))
 
-(addtest (lla-unit-tests)
+(addtest (basic-tests)
   diagonal-mm
   (let ((a (create-matrix 3 '(1 2 3
                               4 5 6)))
@@ -92,7 +95,7 @@
 ;;;; !!!! tests for lazy copy mechanism working correctly and copying on demand
 ;;;;
 
-(addtest (lla-unit-tests)
+(addtest (basic-tests)
   create-matrix
   ;; Note: here we compare to Lisp arrays.  If we compared to LLA
   ;; objects created with the #v read macro, we could never detect
@@ -112,7 +115,7 @@
                  #2A((1 2) (2 4))
                  :test #'x=)))
 
-(addtest (lla-unit-tests)
+(addtest (basic-tests)
   transpose
   ;; !!! test transpose for other classes, lower-upper triangular, symmetric, etc
   ;; !!! check for type of resulting class
@@ -122,7 +125,7 @@
                                  6.0d0 7.0d0 8.0d0
                                  9.0d0 10.0d0 11.0d0)))))
 
-(addtest (lla-unit-tests)
+(addtest (basic-tests)
   stack
   (ensure (== (stack-vertically 
                (create-nv '(1 2 3))

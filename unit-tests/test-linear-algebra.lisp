@@ -2,9 +2,12 @@
 
 (in-package #:lla-unit-tests)
 
+(deftestsuite linear-algebra-tests (lla-unit-tests)
+  ())
+
 ;;;; linear algebra
 
-(addtest (lla-unit-tests)
+(addtest (linear-algebra-tests)
   mm-solve-lu
   (bind ((a (create-matrix 2 '(1 2 3 4)))
          (x (create-nv '(5 6)))
@@ -16,7 +19,7 @@
     (ensure (== x-solve x))
     (ensure (== x-solve-lu x))))
 
-(addtest (lla-unit-tests)
+(addtest (linear-algebra-tests)
   invert
   (let ((m (create-matrix 2 '(1 2 3 4))))
     (flet ((invert (kind)
@@ -30,7 +33,7 @@
                   (create-matrix 2 '(1 0 -0.75 0.25) :kind :lower-triangular
                                  :lla-type :double))))))
 
-(addtest (lla-unit-tests)
+(addtest (linear-algebra-tests)
   eigen
   (bind ((a (create-matrix 2 '(1 2 3 4)))
          ((:values eigenvalues eigenvectors)
@@ -43,7 +46,7 @@
                  #2A((-0.8245648 -0.4159736)
                      (0.5657675 -0.9093767)) :test #'x=)))
 
-(addtest (lla-unit-tests)
+(addtest (linear-algebra-tests)
   hermitian
   (bind ((a (create-matrix 2 '(1 2 3 4)))
          (aa (mm t a))
@@ -57,7 +60,7 @@
                  #2A(( -0.8174156 0.5760484)
                      (0.5760484 0.8174156)) :test #'x=)))
 
-(addtest (lla-unit-tests)
+(addtest (linear-algebra-tests)
   least-squares
   (bind ((x (create-matrix 2 '(23 23
                                22 21
@@ -77,7 +80,7 @@
                                             -0.03885797  0.03810950)
                                         :kind :hermitian)))))
 
-(addtest (lla-unit-tests)
+(addtest (linear-algebra-tests)
   cholesky                       ; also tests hermitian factorizations
   (let* ((a (create-matrix 3 '(2 -1 0
                                -1 2 -1
@@ -105,7 +108,7 @@
     (ensure (== a\1 (invert cr)))
     (ensure (== a\1 (invert cl)))))
 
-(addtest (lla-unit-tests)
+(addtest (linear-algebra-tests)
   svd
   (bind ((a (create-matrix 2 '(1d0 2 3 4)))
          ((:values d u vt) (svd a :all :all)))
@@ -115,7 +118,7 @@
     (ensure (== vt (create-matrix 2 '(-0.5760484 -0.8174156
                                       0.8174156 -0.5760484))))))
 
-(addtest (lla-unit-tests)
+(addtest (linear-algebra-tests)
   svd-rectangular
   (bind ((a (create-matrix 2 '(1 2 3 4 5 6)))
          ((:values d u vt) (svd a :singular :singular)))
