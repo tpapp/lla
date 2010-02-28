@@ -23,5 +23,5 @@
     ((:file "test-basics")
      (:file "test-linear-algebra"))))
   :depends-on
-  (:cl-utilities :iterate :metabang-bind :xarray :anaphora :lla :named-readtables
-                 :lift))
+  (:cl-utilities :iterate :metabang-bind :xarray :anaphora :lla
+                 :named-readtables :lift))

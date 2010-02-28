@@ -61,7 +61,14 @@
     :serial t
     :components
      ((:file "fortran-call")
-      (:file "linear-algebra"))))
+      (:file "linear-algebra")))
+   (:module
+    "extensions"
+    :pathname #P"src/"
+    :depends-on ("basics")
+    :serial t
+    :components
+    ((:file "adjustable"))))
   :depends-on
   (:cl-utilities :iterate :metabang-bind :cffi :xarray
                  :anaphora :named-readtables :alexandria))

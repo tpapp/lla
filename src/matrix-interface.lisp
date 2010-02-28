@@ -59,7 +59,7 @@
 
 ;;;; General XARRAY interface.
 ;;;
-;;; Notes: XELTTYPE is already defined for the NUMERIC-VECTOR
+;;; Notes: XELTTYPE is already defined for the NUMERIC-VECTOR-LIKE
 ;;; superclasses.
 
 (defmethod xrank ((matrix dense-matrix-like))

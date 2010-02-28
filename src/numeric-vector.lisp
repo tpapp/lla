@@ -19,19 +19,30 @@
 ;;; NUMERIC-VECTORs can be accessed and manipulated directly as simple
 ;;; arrays. -- Tamas
 
-;;;; Numeric vectors
-
 ;;; Naming convention: class names have NUMERIC-VECTOR spelled out,
 ;;; but functions/macros abbreviate it as nv.
 
-(defclass numeric-vector ()
+;;;  Abstract class for numeric vector-like classes (basically all
+;;;  classes in LLA).
+
+(define-abstract-class numeric-vector-like ()
   ((lla-type :accessor lla-type :initarg :lla-type)
    (elements :type (simple-array * (*))
              :initarg :elements :reader elements
              :documentation "Elements, a specialized simple-array.
              Initialized with zeros by default."))
-  (:documentation "A numeric vector is a wrapper class around a simple
-vector ELEMENTS"))
+  (:documentation "A numeric vector-like object is a wrapper class
+around a simple vector ELEMENTS."))
+
+(defmethod xelttype ((nv numeric-vector-like))
+  (lla-type->lisp-type (lla-type nv)))
+
+;;;  Numeric vectors
+
+(defclass numeric-vector (numeric-vector-like)
+  ()
+  (:documentation "Numeric vector, length is the same as of
+  ELEMENTS."))
 
 ;;;; object creation functions
 
@@ -147,28 +158,25 @@ NUMERIC-VECTOR."
   
 ;;; XARRAY interface
 
-(defmethod xelttype ((nv numeric-vector))
-  (lla-type->lisp-type (lla-type nv)))
-
-(defmethod xrank ((nv numeric-vector))
+(defmethod xrank ((nv numeric-vector-like))
   (declare (ignore nv))
   1)
 
-(defmethod xsize ((nv numeric-vector))
+(defmethod xsize ((nv numeric-vector-like))
   (length (elements nv)))
 
-(defmethod xdim ((nv numeric-vector) axis-number)
+(defmethod xdim ((nv numeric-vector-like) axis-number)
   (assert (zerop axis-number) () 'xdim-invalid-axis-number)
   (xsize nv))
 
-(defmethod xdims ((nv numeric-vector))
+(defmethod xdims ((nv numeric-vector-like))
   (list (xsize nv)))
 
-(defmethod xref ((nv numeric-vector) &rest subscripts)
+(defmethod xref ((nv numeric-vector-like) &rest subscripts)
   (assert (not (cdr subscripts)) () 'xref-wrong-number-of-subscripts)
   (aref (elements nv) (first subscripts)))
 
-(defmethod (setf xref) (value (nv numeric-vector) &rest subscripts)
+(defmethod (setf xref) (value (nv numeric-vector-like) &rest subscripts)
   (assert (not (cdr subscripts)) () 'xref-wrong-number-of-subscripts)
   (setf (aref (elements nv) (first subscripts))
         value))

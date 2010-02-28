@@ -13,7 +13,7 @@
 ;;; resulting vector can be passed to LAPACK.  See SET-RESTRICTED and
 ;;; RESTRICTED-ELEMENTS for nuances.
 
-(define-abstract-class dense-matrix-like (numeric-vector)
+(define-abstract-class dense-matrix-like (numeric-vector-like)
   ((nrow :type dimension :initarg :nrow :reader nrow
 	 :documentation "The number of rows in the matrix.")
    (ncol :type dimension :initarg :ncol :reader ncol
@@ -84,7 +84,7 @@
   correct value."))
 
 (defgeneric set-restricted (matrix)
-  (:method ((matrix numeric-vector))
+  (:method ((matrix numeric-vector-like))
     ;; do nothing, return matrix
     matrix)
   (:documentation "Set restricted/unaccessed elements to the

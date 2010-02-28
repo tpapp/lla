@@ -2,9 +2,9 @@
 
 ;;; Diagonals are not matrices: they just *represent* a diagonal of a
 ;;; matrix, or a diagonal matrix.  They are a subclass of
-;;; NUMERIC-VECTOR.
+;;; NUMERIC-VECTOR-LIKE.
 
-(defclass diagonal (numeric-vector)
+(defclass diagonal (numeric-vector-like)
   ()
   (:documentation "Elements representing a diagonal of a matrix or a
   diagonal matrix."))

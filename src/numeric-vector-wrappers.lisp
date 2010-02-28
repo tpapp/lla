@@ -18,26 +18,26 @@
 ;;;; Implementation specific code should just modify the latter
 ;;;; macros.
 
-(defmacro with-nv-input (((numeric-vector &optional keyword output) pointer lla-type)
+(defmacro with-nv-input (((numeric-vector-like &optional keyword output) pointer lla-type)
                          &body body)
-  "Make sure that the contents of NUMERIC-VECTOR are available at
+  "Make sure that the contents of NUMERIC-VECTOR-LIKE are available at
 pointer for the duration of BODY.  Optional argument syntax:
-  (numeric-vector) is when body promises not to change the elements,
-  (numeric-vector :copied) copies the elements into a new location,
-  (numeric-vector :output-to output) copies and makes the output
+  (numeric-vector-like) is when body promises not to change the elements,
+  (numeric-vector-like :copied) copies the elements into a new location,
+  (numeric-vector-like :output-to output) copies and makes the output
   available as a lisp vector of conforming type."
   (cond
     ((and (symbolp output) (eq keyword :output-to))
-     ;; (numeric-vector :output-to output)
-     `(with-nv-input-output (,numeric-vector ,output ,pointer ,lla-type)
+     ;; (numeric-vector-like :output-to output)
+     `(with-nv-input-output (,numeric-vector-like ,output ,pointer ,lla-type)
         ,@body))
     ((and (eq keyword :copied) (null output))
      ;; force copy
-     `(with-nv-input-only (,numeric-vector ,pointer ,lla-type t)
+     `(with-nv-input-only (,numeric-vector-like ,pointer ,lla-type t)
         ,@body))
     ((null keyword)
      ;; don't force copy
-     `(with-nv-input-only (,numeric-vector ,pointer ,lla-type nil)
+     `(with-nv-input-only (,numeric-vector-like ,pointer ,lla-type nil)
         ,@body))
     (t (error "Invalid specification."))))
 
@@ -61,23 +61,23 @@ used directly in other files, ie it is not part of the interface."
 	 ,@body))))
 
 #+sbcl
-(defmacro with-nv-input-only ((numeric-vector pointer lla-type copy-p) &body body)
-  "Makes sure that the contents of numeric-vector are available at
+(defmacro with-nv-input-only ((numeric-vector-like pointer lla-type copy-p) &body body)
+  "Makes sure that the contents of numeric-vector-like are available at
 pointer for the duration of body, with the type LLA-type (converting
 if necessary).  Unless COPY-P, the body should NOT change the data at
 the pointer in any way, it is for reading only."
   (check-type pointer symbol)
-  (once-only (numeric-vector lla-type)
+  (once-only (numeric-vector-like lla-type)
     (with-unique-names (elements)
       `(progn
-	 (check-type ,numeric-vector numeric-vector)
+	 (check-type ,numeric-vector-like numeric-vector-like)
 	 (check-type ,lla-type lla-type)
-	 (let ((,elements (copy-elements% ,numeric-vector ,lla-type ,copy-p)))
+	 (let ((,elements (copy-elements% ,numeric-vector-like ,lla-type ,copy-p)))
 	   (with-pinned-vector (,elements ,pointer)
 	     ,@body))))))
 
 #+sbcl
-(defmacro with-nv-input-output ((numeric-vector output pointer lla-type)
+(defmacro with-nv-input-output ((numeric-vector-like output pointer lla-type)
                                &body body)
   "A combination of with-nv-input and -output: input is always copied
 \(and converted if necessary), is available during body, and the
@@ -85,11 +85,11 @@ contents end up in a _lisp vector_ of the appropriate type (ie it can
 be used as elements in MAKE-NV* and MAKE-MATRIX*), assigned to name."
   (check-type output symbol)
   (check-type pointer symbol)
-  (once-only (numeric-vector lla-type)
+  (once-only (numeric-vector-like lla-type)
     `(progn
-       (check-type ,numeric-vector numeric-vector)
+       (check-type ,numeric-vector-like numeric-vector-like)
        (check-type ,lla-type lla-type)
-       (let* ((,output (copy-elements% ,numeric-vector ,lla-type t)))
+       (let* ((,output (copy-elements% ,numeric-vector-like ,lla-type t)))
         (with-pinned-vector (,output ,pointer)
           ,@body)))))
 

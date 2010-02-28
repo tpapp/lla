@@ -33,18 +33,22 @@ constraint is binding."
 
 ;;;; numeric vectors
 
+(defun print-nv-elements (elements length stream)
+  "Print elements of vector, automatically truncating to *PRINT-LENGTH*."
+  (let ((truncated-length (min *print-length* length)))
+    (dotimes (i truncated-length)
+      (princ (standard-numeric-formatter (aref elements i)) stream)
+      (when (< (1+ i) truncated-length)
+        (princ #\space stream)))
+    (when (< truncated-length length)
+      (princ " ..." stream))))
+
 (defmethod print-object ((obj numeric-vector) stream)
   (print-unreadable-object (obj stream :type t)
     (with-slots (elements) obj
-      (let* ((length (length elements))
-	     (truncated-length (min *print-length* length)))
-	(format stream "~a with ~a elements: " (lla-type obj) length)
-	(dotimes (i truncated-length)
-	  (princ (standard-numeric-formatter (aref elements i)) stream)
-	  (when (< (1+ i) truncated-length)
-	    (princ #\space stream)))
-	(when (< truncated-length length)
-	  (princ " ..." stream))))))
+      (let* ((length (length elements)))
+	(format stream "~s with ~a elements: " (lla-type obj) length)
+        (print-nv-elements elements length stream)))))
 
 ;;;; matrices
 
@@ -128,7 +132,7 @@ printed instead (should be a string)."
   (check-type stream symbol)
   `(defmethod print-object ((,instance ,class) ,stream)
      (print-unreadable-object (,instance ,stream :type t)
-       (format ,stream "~a with ~a x ~a elements~&" (lla-type ,instance) (nrow ,instance) (ncol ,instance))
+       (format ,stream "~s with ~a x ~a elements~&" (lla-type ,instance) (nrow ,instance) (ncol ,instance))
        (with-slots ,slots ,instance
          ,@body))))
 

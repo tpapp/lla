@@ -85,6 +85,11 @@
 
    mmm mm lu solve invert eigen least-squares least-squares-xx-inverse
    cholesky svd hermitian-factorization
+
+   ;; adjustable
+
+   default-expansion adjustable size add adjust shrink clear adjustable-numeric-vector
+   make-anv row-adjustable-matrix make-ra-matrix
    
    ))
 

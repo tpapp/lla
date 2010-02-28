@@ -51,12 +51,13 @@ helper function, *NOT EXPORTED*."
 ;;;; extraction methods for factorization components and related
 ;;;; utility functions
 
-(defun copy-columns% (lla-type nrow ncol source source-size destination destination-size
+(defun copy-columns% (nrow ncol source source-type ld-source
+                      destination destination-type ld-destination
                       &optional (destination-offset 0))
   "Copy columns from source to destination."
   (dotimes (col ncol)
-    (copy-elements-into source lla-type (* col source-size)
-                        destination lla-type (+ destination-offset (* col destination-size))
+    (copy-elements-into source source-type (* col ld-source)
+                        destination destination-type (+ destination-offset (* col ld-destination))
                         nrow))
   (values))
 
@@ -66,8 +67,8 @@ of an LEADING-DIMENSIONxNCOL matrix, given as a Lisp vector with
 column-major indexing.  NOTE: needed to interface to LAPACK routines
 like xGELS."
   (let ((result (make-matrix lla-type nrow ncol :kind kind)))
-    (copy-columns% lla-type nrow ncol vector leading-dimension
-                   (elements result) nrow)
+    (copy-columns% nrow ncol vector lla-type leading-dimension
+                   (elements result) lla-type nrow)
     result))
 
 (defmethod component ((mf qr) (component (eql :R)) &key copy-p)

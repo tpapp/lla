@@ -6,4 +6,3 @@
                 with-fortran-atoms make-nv-elements
                 with-nv-input with-vector-output)
   (:export run-lla-tests))
-  
