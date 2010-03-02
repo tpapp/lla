@@ -23,7 +23,7 @@
   invert
   (let ((m (create-matrix 2 '(1 2 3 4))))
     (flet ((invert (kind)
-             (invert (copy-matrix m :kind kind))))
+             (invert (copy-matrix% m :kind kind))))
       (ensure (== (invert :dense) ; also tests (invert lu)
                   (create-matrix 2 '(-2 1 1.5 -0.5) :lla-type :double)))
       (ensure (== (invert :upper-triangular)

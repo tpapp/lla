@@ -13,7 +13,7 @@
 
 ;;; set-restricted* methods
 
-(defmethod set-restricted ((matrix lower-triangular-matrix))
+(defmethod set-restricted ((matrix upper-triangular-matrix))
   (declare (optimize speed))
   (bind (((:slots-read-only nrow ncol elements) matrix)
          (zero (coerce* 0 (lla-type matrix))))
@@ -237,10 +237,15 @@ matrices.  Also see *force-float*."
           (matrix-elements-from-sequence ncol lla-type initial-contents)))
     (make-matrix* lla-type nrow ncol elements :kind kind)))
 
-(defun copy-matrix (matrix &key (kind (matrix-kind matrix))
-                    (destination-type (lla-type matrix)) (copy-p nil))
+(defun copy-matrix% (matrix &key (kind (matrix-kind matrix))
+                     (destination-type (lla-type matrix)) (copy-p nil))
   "Copy or convert matrix to the given kind and destination-type.
-Copying is forced when COPY-P."
+Copying is forced when COPY-P.  Important usage note: if you want a
+matrix with restricted elements, it is advisable to set copy-p,
+otherwise a call to SET-RESTRICTED hidden somewhere might change the
+original matrix, without your intention.  Also, SET-RESTRICTED is not
+called by this function.  That's why this function is not exported.
+Use with caution."
   (make-matrix* (lla-type matrix) (nrow matrix) (ncol matrix)
                 (copy-elements% matrix destination-type copy-p)
                 :kind kind))

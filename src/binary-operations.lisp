@@ -117,6 +117,10 @@
   ;;   triangular one would be diagonal, but here constrain ourselves
   ;;   to returning a dense-matrix-like object.  ??? Maybe we could
   ;;   return a diagonal here, I haven't fixed this in xarray semantics.
+  ;;
+  ;; !! Currently, we just call SET-RESTRICTED indiscriminately, but
+  ;; !! it is not always needed.  Not a main concern at the moment,
+  ;; !! treating all the cases right would be a nest of nasty bugs.
   "Define a binary operation OP on two arguments, of which one or two
 are matrices.  INTEGER-TO-FLOAT-P should be true iff integers are not
 closed under OP.  PRESERVE-KIND-P indicates whether the elementwise
@@ -134,6 +138,8 @@ X."
      (defmethod ,method-name ((a dense-matrix-like) (b dense-matrix-like)
                               &key &allow-other-keys)
        (assert (equalp (xdims a) (xdims b)) () "A and B don't have equal dimensions.")
+       (set-restricted a)
+       (set-restricted b)
        (let* ((a-kind (matrix-kind a))
               (b-kind (matrix-kind b))
               (result-kind 
@@ -153,6 +159,7 @@ X."
                            result-kind)))
      (defmethod ,method-name ((a dense-matrix-like) (b number)
                               &key &allow-other-keys)
+       (set-restricted a)
        (->similar-matrix a (element-scalar-operation% 
                             #',op a b
                             :integer-to-float-p ,integer-to-float-p)
@@ -161,6 +168,7 @@ X."
                               :dense)))
      (defmethod ,method-name ((a number) (b dense-matrix-like)
                               &key &allow-other-keys)
+       (set-restricted b)
        (->similar-matrix b (element-scalar-operation% 
                             #',op b a
                             :integer-to-float-p ,integer-to-float-p

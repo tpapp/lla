@@ -46,7 +46,7 @@ helper function, *NOT EXPORTED*."
       ((:complex-single :complex-double)
          (transpose% matrix :hermitian conjugate-p))
       (otherwise
-         (copy-matrix matrix :copy-p t)))))
+         (copy-matrix% matrix :copy-p t)))))
 
 ;;;; extraction methods for factorization components and related
 ;;;; utility functions
@@ -80,7 +80,7 @@ like xGELS."
 (defmethod component ((mf cholesky) component &key (copy-p nil))
   (flet ((copy-maybe (matrix)
            (if copy-p
-               (copy-matrix matrix :copy-p t)
+               (copy-matrix% matrix :copy-p t)
                matrix)))
     (bind (((:slots-read-only factor) mf))
       (etypecase factor

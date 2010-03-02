@@ -1,6 +1,8 @@
 ;;; -*- Mode:Lisp; Syntax:ANSI-Common-Lisp; Coding:us-ascii -*-
 
 (in-package :lla-unit-tests)
+(in-readtable lla:v-syntax)
+
 
 (deftestsuite basic-tests (lla-unit-tests)
   ())
@@ -138,3 +140,19 @@
                                 0 -2 0
                                 0 0 -3)))))
 
+
+;;;; set-restricted
+
+(addtest (basic-tests)
+  set-restricted-and-as
+  (bind ((dense #2v(1 2 3 4))
+         (hermitian (as 'hermitian-matrix dense))
+         (upper-triangular (as 'upper-triangular-matrix dense))
+         (lower-triangular (as 'lower-triangular-matrix dense))
+         (*lift-equality-test* #'equalp))
+    (set-restricted hermitian)
+    (ensure-same (elements hermitian) #(1 2 2 4))
+    (set-restricted upper-triangular)
+    (ensure-same (elements upper-triangular) #(1 0 2 4))
+    (set-restricted lower-triangular)
+    (ensure-same (elements lower-triangular) #(1 3 0 4))))

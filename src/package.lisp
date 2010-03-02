@@ -71,9 +71,9 @@
    
    ;; matrix-operations
    
-   cm-index2 make-matrix* make-matrix create-matrix copy-matrix
-   reshape vector->column vector->row transpose
-   stack-horizontally stack-vertically
+   cm-index2 make-matrix* make-matrix create-matrix reshape
+   vector->column vector->row transpose stack-horizontally
+   stack-vertically
 
    ;; readmacros
 
