@@ -88,7 +88,7 @@
 
    ;; adjustable
 
-   default-expansion adjustable size add adjust shrink clear adjustable-numeric-vector
+   default-expansion adjustable size capacity add shrink adjustable-numeric-vector
    make-anv row-adjustable-matrix make-ra-matrix
    
    ))

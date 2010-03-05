@@ -74,3 +74,9 @@ plural of the old one (generated using format)."
               :displaced-to array))
 
 (define-modify-macro multf (&rest values) * "Multiply by the arguments.")
+
+(defun relative-value% (value new-value relative-p)
+  "Calculate new value, depending on RELATIVE-P."
+  (if relative-p
+      (+ value new-value)
+      new-value))
