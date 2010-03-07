@@ -143,14 +143,14 @@ by foreign calls whenever that is supported by the implementation."))
 
 (defmethod as* ((class (eql 'adjustable-numeric-vector))
                 (nv numeric-vector) copy-p options)
-  (declare (ignore copy-p))
+  (declare (ignore copy-p))             ; always copy
   (bind (((&key (lla-type (lla-type nv)) (capacity (xsize nv))) options)
          (result (make-anv lla-type 0 :capacity capacity)))
     (add result nv)))
 
 (defmethod as* ((class (eql 'numeric-vector)) (anv adjustable-numeric-vector)
                 copy-p options)
-  (declare (ignore copy-p))
+  (declare (ignore copy-p))             ; always copy
   (bind (((:slots-read-only (anv-lla-type lla-type) (anv-elements elements) size) anv)
          ((&key (lla-type anv-lla-type)) options)
          (result (make-nv lla-type size)))
@@ -158,6 +158,17 @@ by foreign calls whenever that is supported by the implementation."))
                         (elements result) lla-type 0
                         size)
     result))
+
+(defmethod as* ((class (eql 'vector)) (anv adjustable-numeric-vector)
+                copy-p options)
+  (declare (ignore copy-p))             ; always copy
+  (bind (((:slots-read-only lla-type elements size) anv)
+         ((&key (element-type (lla-type->lisp-type lla-type))) options)
+         (result (make-array size :element-type element-type)))
+    (dotimes (i size)
+      (setf (aref result i) (aref elements i)))
+    result))
+
 
 ;;;  row-adjustable-matrix
 
