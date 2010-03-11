@@ -173,8 +173,9 @@ by foreign calls whenever that is supported by the implementation."))
 ;;;  row-adjustable-matrix
 
 (define-dense-matrix-subclass row-adjustable (adjustable)
-  "(* CAPACITY NCOL) ELEMENTS are allocated, but only the
-  first NROW are filled."
+  "(* CAPACITY NCOL) ELEMENTS are allocated, but only the first NROW
+  are filled.  NCOL will automatically be adjusted by ADD when NROW is
+  zero."
   ((capacity :reader capacity :initarg :capacity
              :documentation "Also the leading dimension of the matrix.")))
 
@@ -223,11 +224,25 @@ by foreign calls whenever that is supported by the implementation."))
             capacity new-capacity))
     new-capacity))
 
+(defmethod (setf ncol) (new-ncol (ram row-adjustable-matrix))
+  ;; ?? Is it resctrictive that we can only change ncol when there are
+  ;; no elements in the matrix?  I think it is reasonable, otherwise
+  ;; we would need semantics for new elements etc.  The purpose of
+  ;; this feature is to facilitate automagically guessing NCOL at the
+  ;; first ADD operation.
+  (bind (((:slots lla-type ncol nrow elements capacity) ram))
+    (assert (zerop nrow) () "NCOL can only be changed when (SIZE=)NROW=0.")
+    (setf ncol new-ncol)
+    (setf elements (make-nv-elements lla-type (* capacity ncol)))
+    ncol))
+
 (defmethod add ((ram row-adjustable-matrix) (matrix dense-matrix-like))
   (bind (((:slots elements nrow ncol default-expansion capacity lla-type) ram)
          ((:slots-read-only (nrow-matrix nrow) (ncol-matrix ncol)) matrix)
          (new-nrow (+ nrow nrow-matrix)))
-    (assert (= ncol ncol-matrix) () "Columns don't match.")
+    (if (zerop nrow)
+        (setf (ncol ram) ncol-matrix)
+        (assert (= ncol ncol-matrix) () "Columns don't match."))
     (unless (<= new-nrow capacity)
       (setf (capacity ram) (max new-nrow
                                 (+ nrow default-expansion))))

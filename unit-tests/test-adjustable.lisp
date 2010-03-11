@@ -31,7 +31,8 @@
   (let ((m #2v(1 2 3 4))
         (a #v(5 6))
         (b #2v(7 8 9 10))
-        (ram (make-ra-matrix :double 0 2))
+        ;; ncol=1 is deliberate
+        (ram (make-ra-matrix :double 0 1))
         (*lift-equality-test* #'x=))
     (add ram m)
     (ensure-same ram m)
