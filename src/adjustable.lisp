@@ -259,7 +259,6 @@ by foreign calls whenever that is supported by the implementation."))
 (defmethod add ((ram row-adjustable-matrix) (diagonal diagonal))
   (add ram (diagonal->matrix diagonal)))
 
-
 (defmethod as* ((class (eql 'row-adjustable-matrix)) (matrix dense-matrix-like)
                 copy-p options)
   (declare (ignore copy-p))
@@ -272,7 +271,7 @@ by foreign calls whenever that is supported by the implementation."))
 (defmethod as* ((class (eql 'dense-matrix)) (ram row-adjustable-matrix)
                 copy-p options)
   (declare (ignore copy-p))
-  (bind (((:slots-read-only lla-type elements nrow ncol leading-dimension) ram)
+  (bind (((:accessors-r/o lla-type elements nrow ncol leading-dimension) ram)
          ((&key (lla-type lla-type)) options)
          (result (make-matrix lla-type nrow ncol)))
     (copy-columns% nrow ncol
