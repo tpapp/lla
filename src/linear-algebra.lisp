@@ -639,3 +639,16 @@ vectors, DENSE-MATRIX)."
                       (if (zerop vt-nrow)
                           nil
                           (make-matrix* type vt-nrow n vt))))))))))
+
+;;; trace
+
+(defgeneric tr (a)
+  (:documentation "Trace of a square matrix.")
+  (:method ((a dense-matrix-like))
+    (check-type a square-matrix)
+    (bind (((:lla-matrix a) a))
+      (iter
+        (for i :from 0 :below (nrow a))
+        (summing (a i i)))))
+  (:method ((a diagonal))
+    (reduce #'+ (elements a))))

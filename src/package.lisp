@@ -84,7 +84,7 @@
    ;; linear-algebra
 
    mmm mm lu solve invert eigen least-squares least-squares-xx-inverse
-   cholesky svd hermitian-factorization
+   cholesky svd hermitian-factorization tr
 
    ;; adjustable
 

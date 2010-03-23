@@ -129,3 +129,10 @@
     (ensure (== vt (create-matrix 2 '(0.6196295 0.7848945
                                       -0.7848945 0.6196295))))))
 
+(addtest (linear-algebra-tests)
+  tr
+  (ensure-same (tr #2v(1 2 3 4)) 5d0)
+  (ensure-same (tr #2v:hermitian(1 2 0 9)) 10d0)
+  (ensure-same (tr #2v:lower(1 2 3 4)) 5d0)
+  (ensure-same (tr #2v:upper(1 2 3 4)) 5d0)
+  (ensure-same (tr #v:diagonal(2 15)) 17d0))
