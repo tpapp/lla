@@ -70,6 +70,17 @@ by foreign calls whenever that is supported by the implementation."))
   (:method ((adjustable adjustable))
     (setf (capacity adjustable) (size adjustable))))
 
+(defun ensure-excess-capacity (adjustable excess-capacity)
+  "Adjust capacity so that (<= (+ (SIZE ADJUSTABLE)
+EXCESS-CAPACITY) (CAPACITY ADJUSTABLE)).  The inequality may be
+strict (see default-expansion).  Return new capacity."
+  (bind (((:accessors capacity size default-expansion) adjustable)
+         (required-capacity (+ size excess-capacity)))
+    (if (<= capacity required-capacity)
+        (setf capacity (max required-capacity
+                            (+ size default-expansion)))
+        capacity)))
+
 ;;;  adjustable-numeric-vector
 
 (defclass adjustable-numeric-vector (adjustable numeric-vector-like)
@@ -121,10 +132,8 @@ by foreign calls whenever that is supported by the implementation."))
     new-capacity))
 
 (defmethod add ((anv adjustable-numeric-vector) (x number))
-  (bind (((:slots default-expansion elements size) anv)
-         (new-size (1+ size)))
-    (unless (<= new-size size)
-      (setf (capacity anv) (max new-size (+ size default-expansion))))
+  (bind (((:slots default-expansion elements size) anv))
+    (ensure-excess-capacity anv 1)
     (setf (aref elements size) x)
     (incf size))
   anv)
@@ -132,10 +141,8 @@ by foreign calls whenever that is supported by the implementation."))
 (defmethod add ((anv adjustable-numeric-vector) (vector numeric-vector))
   (bind (((:slots lla-type default-expansion elements size) anv)
          ((:slots (vector-lla-type lla-type) (vector-elements elements)) vector)
-         (vector-length (length vector-elements))
-         (new-size (+ size vector-length)))
-    (unless (<= new-size size)
-      (setf (capacity anv) (max new-size (+ size default-expansion))))
+         (vector-length (length vector-elements)))
+    (ensure-excess-capacity anv vector-length)
     (copy-elements-into vector-elements vector-lla-type 0
                         elements lla-type size vector-length)
     (incf size vector-length))
@@ -237,20 +244,17 @@ by foreign calls whenever that is supported by the implementation."))
     ncol))
 
 (defmethod add ((ram row-adjustable-matrix) (matrix dense-matrix-like))
-  (bind (((:slots elements nrow ncol default-expansion capacity lla-type) ram)
-         ((:slots-read-only (nrow-matrix nrow) (ncol-matrix ncol)) matrix)
-         (new-nrow (+ nrow nrow-matrix)))
+  (bind (((:slots elements nrow ncol capacity lla-type) ram)
+         ((:slots-read-only (nrow-matrix nrow) (ncol-matrix ncol)) matrix))
     (if (zerop nrow)
         (setf (ncol ram) ncol-matrix)
         (assert (= ncol ncol-matrix) () "Columns don't match."))
-    (unless (<= new-nrow capacity)
-      (setf (capacity ram) (max new-nrow
-                                (+ nrow default-expansion))))
     (set-restricted matrix)
+    (ensure-excess-capacity ram nrow-matrix)
     (copy-columns% nrow-matrix ncol
                    (elements matrix) (lla-type matrix) (leading-dimension matrix)
                    elements lla-type capacity nrow)
-    (setf nrow new-nrow))
+    (incf nrow nrow-matrix))
   ram)
 
 (defmethod add ((ram row-adjustable-matrix) (nv numeric-vector))
@@ -258,6 +262,17 @@ by foreign calls whenever that is supported by the implementation."))
 
 (defmethod add ((ram row-adjustable-matrix) (diagonal diagonal))
   (add ram (diagonal->matrix diagonal)))
+
+(defmethod add ((ram row-adjustable-matrix) (x number))
+  ;; only works for matrices of 1 column
+  (bind (((:slots elements nrow ncol lla-type) ram))
+    (if (zerop nrow)
+        (setf (ncol ram) 1)
+        (assert (= ncol 1) () "Columns don't match."))
+    (ensure-excess-capacity ram 1)
+    (setf (aref elements nrow) x)
+    (incf nrow))
+  ram)
 
 (defmethod as* ((class (eql 'row-adjustable-matrix)) (matrix dense-matrix-like)
                 copy-p options)

@@ -48,4 +48,11 @@
     (ensure-same ram (stack-vertically m a))
     (ensure-same (capacity ram) (1+ (xdim m 1)))))
 
-
+(addtest (adjustable-tests)
+  row-adjustable-matrix-one-column
+  (let ((ram (make-ra-matrix :double 0 0))
+        (*lift-equality-test* #'x=))
+    (add ram 5d0)
+    (ensure-same ram #1v(5))
+    (add ram #1v(1 2 3 4))
+    (ensure-same ram #1v(5 1 2 3 4))))
