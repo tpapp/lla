@@ -2,6 +2,8 @@
 
 (in-package #:lla-unit-tests)
 
+(in-readtable lla:v-syntax)
+
 (deftestsuite linear-algebra-tests (lla-unit-tests)
   ())
 
