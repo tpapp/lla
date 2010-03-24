@@ -270,7 +270,7 @@ strict (see default-expansion).  Return new capacity."
         (setf (ncol ram) 1)
         (assert (= ncol 1) () "Columns don't match."))
     (ensure-excess-capacity ram 1)
-    (setf (aref elements nrow) x)
+    (setf (aref elements nrow) (coerce* x lla-type))
     (incf nrow))
   ram)
 

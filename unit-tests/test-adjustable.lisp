@@ -52,7 +52,7 @@
   row-adjustable-matrix-one-column
   (let ((ram (make-ra-matrix :double 0 0))
         (*lift-equality-test* #'x=))
-    (add ram 5d0)
+    (add ram 5)
     (ensure-same ram #1v(5))
     (add ram #1v(1 2 3 4))
     (ensure-same ram #1v(5 1 2 3 4))))
