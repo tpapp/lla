@@ -520,19 +520,22 @@ first."))
 ;;;; least squares calculations
 ;;;;
 
-(defgeneric least-squares (a b)
-  (:documentation "Return (values x qr ss nu), where x = argmin_x
-L2norm( b-Ax ), solving a least squares problem, QR is the QR
-decomposition of A, and SS is the sum of squares for each column of B.
-B can have multiple columns, in which case X will have the same number
-of columns, each corresponding to a different column of B.  nu is the
+(defgeneric least-squares (y x)
+  (:documentation "Return (values b qr ss nu), where beta = argmin_b
+L2norm( y-Xb ), solving a least squares problem, QR is the QR
+decomposition of A, and SS is the sum of squares for each column of Y.
+Y can have multiple columns, in which case X will have the same number
+of columns, each corresponding to a different column of Y.  NU is the
 degrees of freedom."))
 
-(defmethod least-squares ((a dense-matrix-like) (b dense-matrix-like))
-  (bind ((common-type (lb-target-type a b))
+(defmethod least-squares ((y dense-matrix-like) (x dense-matrix-like))
+  ;; Note: the naming convention (y,X,b) is different from LAPACK's
+  ;; (b,A,x).  Sorry if this creates confusion, I decided to follow
+  ;; standard statistical notation.
+  (bind ((common-type (lb-target-type x y))
          (procedure (lb-procedure-name 'gels common-type)))
-    (with-matrix-inputs (((a (m m%) (n n%) lda% :output-to qr) a% common-type)
-                         ((b m2 (nrhs nrhs%) ldb% :output-to x) b% common-type))
+    (with-matrix-inputs (((x (m m%) (n n%) lda% :output-to qr) a% common-type)
+                         ((y m2 (nrhs nrhs%) ldb% :output-to b) b% common-type))
       (assert (= m m2))
       (unless (<= n m)
         (error "A doesn't have enough columns for least squares"))
@@ -541,22 +544,22 @@ degrees of freedom."))
           (call-with-info-check procedure n-char% m% n% nrhs% a% lda% b% ldb%
                                 work% lwork% info%)))
       (values 
-        (matrix-from-first-rows common-type x n nrhs m)
+        (matrix-from-first-rows common-type b n nrhs m)
         (make-instance 'qr :qr-matrix (make-matrix* common-type m n qr))
-        (sum-last-rows x common-type m nrhs n)
+        (sum-last-rows b common-type m nrhs n)
         (- m n)))))
 
 
 ;;; univariate versions of least squares: vector ~ vector, vector ~ matrix
 
-(defmethod least-squares ((a dense-matrix-like) (b numeric-vector))
-  (bind (((:values x qr ss nu) (least-squares a (vector->column b))))
-    (values (copy-nv x) qr (aref (elements ss) 0) nu)))
+(defmethod least-squares ((y numeric-vector) (x dense-matrix-like))
+  (bind (((:values b qr ss nu) (least-squares (vector->column y) x)))
+    (values (copy-nv b) qr (aref (elements ss) 0) nu)))
 
-(defmethod least-squares ((a numeric-vector) (b numeric-vector))
-  (bind (((:values x qr ss nu) (least-squares (vector->column a)
-                                              (vector->column b))))
-    (values (aref (elements x) 0) qr (aref (elements ss) 0) nu)))
+(defmethod least-squares ((y numeric-vector) (x numeric-vector))
+  (bind (((:values b qr ss nu) (least-squares (vector->column y)
+                                              (vector->column x))))
+    (values (aref (elements b) 0) qr (aref (elements ss) 0) nu)))
 
 (defun least-squares-xx-inverse (qr &key (reconstruct-p t) )
   "Calculate (X^T X)-1 (which is used for calculating the variance of

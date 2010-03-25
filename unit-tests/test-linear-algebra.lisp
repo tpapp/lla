@@ -70,7 +70,7 @@
                                29 32
                                24 29)))
          (y (create-nv '(67 63 65 94 84)))
-         ((:values beta qr ss) (least-squares x y))
+         ((:values beta qr ss) (least-squares y x))
          (raw-var (least-squares-xx-inverse qr))
          (variance (bind (((row col) (xdims x))
                           (degf (- row col))
