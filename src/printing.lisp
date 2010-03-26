@@ -7,7 +7,7 @@
 (defun print-length-truncate (dimension)
   "Return values (min dimension *print-length*) and whether the
 constraint is binding."
-  (if (<= dimension *print-length*)
+  (if (or (not *print-length*) (<= dimension *print-length*))
       (values dimension nil)
       (values *print-length* t)))
 
@@ -35,12 +35,12 @@ constraint is binding."
 
 (defun print-nv-elements (elements length stream)
   "Print elements of vector, automatically truncating to *PRINT-LENGTH*."
-  (let ((truncated-length (min *print-length* length)))
+  (bind (((:values truncated-length truncated?) (print-length-truncate length)))
     (dotimes (i truncated-length)
       (princ (standard-numeric-formatter (aref elements i)) stream)
       (when (< (1+ i) truncated-length)
         (princ #\space stream)))
-    (when (< truncated-length length)
+    (when truncated?
       (princ " ..." stream))))
 
 (defmethod print-object ((obj numeric-vector) stream)

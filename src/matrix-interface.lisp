@@ -259,13 +259,18 @@ size."
                   (if copy-p (copy-seq elements) elements)
                   :kind kind)))
 
-(defun vector->column (nv &key (copy-p nil))
-  "Return vector as a nx1 dense matrix of the same type."
+(defgeneric vector->column (vector &key copy-p)
+  (:documentation "Return vector as a nx1 dense matrix of the same type."))
+
+(defmethod vector->column ((nv numeric-vector) &key (copy-p nil))
   (let ((elements (elements nv)))
     (make-matrix* (lla-type nv) (length elements) 1
                   (if copy-p (copy-seq elements) elements))))
 
-(defun vector->row (nv &key (copy-p nil))
+(defgeneric vector->row (vector &key copy-p)
+  (:documentation "Return vector as a 1xn dense matrix of the same type."))
+
+(defmethod vector->row ((nv numeric-vector) &key (copy-p nil))
   "Return vector as a 1xn dense matrix of the same type."
   (let ((elements (elements nv)))
     (make-matrix* (lla-type nv) 1 (length elements)

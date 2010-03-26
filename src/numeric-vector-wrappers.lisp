@@ -41,6 +41,8 @@ pointer for the duration of BODY.  Optional argument syntax:
         ,@body))
     (t (error "Invalid specification."))))
 
+(define-with-multiple-bindings with-nv-input)
+
 
 ;;;;
 ;;;;  Implementation of wrapper macros.

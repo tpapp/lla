@@ -118,14 +118,15 @@ conversion etc, so nothing else should be optimized."
       (setf (aref destination destination-i) (coerce (aref source source-i) type))))
   (values))
 
-(defun copy-elements (nv &optional (destination-type (lla-type nv)))
+(defun copy-elements (nv &key (destination-type (lla-type nv))
+                      (length (length (elements nv))))
   "Return a vector that is a copy if ELEMENTS in NUMERIC-VECTOR,
 converting if necessary.  Note: to copy a numeric-vector, just use
 COPY-NV."
   (let* ((source (elements nv))
-         (length (length source))
          (destination (make-nv-elements destination-type length)))
-    (copy-elements-into source (lla-type nv) 0 destination destination-type 0 length)
+    (copy-elements-into source (lla-type nv) 0 
+                        destination destination-type 0 length)
     destination))
 
 (defun copy-elements% (nv destination-type copy-p)
@@ -135,7 +136,7 @@ meant to be used in functions that implement the DESTINATION-TYPE &
 COPY-P semantics."
   (let ((source-type (lla-type nv)))
     (if (or copy-p (not (eq destination-type source-type)))
-        (copy-elements nv destination-type)
+        (copy-elements nv :destination-type destination-type)
         (elements nv))))
 
 (defun float-elements% (nv &optional (float-type :double))
@@ -145,7 +146,7 @@ value.  Usage note: for use in operations which are not closed on
 integers (eg /).  *Not exported*."
   (let ((type (lla-type nv)))
     (if (eq type :integer)
-        (values (copy-elements nv float-type) float-type)
+        (values (copy-elements nv :destination-type float-type) float-type)
         (values (elements nv) type))))
 
 (defun copy-nv (nv &key (destination-type (lla-type nv)) (copy-p nil))

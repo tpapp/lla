@@ -83,6 +83,22 @@
                                         :kind :hermitian)))))
 
 (addtest (linear-algebra-tests)
+  constrained-least-squares
+  ;;  Taken from the LAPACK documentation
+  (bind ((x #4v(1 1 1 1
+                  1 3 1 1
+                  1 -1 3 1
+                  1 1 1 3
+                  1 1 1 -1))
+         (y #v(2 1 6 3 1))
+         (z #4v(1 1 1 -1
+                  1 -1 1 1
+                  1 1 -1 1))
+         (w #v(1 3 -1)))
+    (ensure-same (constrained-least-squares y x z w)
+                 #v(0.5 -0.5 1.5 0.5) :test #'==)))
+
+(addtest (linear-algebra-tests)
   cholesky                       ; also tests hermitian factorizations
   (let* ((a (create-matrix 3 '(2 -1 0
                                -1 2 -1
@@ -113,12 +129,21 @@
 (addtest (linear-algebra-tests)
   svd
   (bind ((a (create-matrix 2 '(1d0 2 3 4)))
-         ((:values d u vt) (svd a :all :all)))
-    (ensure (== d (create-diagonal '(5.4649857 0.3659662))))
-    (ensure (== u (create-matrix 2 '(-0.4045536 -0.9145143
-                                     -0.9145143  0.4045536))))
-    (ensure (== vt (create-matrix 2 '(-0.5760484 -0.8174156
-                                      0.8174156 -0.5760484))))))
+         (d-true #v:diagonal(5.4649857 0.3659662))
+         (u-true #2v(-0.4045536 -0.9145143
+                     -0.9145143  0.4045536))
+         (vt-true #2v(-0.5760484 -0.8174156
+                      0.8174156 -0.5760484))
+         ((:values d u vt) (svd a :all :all))
+         ((:values d2 u2 vt2) (svd a :none :none)))
+    ;; all, all
+    (ensure (== d d-true))
+    (ensure (== u u-true))
+    (ensure (== vt vt-true))
+    ;; none, none
+    (ensure (== d2 d-true))
+    (ensure (not u2))
+    (ensure (not vt2))))
 
 (addtest (linear-algebra-tests)
   svd-rectangular

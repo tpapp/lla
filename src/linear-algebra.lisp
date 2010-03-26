@@ -163,7 +163,6 @@
         (make-instance 'hermitian-factorization 
                        :factor (make-matrix* type n n factor :kind kind)
                        :ipiv (make-nv* :integer ipiv))))))
-  
 
 ;;;; solving linear equations
 
@@ -534,14 +533,14 @@ degrees of freedom."))
   ;; standard statistical notation.
   (bind ((common-type (lb-target-type x y))
          (procedure (lb-procedure-name 'gels common-type)))
-    (with-matrix-inputs (((x (m m%) (n n%) lda% :output-to qr) a% common-type)
-                         ((y m2 (nrhs nrhs%) ldb% :output-to b) b% common-type))
+    (with-matrix-inputs (((x (m m%) (n n%) ldx% :output-to qr) x% common-type)
+                         ((y m2 (nrhs nrhs%) ldy% :output-to b) y% common-type))
       (assert (= m m2))
       (unless (<= n m)
         (error "A doesn't have enough columns for least squares"))
       (with-fortran-atoms ((:char n-char% #\N))
         (with-work-query (lwork% work% :double)
-          (call-with-info-check procedure n-char% m% n% nrhs% a% lda% b% ldb%
+          (call-with-info-check procedure n-char% m% n% nrhs% x% ldx% y% ldy%
                                 work% lwork% info%)))
       (values 
         (matrix-from-first-rows common-type b n nrhs m)
@@ -552,7 +551,7 @@ degrees of freedom."))
 
 ;;; univariate versions of least squares: vector ~ vector, vector ~ matrix
 
-(defmethod least-squares ((y numeric-vector) (x dense-matrix-like))
+(defmethod least-squares ((y numeric-vector-like) (x dense-matrix-like))
   (bind (((:values b qr ss nu) (least-squares (vector->column y) x)))
     (values (copy-nv b) qr (aref (elements ss) 0) nu)))
 
@@ -573,6 +572,36 @@ used to generate random draws, etc."
     (assert (<= ncol nrow))
     (invert (make-instance 'cholesky :factor (component qr :R))
             :reconstruct-p reconstruct-p)))
+
+
+;;;; constrained-least-squares
+
+(defgeneric constrained-least-squares (y x z w)
+  (:documentation "Solve the (linearly) constrained least squares
+  problem min_b |y-Xb|_2 subject to Zx=w.  Return b."))
+
+(defmethod constrained-least-squares ((y numeric-vector) (x dense-matrix-like)
+                                      (z dense-matrix-like) (w numeric-vector))
+  "Solve the (linearly) constrained least squares problem min_b |y-Xb|_2
+  subject to Zx=w."
+  ;; Note: mapping between the function parameters/variables and
+  ;; LAPACK counterparts is as follows: y->c, X->A, x->b, Z->B, w->d,
+  (bind ((common-type (lb-target-type y x z w))
+         (procedure (lb-procedure-name 'gglse common-type)))
+    ;; !! after call, x and z contain decompositions, currently not collected
+    (with-matrix-inputs (((x (m m%) (n n%) ldx% :copied) x% common-type)
+                         ((z (p p%) n2 ldz% :copied) z% common-type))
+      (assert (= n n2) () "Dimension mismatch between z and x")
+      (assert (= m (xsize y)) () "Dimension mismatch between x and y")
+      (assert (= p (xsize w)) () "Dimension mismatch between z and w")
+      ;; !! after call, y contains sum of squares, currently not collected
+      (with-nv-inputs (((y :copied) y% common-type)
+                       ((w :copied) w% common-type))
+        (with-vector-output (b n b% common-type)
+          (with-work-query (lwork% work% common-type)
+            (call-with-info-check procedure m% n% p% x% ldx% z% ldz% y% w% b% work% lwork% info%))
+          (make-nv* common-type b))))))
+
 
 ;;;; Cholesky factorization
 
@@ -613,11 +642,11 @@ vectors, DENSE-MATRIX)."
     (with-matrix-input ((a (m m%) (n n%) lda% :copied) a% type)
       (bind ((min-mn (min m n))
              ((:values u-ncol jobu) (ecase left-vector-spec
-                                      (:none (values 0 #\N))
+                                      (:none (values 1 #\N)) ; LAPACK needs >=1
                                       (:singular (values min-mn #\S))
                                       (:all (values m #\A))))
              ((:values vt-nrow jobvt) (ecase right-vector-spec
-                                        (:none (values 0 #\N))
+                                        (:none (values 1 #\N)) ; LAPACK needs >=1
                                         (:singular (values min-mn #\S))
                                         (:all (values n #\A)))))
         (with-fortran-atoms ((:char jobu% jobu)
@@ -636,10 +665,10 @@ vectors, DENSE-MATRIX)."
                                                   u% m% vt% vt-nrow% work% lwork% info%)))
                       (values u vt))))
               (values (make-diagonal* type s)
-                      (if (zerop u-ncol)
+                      (if (eq left-vector-spec :none)
                           nil
                           (make-matrix* type m u-ncol u))
-                      (if (zerop vt-nrow)
+                      (if (eq right-vector-spec :none)
                           nil
                           (make-matrix* type vt-nrow n vt))))))))))
 

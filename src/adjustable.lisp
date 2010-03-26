@@ -176,6 +176,17 @@ strict (see default-expansion).  Return new capacity."
       (setf (aref result i) (aref elements i)))
     result))
 
+(defmethod vector->column ((anv adjustable-numeric-vector) &key copy-p)
+  (declare (ignore copy-p))
+  (bind (((:slots-read-only size) anv))
+    (make-matrix* (lla-type anv) size 1 (copy-elements anv :length size))))
+
+(defmethod vector->row ((anv adjustable-numeric-vector) &key copy-p)
+  (declare (ignore copy-p))
+  (bind (((:slots-read-only size) anv))
+    (make-matrix* (lla-type anv) 1 size (copy-elements anv :length size))))
+
+
 
 ;;;  row-adjustable-matrix
 
