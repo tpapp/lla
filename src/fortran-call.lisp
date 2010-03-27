@@ -354,10 +354,10 @@ bound to variables.  NROW and NCOL have the following syntax:
 
 #+sbcl
 (defmacro with-lapack-traps-masked (&body body)
-  `(sb-int:with-float-traps-masked (:divide-by-zero)
+  `(sb-int:with-float-traps-masked (:divide-by-zero :invalid)
      ,@body))
 
 #+cmu
 (defmacro with-lapack-traps-masked (&body body)
-  `(extensions:with-float-traps-masked (:divide-by-zero)
+  `(extensions:with-float-traps-masked (:divide-by-zero :invalid)
      ,@body))

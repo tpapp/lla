@@ -698,7 +698,8 @@ determined automatically as (* (MAX NROW NCOL) FLOAT-EPSILON) times
 the largest absolute singular value.  If (ABS (LOG (/ NROW NCOL))) is
 above LOGRC-THRESHOLD, use (MM MATRIX T) or its transpose for faster
 calculations; this can be disabled by setting LOG-THRESHOLD to NIL.
-Returns the singular values as the second value."
+Returns the absolute values of the singular values as the second
+value."
   (check-type logrc-threshold (or null (and number (satisfies plusp))))
   (bind (((:accessors-r/o nrow ncol) matrix)
          (ratio (log (/ nrow ncol)))
@@ -714,15 +715,17 @@ Returns the singular values as the second value."
              t
              (values matrix nil))))
          (d (svd matrix :none :none))
-         (d-abs-elements (map 'vector #'abs (elements d)))
-         (threshold (aif threshold
-                         it
-                         (* (max nrow ncol) (epsilon* (lla-type d))
-                            (reduce #'max d-abs-elements))))
-         (threshold (if squared-p
-                        (sqrt threshold)
-                        threshold)))
+         (d-elements (elements d)))
+    (map-into d-elements (if squared-p
+                             (lambda (x)
+                               (sqrt (abs x)))
+                             #'abs)
+              d-elements)
+    (let ((threshold (aif threshold
+                          it
+                          (* (max nrow ncol) (epsilon* (lla-type d))
+                             (reduce #'max d-elements)))))
     (values 
       (count-if (lambda (x) (<= threshold (abs x)))
                 (elements d))
-      d)))
+      d))))
