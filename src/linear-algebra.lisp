@@ -638,7 +638,8 @@ S (singular values, descending order, as a DIAGONAL), U (left singular
 vectors, DENSE-MATRIX), VT ([conjugate] transpose of right singular
 vectors, DENSE-MATRIX)."
   (bind ((type (lla-type a))
-         ((:values procedure real-type complex-p) (lb-procedure-name2 'gesvd 'gesvd type)))
+         ((:values procedure real-type complex-p)
+          (lb-procedure-name2 'gesvd 'gesvd type)))
     (with-matrix-input ((a (m m%) (n n%) lda% :copied) a% type)
       (bind ((min-mn (min m n))
              ((:values u-ncol jobu) (ecase left-vector-spec
@@ -657,12 +658,15 @@ vectors, DENSE-MATRIX)."
                     (with-vector-outputs ((u (* m u-ncol ) u% type)
                                           (vt (* vt-nrow n) vt% type))
                       (with-work-query (lwork% work% type)
-                        (if complex-p
-                            (with-work-area (rwork% real-type (* 5 min-mn))
-                              (call-with-info-check procedure jobu% jobvt% m% n% a% lda% s%
-                                                    u% m% vt% vt-nrow% work% lwork% rwork% info%))
-                            (call-with-info-check procedure jobu% jobvt% m% n% a% lda% s%
-                                                  u% m% vt% vt-nrow% work% lwork% info%)))
+                        (with-lapack-traps-masked 
+                          (if complex-p
+                              (with-work-area (rwork% real-type (* 5 min-mn))
+                                (call-with-info-check 
+                                 procedure jobu% jobvt% m% n% a% lda% s%
+                                 u% m% vt% vt-nrow% work% lwork% rwork% info%))
+                              (call-with-info-check 
+                               procedure jobu% jobvt% m% n% a% lda% s%
+                               u% m% vt% vt-nrow% work% lwork% info%))))
                       (values u vt))))
               (values (make-diagonal* type s)
                       (if (eq left-vector-spec :none)
@@ -684,3 +688,41 @@ vectors, DENSE-MATRIX)."
         (summing (a i i)))))
   (:method ((a diagonal))
     (reduce #'+ (elements a))))
+
+;; rank
+
+(defun rank (matrix &key threshold (logrc-threshold 0.5))
+  "Calculate the rank of a matrix using singular values - only those
+above THRESHOLD in absolute value are counted.  If NIL, THRESHOLD is
+determined automatically as (* (MAX NROW NCOL) FLOAT-EPSILON) times
+the largest absolute singular value.  If (ABS (LOG (/ NROW NCOL))) is
+above LOGRC-THRESHOLD, use (MM MATRIX T) or its transpose for faster
+calculations; this can be disabled by setting LOG-THRESHOLD to NIL.
+Returns the singular values as the second value."
+  (check-type logrc-threshold (or null (and number (satisfies plusp))))
+  (bind (((:accessors-r/o nrow ncol) matrix)
+         (ratio (log (/ nrow ncol)))
+         ((:values matrix squared-p)
+          (cond 
+            (;; fewer rows than columns
+             (aand logrc-threshold (< ratio (- it)))
+             (values (mm matrix t) t))
+            (;; more rows than columns
+             (aand logrc-threshold (< it ratio))
+             (values (mm t matrix) t))
+            (;; no matrix multiplication
+             t
+             (values matrix nil))))
+         (d (svd matrix :none :none))
+         (d-abs-elements (map 'vector #'abs (elements d)))
+         (threshold (aif threshold
+                         it
+                         (* (max nrow ncol) (epsilon* (lla-type d))
+                            (reduce #'max d-abs-elements))))
+         (threshold (if squared-p
+                        (sqrt threshold)
+                        threshold)))
+    (values 
+      (count-if (lambda (x) (<= threshold (abs x)))
+                (elements d))
+      d)))

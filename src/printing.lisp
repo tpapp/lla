@@ -31,7 +31,10 @@ constraint is binding."
     (t (format nil "~a" x))))
 
 
-;;;; numeric vectors
+;;; numeric vectors
+;;;
+;;; We dispatch on class NUMERIC-VECTOR-LIKE so it also covers
+;;; DIAGONALs, etc.
 
 (defun print-nv-elements (elements length stream)
   "Print elements of vector, automatically truncating to *PRINT-LENGTH*."
@@ -43,7 +46,7 @@ constraint is binding."
     (when truncated?
       (princ " ..." stream))))
 
-(defmethod print-object ((obj numeric-vector) stream)
+(defmethod print-object ((obj numeric-vector-like) stream)
   (print-unreadable-object (obj stream :type t)
     (with-slots (elements) obj
       (let* ((length (length elements)))

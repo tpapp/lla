@@ -143,6 +143,13 @@ floats can be upgraded to complex."
   "Coerce VALUE to type given by LLA-TYPE."
   (coerce value (lla-type->lisp-type lla-type)))
 
+(defun epsilon* (lla-type)
+  "Return the float epsilon for the given LLA-TYPE, signal an error
+for :INTEGER."
+  (ecase lla-type
+    ((:single :complex-single) single-float-epsilon)
+    ((:double :complex-double) double-float-epsilon)))
+
 (defmethod lla-type ((object number))
   (lisp-type->lla-type (type-of object)))
 

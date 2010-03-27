@@ -163,3 +163,11 @@
   (ensure-same (tr #2v:lower(1 2 3 4)) 5d0)
   (ensure-same (tr #2v:upper(1 2 3 4)) 5d0)
   (ensure-same (tr #v:diagonal(2 15)) 17d0))
+
+(addtest (linear-algebra-tests)
+  rank
+  (ensure-same (rank #2v(1 1 1 1)) 1)
+  (ensure-same (rank #2v(2 4 1 3
+                         -1 -2 1 0
+                         0 0 2 2
+                         3 6 2 5)) 2))
