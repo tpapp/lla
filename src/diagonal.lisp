@@ -20,13 +20,13 @@
 (defun nv->diagonal (nv &key (copy-p nil))
   "Convert numeric vector to diagonal."
   (make-diagonal* (lla-type nv) (if copy-p
-                                    (copy-elements nv)
+                                    (copy-nv-elements nv)
                                     (elements nv))))
 
 (defun diagonal->nv (diagonal &key (copy-p nil))
   "Convert numeric vector to diagonal."
   (make-nv* (lla-type diagonal) (if copy-p
-                                    (copy-elements diagonal)
+                                    (copy-nv-elements diagonal)
                                     (elements diagonal))))
 
 (defun make-diagonal (lla-type length &optional (initial-element 0))

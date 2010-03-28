@@ -1,17 +1,17 @@
 (in-package :lla)
 
-;;;; Matrix classes --- abstract interface
+;;;  Matrix classes --- abstract interface
 ;;;
-;;; We define "abstract" superclasses which are then specialized
-;;; according to LLA-TYPE.  Each class inherits from its abstract
-;;; superclass (identified with the KIND of matrix), and also from
-;;; NUMERIC-VECTOR-LLA-TYPE.  DEFINE-LLA-CLASS is a helper macro for
-;;; this.
+;;;  We define "abstract" superclasses which are then specialized
+;;;  according to LLA-TYPE.  Each class inherits from its abstract
+;;;  superclass (identified with the KIND of matrix), and also from
+;;;  NUMERIC-VECTOR-LLA-TYPE.  DEFINE-LLA-CLASS is a helper macro for
+;;;  this.
 ;;;
-;;; Being a subclass of DENSE-MATRIX-LIKE essentially specifies a
-;;; storage model: elements are stored in column major format, and the
-;;; resulting vector can be passed to LAPACK.  See SET-RESTRICTED and
-;;; RESTRICTED-ELEMENTS for nuances.
+;;;  Being a subclass of DENSE-MATRIX-LIKE essentially specifies a
+;;;  storage model: elements are stored in column major format, and
+;;;  the resulting vector can be passed to LAPACK.  See SET-RESTRICTED
+;;;  and RESTRICTED-ELEMENTS for nuances.
 
 (define-abstract-class dense-matrix-like (numeric-vector-like)
   ((nrow :type dimension :initarg :nrow :reader nrow
@@ -24,23 +24,63 @@
   into a matrix, etc.
 
   Subclasses of this class behave like an NROW x NCOL matrix, storing
-  the elements in a subset of ELEMENTS, mapped using column-major
-  indexing.  If the subclass is also a member of RESTRICTED-ELEMENTS,
-  then not all elements are necessarily stored: some may be
-  constants (eg for trianguar matrices), some may be inferred from
-  other elements (eg for hermitian matrices.  When SET-RESTRICTED is
-  called, it has to ensure that all values in ELEMENTS reflect the
-  constant or inferred cells in the matrix.
+  the elements in a subset of ELEMENTS, mapped using _column-major_
+  indexing.  Specifically, the position of a particular element at
+  index (row,col) is OFFSET + row + LEADING-DIMENSION*col, with 0 <=
+  row < NROW and 0 <= col < NCOL.  The function CM-INDEX2 can be used
+  for calculations.  OFFSET and LEADING-DIMENSION are not necessarily
+  slots in a particular (sub)class, they should be queried using
+  accessors.
 
-  The length of ELEMENTS does not have to equal (* NROW NCOL), but
-  (* (LEADING-DIMENSION MATRIX) NCOL), this is to allow for adjustable
-  matrices and at the moment it is not used for anything else (such as
-  views, etc)."))
+  If the subclass is also a member of RESTRICTED-ELEMENTS, then not
+  all elements are necessarily stored: some may be constants (eg for
+  trianguar matrices), some may be inferred from other elements (eg
+  for hermitian matrices.  When SET-RESTRICTED is called, it has to
+  ensure that all values in ELEMENTS reflect the constant and/or
+  inferred cells in the matrix."))
+
+(define-abstract-class compact-matrix ()
+  ()
+  (:documentation "Compact storage model for matrices, with
+  LEADING-DIMENSION=NROW and OFFSET=0"))
 
 (defgeneric leading-dimension (matrix)
   (:documentation "The leading dimension of the matrix.")
-  (:method ((matrix dense-matrix-like))
+  (:method ((matrix compact-matrix))
     (nrow matrix)))
+
+(defgeneric offset (matrix)
+  (:documentation "Offset of the first element.")
+  (:method ((matrix compact-matrix))
+    0))
+
+(declaim (ftype (function (t) dimension) leading-dimension offset))
+
+(declaim (inline cm-index2)
+         (ftype (function (fixnum fixnum fixnum &optional fixnum) fixnum)))
+(defun cm-index2 (leading-dimension row col &optional (offset 0))
+  "Calculate column-major index, without error checking.  Inlined."
+  (the fixnum (+ (the fixnum (* leading-dimension col)) row offset)))
+
+;;; General XREF and (SETF XREF) methods for all DENSE-MATRIX-LIKE
+;;; objects.
+
+(defmethod xref ((matrix dense-matrix-like) &rest subscripts)
+  (bind (((row col) subscripts)
+         ((:accessors-r/o elements nrow ncol leading-dimension offset) matrix))
+    (check-index row nrow)
+    (check-index col ncol)
+    (aref elements (cm-index2 leading-dimension row col offset))))
+
+(defmethod (setf xref) (value (matrix dense-matrix-like) &rest subscripts)
+  (bind (((row col) subscripts)
+         ((:accessors-r/o elements nrow ncol leading-dimension offset) matrix))
+    (check-index row nrow)
+    (check-index col ncol)
+    (setf (aref elements (cm-index2 leading-dimension row col offset))
+          value)))
+
+;;;  Square matrix type
 
 (defun square-matrix-p (matrix)
   "Test if a matrix is square."
@@ -49,6 +89,13 @@
 (deftype square-matrix ()
   '(and dense-matrix-like
     (satisfies square-matrix-p)))
+
+;;;  Matrix kind and class
+;;;
+;;;  Matrices have a _kind_, eg dense, lower-trianguar, etc, with a
+;;;  bijection between kinds and class names.  The following two
+;;;  functions provide the framework for the mapping, and the macro
+;;;  defines them automatically.
 
 (defgeneric matrix-class (kind)
   (:documentation "Return the name of the matrix class corresponding
@@ -91,75 +138,3 @@
 appropriate value in the data vector of matrix.  Always return the
 matrix.  Useful when calling functions which expect a proper dense
 matrix."))
-
-(define-dense-matrix-subclass dense ()
-  "Dense matrix, with elements stored in column-major order.")
-
-(define-dense-matrix-subclass upper-triangular (restricted-elements)
-    "A dense, upper triangular matrix.  The elements below the
-diagonal are not necessarily initialized and not accessed.")
-
-(define-dense-matrix-subclass lower-triangular (restricted-elements)
-    "A dense, lower triangular matrix.  The elements above the
-diagonal are not necessarily initialized and not accessed.")
-
-(define-dense-matrix-subclass hermitian (restricted-elements)
-  ;; LLA uses the class HERMITIAN-MATRIX to implement both real
-  ;; symmetric and complex Hermitian matrices --- as technically, real
-  ;; symmetric matrices are also Hermitian.  Complex symmetric
-  ;; matrices are NOT implemented as a special matrix type, as they
-  ;; don't have any special properties (eg real eigenvalues, etc).
-  "A dense Hermitian matrix, with elements stored in the upper
-  triangle.")
-
-(defmethod initialize-instance :after ((object hermitian-matrix)
-                                       &key &allow-other-keys)
-  (check-type object square-matrix))
-
-
-;;; Matrix factorizations
-
-(define-abstract-class matrix-factorization ()
-  ()
-  (:documentation "Matrix factorization.  May not contain all
-  components of the factorization."))
-
-(defgeneric component (mf component &key copy-p)
-  (:documentation "Return a given component of a matrix factorization."))
-
-(defgeneric reconstruct (mf)
-  (:documentation "Calculate the original matrix from the matrix factorization."))
-
-(defclass lu (matrix-factorization)
-  ((lu-matrix :type dense-matrix :initarg :lu-matrix :reader lu-matrix
-           :documentation "matrix storing the LU decomposition.")
-   (ipiv :type numeric-vector :initarg :ipiv :reader ipiv
-	 :documentation "pivot indices"))
-  (:documentation "LU decomposition of a matrix with pivoting."))
-
-(defclass qr (matrix-factorization)
-  ((qr-matrix :type dense-matrix :initarg :qr-matrix :reader qr-matrix
-           :documentation "matrix storing the QR decomposition."))
-  (:documentation "QR decomposition of a matrix."))
-
-(defclass cholesky (matrix-factorization)
-  ((factor :type (or lower-triangular-matrix upper-triangular-matrix)
-           :initarg :factor :reader factor
-             :documentation "upper/lower triangular matrix U/L such
-             that U^*U or LL^* is equal to the original matrix"))
-  (:documentation "Cholesky decomposition a matrix."))
-
-(defmethod initialize-instance :after ((instance cholesky) &key &allow-other-keys)
-  (assert (typep (factor instance) '(and square-matrix
-                                     (or lower-triangular-matrix
-                                         upper-triangular-matrix)))))
-
-(defclass hermitian-factorization (matrix-factorization)
-  ((factor :type (or lower-triangular-matrix upper-triangular-matrix)
-           :initarg :factor :reader factor
-           :documentation "upper/lower triangular matrix M such
-             that MDM^* is equal to the original matrix")
-      (ipiv :type numeric-vector :initarg :ipiv :reader ipiv
-            :documentation "pivot indices"))
-  (:documentation "Factorization for an indefinite hermitian matrix
-  with pivoting."))

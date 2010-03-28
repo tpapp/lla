@@ -37,6 +37,15 @@ around a simple vector ELEMENTS."))
 (defmethod xelttype ((nv numeric-vector-like))
   (lla-type->lisp-type (lla-type nv)))
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun nv-array-type (&optional lla-type length)
+    "Return Lisp array type for a NUMERIC-VECTOR of LLA-TYPE.  If the
+latter is not given, simply return SIMPLE-ARRAY."
+    (if lla-type
+        `(simple-array ,(upgraded-array-element-type (lla-type->lisp-type lla-type))
+                       (,(if length length '*)))
+        'simple-array)))
+
 ;;;  Numeric vectors
 
 (defclass numeric-vector (numeric-vector-like)
@@ -45,14 +54,6 @@ around a simple vector ELEMENTS."))
   ELEMENTS."))
 
 ;;;; object creation functions
-
-(defun nv-array-type (&optional lla-type length)
-  "Return Lisp array type for a NUMERIC-VECTOR of LLA-TYPE.  If the
-latter is not given, simply return SIMPLE-ARRAY."
-  (if lla-type
-      `(simple-array ,(upgraded-array-element-type (lla-type->lisp-type lla-type))
-                     (,(if length length '*)))
-      'simple-array))
 
 (declaim (inline make-nv*))
 (defun make-nv* (lla-type elements)
@@ -99,44 +100,66 @@ Also see *FORCE-FLOAT* and *FORCE-DOUBLE*."
 
 ;;;; some LLA-specific generic interface and utility functions
 
-(defun copy-elements-into (source source-type source-index
-                           destination destination-type destination-index
-                           length)
+(defmacro copy-elements-loop% (&optional (source-element-form 
+                                          '(row-major-aref source source-index)))
+  "Loop for copy copying elements.  Used in copy-elements etc, see
+that function for variable names."
+  `(iter
+     (for source-index :from source-offset :below (+ source-offset length))
+     (for destination-index :from destination-offset)
+     (declare (iterate:declare-variables)
+              (fixnum source-index destination-index))
+     (setf (row-major-aref destination destination-index)
+           ,source-element-form)))
+
+(defun copy-elements% (length source source-offset source-type
+                       destination destination-offset)
+  "Fast version of copy-elements for coinciding types."
+  (declare (optimize (speed 3) (safety 0))
+           (fixnum length source-offset destination-offset))
+  (expand-for-lla-types (lla-type :prologue (ecase source-type))
+    `(,lla-type
+      (locally
+          (declare (type ,(nv-array-type lla-type) source destination))
+        (copy-elements-loop%)))))
+
+(defun copy-elements (length source source-offset source-type
+                      destination destination-offset
+                      &optional (destination-type source-type))
   "Copy LENGTH elements from SOURCE to DESTINATION, starting at the
-given indexes.  Caller promises that SOURCE and DESTINATION are simple
+given offsets.  Caller promises that SOURCE and DESTINATION are simple
 vectors conforming to the corresponding LLA type.  Return no value.
 
 Usage note: call this function whenever you need to copy/convert
 elements.  It is supposed to contain the optimized versions for
 conversion etc, so nothing else should be optimized."
-  ;; !!! need to optimize this some day
-  (declare (ignore source-type))
-  (let ((type (lla-type->lisp-type destination-type)))
-    (iter
-      (for source-i :from source-index :below (+ source-index length))
-      (for destination-i :from destination-index)
-      (setf (aref destination destination-i) (coerce (aref source source-i) type))))
+  (if (eq source-type destination-type)
+      (copy-elements% length source source-offset source-type
+                      destination destination-offset)
+      (let ((destination-lisp-type (lla-type->lisp-type destination-type)))
+        (copy-elements-loop% (coerce (row-major-aref source source-index)
+                                    destination-lisp-type))))
   (values))
 
-(defun copy-elements (nv &key (destination-type (lla-type nv))
+(defun copy-nv-elements (nv &key (destination-type (lla-type nv))
                       (length (length (elements nv))))
   "Return a vector that is a copy if ELEMENTS in NUMERIC-VECTOR,
 converting if necessary.  Note: to copy a numeric-vector, just use
 COPY-NV."
   (let* ((source (elements nv))
          (destination (make-nv-elements destination-type length)))
-    (copy-elements-into source (lla-type nv) 0 
-                        destination destination-type 0 length)
+    (copy-elements length source 0 (lla-type nv) 
+                   destination 0 destination-type)
     destination))
 
-(defun copy-elements% (nv destination-type copy-p)
+(defun copy-nv-elements% (nv destination-type copy-p)
   "Copy and return elements if source and destination types don't
 match, or if COPY-P; otherwise just return elements.  Usage note:
 meant to be used in functions that implement the DESTINATION-TYPE &
 COPY-P semantics."
   (let ((source-type (lla-type nv)))
     (if (or copy-p (not (eq destination-type source-type)))
-        (copy-elements nv :destination-type destination-type)
+        (copy-nv-elements nv :destination-type destination-type)
         (elements nv))))
 
 (defun float-elements% (nv &optional (float-type :double))
@@ -146,7 +169,7 @@ value.  Usage note: for use in operations which are not closed on
 integers (eg /).  *Not exported*."
   (let ((type (lla-type nv)))
     (if (eq type :integer)
-        (values (copy-elements nv :destination-type float-type) float-type)
+        (values (copy-nv-elements nv :destination-type float-type) float-type)
         (values (elements nv) type))))
 
 (defun copy-nv (nv &key (destination-type (lla-type nv)) (copy-p nil))
@@ -155,7 +178,7 @@ same and COPY-P is nil, then ELEMENTS are shared.  If NV is an
 instance of a subclass of NUMERIC-VECTOR, the result is still a
 NUMERIC-VECTOR."
   (make-instance 'numeric-vector :lla-type (lla-type nv)
-                 :elements (copy-elements% nv destination-type copy-p)))
+                 :elements (copy-nv-elements% nv destination-type copy-p)))
   
 ;;; XARRAY interface
 

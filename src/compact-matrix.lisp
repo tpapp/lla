@@ -1,15 +1,32 @@
 (in-package :lla)
 
-;;;; Implementation of basic matrix interface and some methods.
-;;;
-;;; LAPACK-specific code is in other files.
+;;; The four basic matrix types: dense, upper/lower triangular and
+;;; hermitian.  All of these pack elements tightly, with
+;;; NROW=LEADING-DIMENSION and OFFSET=0.
 
-;;; helper functions
+(define-dense-matrix-subclass dense (compact-matrix)
+  "Dense matrix, with elements stored in column-major order.")
 
-(declaim (inline cm-index2))
-(defun cm-index2 (nrow row col)
-  "Calculate column-major index, without error checking.  Inlined."
-  (the fixnum (+ (the fixnum (* nrow col)) row)))
+(define-dense-matrix-subclass upper-triangular (restricted-elements compact-matrix)
+    "A dense, upper triangular matrix.  The elements below the
+diagonal are not necessarily initialized and not accessed.")
+
+(define-dense-matrix-subclass lower-triangular (restricted-elements compact-matrix)
+    "A dense, lower triangular matrix.  The elements above the
+diagonal are not necessarily initialized and not accessed.")
+
+(define-dense-matrix-subclass hermitian (restricted-elements compact-matrix)
+  ;; LLA uses the class HERMITIAN-MATRIX to implement both real
+  ;; symmetric and complex Hermitian matrices --- as technically, real
+  ;; symmetric matrices are also Hermitian.  Complex symmetric
+  ;; matrices are NOT implemented as a special matrix type, as they
+  ;; don't have any special properties (eg real eigenvalues, etc).
+  "A dense Hermitian matrix, with elements stored in the upper
+  triangle.")
+
+(defmethod initialize-instance :after ((object hermitian-matrix)
+                                       &key &allow-other-keys)
+  (check-type object square-matrix))
 
 ;;; set-restricted* methods
 
@@ -75,38 +92,6 @@
 
 (defmethod xsize ((matrix dense-matrix-like))
   (* (nrow matrix) (ncol matrix)))
-
-;;;; !!!! slot access could be optimized by dispatching on subclasses
-;;;;      according to type
-;;;;
-;;;;
-
-;;; xref for dense matrices
-
-(declaim (inline matrix-xref% matrix-setf-xref%))
-
-(defun matrix-xref% (matrix subscripts)
-  "Reader function for matrices.  Meant to be inlined.  Not exported."
-  (bind (((row col) subscripts)
-         ((:accessors-read-only leading-dimension nrow ncol elements) matrix))
-    (check-index row nrow)
-    (check-index col ncol)
-    (aref elements (cm-index2 leading-dimension row col))))
-
-(defun matrix-setf-xref% (value matrix subscripts)
-  "Setter function for matrices.  Meant to be inlined.  Not exported."
-  (bind (((row col) subscripts)
-         ((:accessors-read-only leading-dimension nrow ncol elements) matrix))
-    (check-index row nrow)
-    (check-index col ncol)
-    (setf (aref elements (cm-index2 leading-dimension row col))
-          value)))
-
-(defmethod xref ((matrix dense-matrix-like) &rest subscripts)
-  (matrix-xref% matrix subscripts))
-
-(defmethod (setf xref) (value (matrix dense-matrix-like) &rest subscripts)
-  (matrix-setf-xref% value matrix subscripts))
 
 ;;; xref for upper triangular matrices
 
@@ -247,36 +232,10 @@ original matrix, without your intention.  Also, SET-RESTRICTED is not
 called by this function.  That's why this function is not exported.
 Use with caution."
   (make-matrix* (lla-type matrix) (nrow matrix) (ncol matrix)
-                (copy-elements% matrix destination-type copy-p)
+                (copy-nv-elements% matrix destination-type copy-p)
                 :kind kind))
 
-(defun reshape (nv nrow ncol &key (kind :dense) (copy-p nil))
-  "Copy numeric vector (can be a matrix) to a matrix of matching
-size."
-  (let ((elements (elements nv)))
-    (assert (= (length elements) (* nrow ncol)))
-    (make-matrix* (lla-type nv) nrow ncol
-                  (if copy-p (copy-seq elements) elements)
-                  :kind kind)))
-
-(defgeneric vector->column (vector &key copy-p)
-  (:documentation "Return vector as a nx1 dense matrix of the same type."))
-
-(defmethod vector->column ((nv numeric-vector) &key (copy-p nil))
-  (let ((elements (elements nv)))
-    (make-matrix* (lla-type nv) (length elements) 1
-                  (if copy-p (copy-seq elements) elements))))
-
-(defgeneric vector->row (vector &key copy-p)
-  (:documentation "Return vector as a 1xn dense matrix of the same type."))
-
-(defmethod vector->row ((nv numeric-vector) &key (copy-p nil))
-  "Return vector as a 1xn dense matrix of the same type."
-  (let ((elements (elements nv)))
-    (make-matrix* (lla-type nv) 1 (length elements)
-                  (if copy-p (copy-seq elements) elements))))
-
-(defmethod make-load-form ((matrix dense-matrix-like) &optional environment)
+(defmethod make-load-form ((matrix compact-matrix) &optional environment)
   (declare (ignore environment))
   `(make-matrix* ,(lla-type matrix) ,(nrow matrix) ,(ncol matrix) 
                  ,(make-elements-load-form matrix) :kind ,(matrix-kind matrix)))

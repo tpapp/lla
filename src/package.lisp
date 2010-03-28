@@ -19,43 +19,29 @@
    numeric-vector elements nv-array-type numeric-vector-integer
    numeric-vector-single numeric-vector-double
    numeric-vector-complex-single numeric-vector-complex-double
-   make-nv* make-nv create-nv copy-elements-into copy-elements
+   make-nv* make-nv create-nv copy-elements copy-nv-elements
    copy-nv
 
    ;; numeric-vector-wrappers -- nothing is exported
 
    ;; matrix-classes
 
-   dense-matrix-like nrow ncol square-matrix-p square-matrix
-   matrix-factorization matrix-class matrix-kind leading-dimension
-
-   dense-matrix dense-matrix-integer dense-matrix-single
-   dense-matrix-double dense-matrix-complex-single
-   dense-matrix-complex-double
-   
+   dense-matrix-like nrow ncol compact-matrix leading-dimension offset
+   cm-index2 square-matrix-p square-matrix matrix-class matrix-kind
    restricted-elements set-restricted
 
-   upper-triangular-matrix upper-triangular-matrix-integer
-   upper-triangular-matrix-single upper-triangular-matrix-double
-   upper-triangular-matrix-complex-single
-   upper-triangular-matrix-complex-double
+   ;; compact-matrix
 
-   lower-triangular-matrix lower-triangular-matrix-integer
-   lower-triangular-matrix-single lower-triangular-matrix-double
-   lower-triangular-matrix-complex-single
-   lower-triangular-matrix-complex-double
+   dense-matrix upper-triangular-matrix lower-triangular-matrix hermitian-matrix
 
-   hermitian-matrix hermitian-matrix-integer hermitian-matrix-single
-   hermitian-matrix-double hermitian-matrix-complex-single
-   hermitian-matrix-complex-double
+   ;; factorizations
    
-   component reconstruct
+   matrix-factorization component reconstruct lu-factorization lu-matrix ipiv
+   qr-factorization qr-matrix cholesky-factorization factor hermitian-factorization
 
-   lu-factorization lu-matrix ipiv
-
-   qr-factorization qr-matrix
+   ;; submatrix
    
-   cholesky-factorization factor hermitian-factorization
+   dense-submatrix submatrix
 
    ;; diagonal
    
@@ -71,7 +57,7 @@
    
    ;; matrix-operations
    
-   cm-index2 make-matrix* make-matrix create-matrix reshape
+   make-matrix* make-matrix create-matrix reshape
    vector->column vector->row transpose stack-horizontally
    stack-vertically
 

@@ -308,9 +308,9 @@ view.  NOTE: needed to interface to LAPACK routines like xGELS."))
   "Convenience macro for using matrices as input for Fortran calls.
 Essentially like WITH-NV-INPUT, except that matrix dimensions are
 bound to variables.  NROW and NCOL have the following syntax:
-  variable-name  -- dimensions is assigned to the variable
-  (variable-name fortran-atom-name)  --  value is also assigned to a
-     memory location as an integer using WITH-FORTRAN-ATOM."
+variable-name -- dimensions is assigned to the variable
+  (variable-name fortran-atom-name) -- value is also assigned to a
+memory location as an integer using WITH-FORTRAN-ATOM."
   (flet ((parse-dimspec (dimspec)
            "Parse dimension name binding specification."
            (cond
@@ -326,14 +326,16 @@ bound to variables.  NROW and NCOL have the following syntax:
                        Use NAME or (NAME FORTRAN-ATOM-NAME)." dimspec)))))
     (bind (((nrow-name nrow-fortran-atom-expansion) (parse-dimspec nrow))
            ((ncol-name ncol-fortran-atom-expansion) (parse-dimspec ncol)))
-      (once-only (matrix)
+      (once-only (matrix lla-type)
         `(bind (((:slots-read-only (,nrow-name nrow) (,ncol-name ncol)) ,matrix))
            (if ,set-restricted
                (set-restricted ,matrix))
            (with-fortran-atoms (,@nrow-fortran-atom-expansion
                                 ,@ncol-fortran-atom-expansion
-                                (:integer ,leading-dimension (leading-dimension ,matrix)))
+                                (:integer ,leading-dimension 
+                                          (leading-dimension ,matrix)))
              (with-nv-input ((,matrix ,keyword ,output) ,pointer ,lla-type)
+               (incf-pointer ,pointer (* (foreign-size* ,lla-type) (offset ,matrix)))
                ,@body)))))))
 
 (define-with-multiple-bindings with-matrix-input)

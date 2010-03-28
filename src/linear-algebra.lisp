@@ -511,10 +511,6 @@ first."))
                 (make-matrix* real-type n n v)
                 nil))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; moving barrier -- things below are to be rewritten
-;;;;;;;;;;;;;;;;;;;;;;;;;;
-
 ;;;;
 ;;;; least squares calculations
 ;;;;

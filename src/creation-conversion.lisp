@@ -4,6 +4,28 @@
 
 (in-package #:lla)
 
+(defun reshape (nv nrow ncol &key (kind :dense) (copy-p nil))
+  "Copy numeric vector (can be a matrix) to a matrix of matching
+size."
+  (let ((elements (elements nv)))
+    (assert (= (length elements) (* nrow ncol)))
+    (make-matrix* (lla-type nv) nrow ncol
+                  (if copy-p (copy-seq elements) elements)
+                  :kind kind)))
+
+(defgeneric vector->column (vector &key copy-p)
+  (:documentation "Return vector as a nx1 dense matrix of the same type."))
+
+(defmethod vector->column ((nv numeric-vector) &key (copy-p nil))
+  (reshape nv (length (elements nv)) 1 :copy-p copy-p))
+
+(defgeneric vector->row (vector &key copy-p)
+  (:documentation "Return vector as a 1xn dense matrix of the same type."))
+
+(defmethod vector->row ((nv numeric-vector) &key (copy-p nil))
+  "Return vector as a 1xn dense matrix of the same type."
+  (reshape nv 1 (length (elements nv)) :copy-p copy-p))
+
 (defun parse-nv-options (options &optional (default :double))
   "Parse XCREATE options for the NUMERIC-VECTOR class."
   (bind (((&key (lla-type default)) options))

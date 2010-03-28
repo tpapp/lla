@@ -74,7 +74,7 @@ the pointer in any way, it is for reading only."
       `(progn
 	 (check-type ,numeric-vector-like numeric-vector-like)
 	 (check-type ,lla-type lla-type)
-	 (let ((,elements (copy-elements% ,numeric-vector-like ,lla-type ,copy-p)))
+	 (let ((,elements (copy-nv-elements% ,numeric-vector-like ,lla-type ,copy-p)))
 	   (with-pinned-vector (,elements ,pointer)
 	     ,@body))))))
 
@@ -91,7 +91,7 @@ be used as elements in MAKE-NV* and MAKE-MATRIX*), assigned to name."
     `(progn
        (check-type ,numeric-vector-like numeric-vector-like)
        (check-type ,lla-type lla-type)
-       (let* ((,output (copy-elements% ,numeric-vector-like ,lla-type t)))
+       (let* ((,output (copy-nv-elements% ,numeric-vector-like ,lla-type t)))
         (with-pinned-vector (,output ,pointer)
           ,@body)))))
 

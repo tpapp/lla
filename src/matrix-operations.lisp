@@ -1,5 +1,50 @@
 (in-package :lla)
 
+(defmacro copy-columns-loop% (&optional (source-element-form 
+                                        '(row-major-aref source source-index)))
+  "Double loop for copy copying elements columnwise.  Used in
+copy-columns etc, see that function for variable names."
+  `(iter
+     (for (the fixnum col) :from 0 :below ncol)
+     (declare (iterate:declare-variables))
+     (iter
+       (for row :from 0 :below nrow)
+       (for source-index
+            :from (the fixnum (cm-index2 source-ld 0 col source-offset)))
+       (for destination-index
+            :from (cm-index2 destination-ld 0 col destination-offset))
+       (declare (iterate:declare-variables)
+                (fixnum row source-index destination-index))
+       (setf (row-major-aref destination destination-index)
+            ,source-element-form))))
+
+(defun copy-columns% (nrow ncol source source-offset source-ld source-type
+                      destination destination-offset destination-ld)
+  "Fast version of copy-columns for coinciding types."
+  (declare (optimize (speed 3) (safety 0))
+           (fixnum nrow ncol source-offset source-ld
+                   destination-offset destination-ld))
+  (expand-for-lla-types (lla-type :prologue (ecase source-type))
+    `(,lla-type
+      (locally
+          (declare (type ,(nv-array-type lla-type) source destination))
+        (copy-columns-loop%)))))
+
+(defun copy-columns (nrow ncol source source-offset source-ld source-type
+                     destination destination-offset destination-ld
+                     &optional (destination-type source-type))
+  "Copy elements from one matrix to another, respecting leading
+dimensions and offsets.  If types are different, elements are
+coerced."
+  (if (eq source-type destination-type)
+      (copy-columns% nrow ncol
+                     source source-offset source-ld source-type
+                     destination destination-offset destination-ld)
+      (let ((destination-lisp-type (lla-type->lisp-type destination-type)))
+        (copy-columns-loop% (coerce (row-major-aref source source-index)
+                                    destination-lisp-type))))
+  (values))
+
 ;;;; transpose
 ;;;
 ;;; Methods should take care of returning the correct result type (eg
@@ -30,7 +75,8 @@ helper function, *NOT EXPORTED*."
                                    '(let ((elt (aref elements elements-i)))
                                      (if conjugate-p (conjugate elt) elt))
                                    '(aref elements elements-i)))))
-                    (make-matrix* ,lla-type ncol nrow transposed :kind transposed-matrix-kind))))))
+                    (make-matrix* ,lla-type ncol nrow transposed 
+                                  :kind transposed-matrix-kind))))))
 
 (defgeneric transpose (matrix &optional conjugate-p)
   (:documentation "Return the transpose of a matrix.")
@@ -51,47 +97,17 @@ helper function, *NOT EXPORTED*."
 ;;;; extraction methods for factorization components and related
 ;;;; utility functions
 
-(defun copy-columns% (nrow ncol source source-type ld-source
-                      destination destination-type ld-destination
-                      &optional (destination-offset 0))
-  "Copy columns from source to destination."
-  (dotimes (col ncol)
-    (copy-elements-into source source-type (* col ld-source)
-                        destination destination-type (+ destination-offset (* col ld-destination))
-                        nrow))
-  (values))
-
 (defun matrix-from-first-rows (lla-type vector nrow ncol leading-dimension &optional (kind :dense))
   "Extract & return (as KIND, default is :DENSE) the first NROW rows
 of an LEADING-DIMENSIONxNCOL matrix, given as a Lisp vector with
 column-major indexing.  NOTE: needed to interface to LAPACK routines
 like xGELS."
   (let ((result (make-matrix lla-type nrow ncol :kind kind)))
-    (copy-columns% nrow ncol vector lla-type leading-dimension
-                   (elements result) lla-type nrow)
+    (copy-columns% nrow ncol 
+                   vector 0 leading-dimension lla-type
+                   (elements result) 0 nrow)
     result))
 
-(defmethod component ((mf qr) (component (eql :R)) &key copy-p)
-  (declare (ignore copy-p))
-  (bind (((:slots-read-only qr-matrix) mf)
-         ((:slots-read-only nrow ncol elements) qr-matrix))
-    (matrix-from-first-rows (lla-type qr-matrix) elements ncol ncol nrow :upper-triangular)))
-
-(defmethod component ((mf cholesky) component &key (copy-p nil))
-  (flet ((copy-maybe (matrix)
-           (if copy-p
-               (copy-matrix% matrix :copy-p t)
-               matrix)))
-    (bind (((:slots-read-only factor) mf))
-      (etypecase factor
-        (lower-triangular-matrix
-           (ecase component
-             (:U (copy-maybe (transpose factor)))
-             (:L factor)))
-        (upper-triangular-matrix
-           (ecase component
-             (:U factor)
-             (:L (copy-maybe (transpose factor)))))))))
 
      
 ;;;; stacking
@@ -116,12 +132,11 @@ like xGELS."
       (for nrow := (nrow matrix))
       (for elements := (elements matrix))
       (for lla-type := (lla-type matrix))
-      (assert (= ncol (ncol matrix)) () "Matrix columns (or vector lengths) do not match.")
-      (iter
-        (for col :from 0 :below ncol)
-        (copy-elements-into elements lla-type (cm-index2 nrow 0 col)
-                            result-elements common-type (cm-index2 nrow-total row col)
-                            nrow))
+      (assert (= ncol (ncol matrix)) ()
+              "Matrix columns (or vector lengths) do not match.")
+      (copy-columns nrow ncol 
+                    elements 0 nrow lla-type
+                    result-elements (cm-index2 nrow-total row 0) nrow-total common-type)
       (incf row nrow))
     result))
 

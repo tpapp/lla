@@ -84,7 +84,7 @@ strict (see default-expansion).  Return new capacity."
 ;;;  adjustable-numeric-vector
 
 (defclass adjustable-numeric-vector (adjustable numeric-vector-like)
-  ((size :reader size :initarg :size))
+  ((size :reader size :initarg :size :type dimension))
   (:documentation "Adjustable numeric vector.  CAPACITY is the LENGTH
   of ELEMENTS."))
 
@@ -124,9 +124,8 @@ strict (see default-expansion).  Return new capacity."
     (assert (<= 0 new-capacity))
     (let ((new-elements (make-nv-elements lla-type new-capacity))
           (new-size (min size new-capacity)))
-      (copy-elements-into elements lla-type 0
-                          new-elements lla-type 0
-                          new-size)
+      (copy-elements new-size elements 0 lla-type
+                     new-elements 0)
       (setf elements new-elements
             size new-size))
     new-capacity))
@@ -143,8 +142,8 @@ strict (see default-expansion).  Return new capacity."
          ((:slots (vector-lla-type lla-type) (vector-elements elements)) vector)
          (vector-length (length vector-elements)))
     (ensure-excess-capacity anv vector-length)
-    (copy-elements-into vector-elements vector-lla-type 0
-                        elements lla-type size vector-length)
+    (copy-elements vector-length vector-elements 0 vector-lla-type
+                   elements size)
     (incf size vector-length))
   anv)
 
@@ -161,9 +160,8 @@ strict (see default-expansion).  Return new capacity."
   (bind (((:slots-read-only (anv-lla-type lla-type) (anv-elements elements) size) anv)
          ((&key (lla-type anv-lla-type)) options)
          (result (make-nv lla-type size)))
-    (copy-elements-into anv-elements anv-lla-type 0
-                        (elements result) lla-type 0
-                        size)
+    (copy-elements size anv-elements 0 anv-lla-type
+                   (elements result) 0 lla-type)
     result))
 
 (defmethod as* ((class (eql 'vector)) (anv adjustable-numeric-vector)
@@ -179,12 +177,12 @@ strict (see default-expansion).  Return new capacity."
 (defmethod vector->column ((anv adjustable-numeric-vector) &key copy-p)
   (declare (ignore copy-p))
   (bind (((:slots-read-only size) anv))
-    (make-matrix* (lla-type anv) size 1 (copy-elements anv :length size))))
+    (make-matrix* (lla-type anv) size 1 (copy-nv-elements anv :length size))))
 
 (defmethod vector->row ((anv adjustable-numeric-vector) &key copy-p)
   (declare (ignore copy-p))
   (bind (((:slots-read-only size) anv))
-    (make-matrix* (lla-type anv) 1 size (copy-elements anv :length size))))
+    (make-matrix* (lla-type anv) 1 size (copy-nv-elements anv :length size))))
 
 
 
@@ -194,8 +192,11 @@ strict (see default-expansion).  Return new capacity."
   "(* CAPACITY NCOL) ELEMENTS are allocated, but only the first NROW
   are filled.  NCOL will automatically be adjusted by ADD when NROW is
   zero."
-  ((capacity :reader capacity :initarg :capacity
+  ((capacity :reader capacity :initarg :capacity :type dimension
              :documentation "Also the leading dimension of the matrix.")))
+
+(defmethod offset ((ram row-adjustable-matrix))
+  0)
 
 (defmethod leading-dimension ((ram row-adjustable-matrix))
   (capacity ram))
@@ -235,8 +236,8 @@ strict (see default-expansion).  Return new capacity."
     (let ((new-elements (make-nv-elements lla-type (* new-capacity ncol)))
           (new-nrow (min nrow new-capacity)))
       (copy-columns% new-nrow ncol 
-                     elements lla-type capacity
-                     new-elements lla-type new-capacity)
+                     elements 0 capacity lla-type
+                     new-elements 0 new-capacity)
       (setf elements new-elements
             nrow new-nrow
             capacity new-capacity))
@@ -263,8 +264,8 @@ strict (see default-expansion).  Return new capacity."
     (set-restricted matrix)
     (ensure-excess-capacity ram nrow-matrix)
     (copy-columns% nrow-matrix ncol
-                   (elements matrix) (lla-type matrix) (leading-dimension matrix)
-                   elements lla-type capacity nrow)
+                   (elements matrix) 0 (leading-dimension matrix) (lla-type matrix)
+                   elements nrow capacity)
     (incf nrow nrow-matrix))
   ram)
 
@@ -301,7 +302,7 @@ strict (see default-expansion).  Return new capacity."
          ((&key (lla-type lla-type)) options)
          (result (make-matrix lla-type nrow ncol)))
     (copy-columns% nrow ncol
-                   elements (lla-type ram) leading-dimension
-                   (elements result) lla-type nrow)
+                   elements 0 leading-dimension (lla-type ram)
+                   (elements result) 0 nrow)
     result))
 
