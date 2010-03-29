@@ -2,22 +2,36 @@
 
 ;;;  Matrix classes --- abstract interface
 ;;;
-;;;  We define "abstract" superclasses which are then specialized
-;;;  according to LLA-TYPE.  Each class inherits from its abstract
-;;;  superclass (identified with the KIND of matrix), and also from
-;;;  NUMERIC-VECTOR-LLA-TYPE.  DEFINE-LLA-CLASS is a helper macro for
-;;;  this.
-;;;
 ;;;  Being a subclass of DENSE-MATRIX-LIKE essentially specifies a
 ;;;  storage model: elements are stored in column major format, and
 ;;;  the resulting vector can be passed to LAPACK.  See SET-RESTRICTED
 ;;;  and RESTRICTED-ELEMENTS for nuances.
 
-(define-abstract-class dense-matrix-like (numeric-vector-like)
+(define-abstract-class dense-matrix-slots ()
   ((nrow :type dimension :initarg :nrow :reader nrow
 	 :documentation "The number of rows in the matrix.")
    (ncol :type dimension :initarg :ncol :reader ncol
 	 :documentation "The number of columns in the matrix."))
+  (:documentation "Defines NROW & NCOL slots and associated XDIM,
+  XDIMS and XSIZE queries.  Meant to be used as a mixin class, implies
+  no element mapping."))
+
+(defmethod xrank ((matrix dense-matrix-slots))
+  2)
+
+(defmethod xdims ((matrix dense-matrix-slots))
+  (list (nrow matrix) (ncol matrix)))
+
+(defmethod xdim ((matrix dense-matrix-slots) axis-number)
+  (ecase axis-number
+    (0 (nrow matrix))
+    (1 (ncol matrix))))
+
+(defmethod xsize ((matrix dense-matrix-slots))
+  (* (nrow matrix) (ncol matrix)))
+
+(define-abstract-class dense-matrix-like (dense-matrix-slots numeric-vector-like)
+  ()
   (:documentation "Superclass of all classes that resemble a matrix.
   Nevertheless, it is not implied that the elements should be
   interpreted as a matrix: they could be a matrix factorization packed
@@ -26,11 +40,8 @@
   Subclasses of this class behave like an NROW x NCOL matrix, storing
   the elements in a subset of ELEMENTS, mapped using _column-major_
   indexing.  Specifically, the position of a particular element at
-  index (row,col) is OFFSET + row + LEADING-DIMENSION*col, with 0 <=
-  row < NROW and 0 <= col < NCOL.  The function CM-INDEX2 can be used
-  for calculations.  OFFSET and LEADING-DIMENSION are not necessarily
-  slots in a particular (sub)class, they should be queried using
-  accessors.
+  index (row,col) row + NCOL*col, with 0 <= row < NROW and 0 <= col <
+  NCOL.  The function CM-INDEX2 can be used for calculations.
 
   If the subclass is also a member of RESTRICTED-ELEMENTS, then not
   all elements are necessarily stored: some may be constants (eg for
@@ -39,45 +50,28 @@
   ensure that all values in ELEMENTS reflect the constant and/or
   inferred cells in the matrix."))
 
-(define-abstract-class compact-matrix ()
-  ()
-  (:documentation "Compact storage model for matrices, with
-  LEADING-DIMENSION=NROW and OFFSET=0"))
-
-(defgeneric leading-dimension (matrix)
-  (:documentation "The leading dimension of the matrix.")
-  (:method ((matrix compact-matrix))
-    (nrow matrix)))
-
-(defgeneric offset (matrix)
-  (:documentation "Offset of the first element.")
-  (:method ((matrix compact-matrix))
-    0))
-
-(declaim (ftype (function (t) dimension) leading-dimension offset))
-
 (declaim (inline cm-index2)
-         (ftype (function (fixnum fixnum fixnum &optional fixnum) fixnum)))
-(defun cm-index2 (leading-dimension row col &optional (offset 0))
+         (ftype (function (fixnum fixnum fixnum) fixnum)))
+(defun cm-index2 (nrow row col)
   "Calculate column-major index, without error checking.  Inlined."
-  (the fixnum (+ (the fixnum (* leading-dimension col)) row offset)))
+  (the fixnum (+ (the fixnum (* nrow col)) row)))
 
 ;;; General XREF and (SETF XREF) methods for all DENSE-MATRIX-LIKE
 ;;; objects.
 
 (defmethod xref ((matrix dense-matrix-like) &rest subscripts)
   (bind (((row col) subscripts)
-         ((:accessors-r/o elements nrow ncol leading-dimension offset) matrix))
+         ((:accessors-r/o elements nrow ncol) matrix))
     (check-index row nrow)
     (check-index col ncol)
-    (aref elements (cm-index2 leading-dimension row col offset))))
+    (aref elements (cm-index2 nrow row col))))
 
 (defmethod (setf xref) (value (matrix dense-matrix-like) &rest subscripts)
   (bind (((row col) subscripts)
-         ((:accessors-r/o elements nrow ncol leading-dimension offset) matrix))
+         ((:accessors-r/o elements nrow ncol) matrix))
     (check-index row nrow)
     (check-index col ncol)
-    (setf (aref elements (cm-index2 leading-dimension row col offset))
+    (setf (aref elements (cm-index2 nrow row col))
           value)))
 
 ;;;  Square matrix type

@@ -32,7 +32,9 @@
              :documentation "Elements, a specialized simple-array.
              Initialized with zeros by default."))
   (:documentation "A numeric vector-like object is a wrapper class
-around a simple vector ELEMENTS."))
+around a simple vector ELEMENTS.  This class does not imply that the
+elements represent a vector, this is only used as a basis for
+objects which can be mapped to a vector somehow."))
 
 (defmethod xelttype ((nv numeric-vector-like))
   (lla-type->lisp-type (lla-type nv)))

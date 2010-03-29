@@ -83,13 +83,16 @@ strict (see default-expansion).  Return new capacity."
 
 ;;;  adjustable-numeric-vector
 
-(defclass adjustable-numeric-vector (adjustable numeric-vector-like)
+(defclass adjustable-numeric-vector (numeric-vector-like adjustable)
   ((size :reader size :initarg :size :type dimension))
   (:documentation "Adjustable numeric vector.  CAPACITY is the LENGTH
   of ELEMENTS."))
 
 (defmethod xdims ((anv adjustable-numeric-vector))
   (list (size anv)))
+
+(defmethod xsize ((anv adjustable-numeric-vector))
+  (size anv))
 
 (defun make-anv (lla-type size &key (initial-element 0) (capacity size)
                  (default-expansion 0))
@@ -188,18 +191,31 @@ strict (see default-expansion).  Return new capacity."
 
 ;;;  row-adjustable-matrix
 
-(define-dense-matrix-subclass row-adjustable (adjustable)
-  "(* CAPACITY NCOL) ELEMENTS are allocated, but only the first NROW
-  are filled.  NCOL will automatically be adjusted by ADD when NROW is
-  zero."
-  ((capacity :reader capacity :initarg :capacity :type dimension
-             :documentation "Also the leading dimension of the matrix.")))
+(defclass row-adjustable-matrix (adjustable dense-matrix-slots numeric-vector-like)
+  ((nrow :type dimension :initarg :nrow :reader nrow
+	 :documentation "The number of rows in the matrix.")
+   (ncol :type dimension :initarg :ncol :reader ncol
+	 :documentation "The number of columns in the matrix.")
+   (capacity :reader capacity :initarg :capacity :type dimension
+             :documentation "Also the leading dimension of the matrix."))
+  (:documentation "(* CAPACITY NCOL) ELEMENTS are allocated, but only
+  the first NROW are filled.  NCOL will automatically be adjusted by
+  ADD when NROW is zero."))
 
-(defmethod offset ((ram row-adjustable-matrix))
-  0)
+(defmethod xref ((matrix row-adjustable-matrix) &rest subscripts)
+  (bind (((row col) subscripts)
+         ((:accessors-r/o elements nrow ncol capacity) matrix))
+    (check-index row nrow)
+    (check-index col ncol)
+    (aref elements (cm-index2 capacity row col))))
 
-(defmethod leading-dimension ((ram row-adjustable-matrix))
-  (capacity ram))
+(defmethod (setf xref) (value (matrix row-adjustable-matrix) &rest subscripts)
+  (bind (((row col) subscripts)
+         ((:accessors-r/o elements nrow ncol capacity) matrix))
+    (check-index row nrow)
+    (check-index col ncol)
+    (setf (aref elements (cm-index2 capacity row col))
+          value)))
 
 (defun make-ra-matrix (lla-type nrow ncol &key
                        (capacity nrow) (default-expansion 0))
@@ -264,7 +280,7 @@ strict (see default-expansion).  Return new capacity."
     (set-restricted matrix)
     (ensure-excess-capacity ram nrow-matrix)
     (copy-columns% nrow-matrix ncol
-                   (elements matrix) 0 (leading-dimension matrix) (lla-type matrix)
+                   (elements matrix) 0 nrow-matrix (lla-type matrix)
                    elements nrow capacity)
     (incf nrow nrow-matrix))
   ram)
@@ -298,11 +314,22 @@ strict (see default-expansion).  Return new capacity."
 (defmethod as* ((class (eql 'dense-matrix)) (ram row-adjustable-matrix)
                 copy-p options)
   (declare (ignore copy-p))
-  (bind (((:accessors-r/o lla-type elements nrow ncol leading-dimension) ram)
+  (bind (((:accessors-r/o lla-type elements nrow ncol capacity) ram)
          ((&key (lla-type lla-type)) options)
          (result (make-matrix lla-type nrow ncol)))
     (copy-columns% nrow ncol
-                   elements 0 leading-dimension (lla-type ram)
+                   elements 0 capacity (lla-type ram)
                    (elements result) 0 nrow)
     result))
 
+(defmethod submatrix ((matrix row-adjustable-matrix) row-start row-end col-start col-end)
+  (declare (optimize (debug 3) (speed 0)))
+  (bind (((:accessors-r/o elements lla-type nrow ncol capacity) matrix)
+         ((:values new-nrow new-ncol offset)
+          (submatrix-index-calculations% nrow ncol row-start row-end
+                                         col-start col-end capacity)))
+    (let ((result (make-matrix lla-type new-nrow new-ncol)))
+      (copy-columns new-nrow new-ncol
+                    elements offset capacity lla-type
+                    (elements result) 0 new-nrow)
+      result)))

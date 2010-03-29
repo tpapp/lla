@@ -23,8 +23,7 @@
     ((:file "test-utilities")
      (:file "test-basics")
      (:file "test-linear-algebra")
-     (:file "test-adjustable")
-     (:file "test-submatrix"))))
+     (:file "test-adjustable"))))
   :depends-on
   (:cl-utilities :iterate :metabang-bind :xarray :anaphora :lla
                  :named-readtables :lift))

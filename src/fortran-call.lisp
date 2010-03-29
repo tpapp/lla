@@ -301,8 +301,7 @@ view.  NOTE: needed to interface to LAPACK routines like xGELS."))
 
 ;;;; nice interface for matrices, probably the most important macro
 
-(defmacro with-matrix-input (((matrix nrow ncol leading-dimension &optional
-                                      keyword output)
+(defmacro with-matrix-input (((matrix nrow ncol &optional keyword output)
                               pointer lla-type
                               &optional (set-restricted t)) &body body)
   "Convenience macro for using matrices as input for Fortran calls.
@@ -331,11 +330,8 @@ memory location as an integer using WITH-FORTRAN-ATOM."
            (if ,set-restricted
                (set-restricted ,matrix))
            (with-fortran-atoms (,@nrow-fortran-atom-expansion
-                                ,@ncol-fortran-atom-expansion
-                                (:integer ,leading-dimension 
-                                          (leading-dimension ,matrix)))
+                                ,@ncol-fortran-atom-expansion)
              (with-nv-input ((,matrix ,keyword ,output) ,pointer ,lla-type)
-               (incf-pointer ,pointer (* (foreign-size* ,lla-type) (offset ,matrix)))
                ,@body)))))))
 
 (define-with-multiple-bindings with-matrix-input)

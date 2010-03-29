@@ -52,14 +52,14 @@
   (bind ((common-type (lb-target-type a b))
          (lisp-type (lla-type->lisp-type common-type))
          (procedure (lb-procedure-name 'gemm common-type)))
-    (with-matrix-inputs (((a (m m%) (k k%) lda%) a% common-type)
-                         ((b k2 (n n%) ldb%) b% common-type))
+    (with-matrix-inputs (((a (m m%) (k k%)) a% common-type)
+                         ((b k2 (n n%)) b% common-type))
       (assert (= k k2))
       (with-vector-output (c (* m n) c% common-type)
         (with-fortran-atoms ((common-type alpha% (coerce alpha lisp-type))
                              (common-type z% (coerce 0 lisp-type))
                              (:char trans% #\N))
-          (funcall procedure trans% trans% m% n% k% alpha% a% lda% b% ldb%
+          (funcall procedure trans% trans% m% n% k% alpha% a% m% b% k%
                    z% c% m%))
           (make-matrix* common-type m n c)))))
 
@@ -72,7 +72,7 @@
   (bind ((common-type (lla-type a))
          ((:values procedure real-type)
           (lb-procedure-name2 'syrk 'herk common-type)))
-    (with-matrix-input ((a (nrow nrow%) ncol lda%) a% common-type)
+    (with-matrix-input ((a (nrow nrow%) ncol) a% common-type)
       (bind (((:values dim-c other-dim-a op-char)
               (if op-left-p
                   (values ncol nrow #\C) ; C is good for real, too
@@ -87,7 +87,7 @@
                                (:char u-char% #\U)
                                (:char op-char% op-char))
             (funcall procedure u-char% op-char% dim-c% other-dim-a%
-                     alpha% a% lda% beta% c% dim-c%))
+                     alpha% a% nrow% beta% c% dim-c%))
           (make-matrix* common-type dim-c dim-c c :kind :hermitian))))))
 
 (defmethod mm ((a dense-matrix-like) (b (eql t)) &optional (alpha 1))
@@ -138,9 +138,9 @@
 (defmethod lu ((a dense-matrix-like))
   (bind ((type (lla-type a))
          (procedure (lb-procedure-name 'getrf type)))
-    (with-matrix-input ((a (m m%) (n n%) lda% :output-to lu) a% type)
+    (with-matrix-input ((a (m m%) (n n%) :output-to lu) a% type)
       (with-vector-output (ipiv (min m n) ipiv% :integer)
-        (call-with-info-check procedure m% n% a% lda% ipiv% info%)
+        (call-with-info-check procedure m% n% a% m% ipiv% info%)
         (make-instance 'lu 
                        :lu-matrix (make-matrix* type m n lu)
                        :ipiv (make-nv* :integer ipiv))))))
@@ -154,12 +154,12 @@
          ((:values u-char kind set-restricted-p) (ecase component
                                                    (:U (values #\U :upper-triangular nil))
                                                    (:D (values #\L :lower-triangular t)))))
-    (with-matrix-input ((a (n n%) n2 lda% :output-to factor) a% type set-restricted-p)
+    (with-matrix-input ((a (n n%) n2 :output-to factor) a% type set-restricted-p)
       (assert (= n n2) () "Hermitian matrix is not square.")
       (with-vector-output (ipiv n ipiv% :integer)
         (with-fortran-atom (:char u-char% u-char)
           (with-work-query (lwork% work% type)
-            (call-with-info-check procedure u-char% n% a% lda% ipiv% work% lwork% info%)))
+            (call-with-info-check procedure u-char% n% a% n% ipiv% work% lwork% info%)))
         (make-instance 'hermitian-factorization 
                        :factor (make-matrix* type n n factor :kind kind)
                        :ipiv (make-nv* :integer ipiv))))))
@@ -179,50 +179,50 @@
 (defmethod solve ((a dense-matrix-like) (b dense-matrix-like))
   (bind ((common-type (lb-target-type a b))
          (procedure (lb-procedure-name 'gesv common-type)))
-    (with-matrix-inputs (((a (n n%) n2 lda% :copied) a% common-type)
-                         ((b n3 (nrhs nrhs%) ldb% :output-to x-elements) b% common-type))
+    (with-matrix-inputs (((a (n n%) n2 :copied) a% common-type)
+                         ((b n3 (nrhs nrhs%) :output-to x-elements) b% common-type))
       (assert (= n n2 n3))
       (with-work-area (ipiv% :integer n) ; not saving IPIV
-        (call-with-info-check procedure n% nrhs% a% lda% ipiv% b% ldb% info%))
+        (call-with-info-check procedure n% nrhs% a% n% ipiv% b% n% info%))
       (make-matrix* common-type n nrhs x-elements))))
 
 (defmethod solve ((lu lu) (b dense-matrix-like))
   (bind (((:slots-read-only lu-matrix ipiv) lu)
          (common-type (lb-target-type lu-matrix b))
          (procedure (lb-procedure-name 'getrs common-type)))
-    (with-matrix-inputs (((lu-matrix (n n%) n2 ld-lu%) lu% common-type)
-                         ((b n3 (nrhs nrhs%) ldb% :output-to x) b% common-type))
+    (with-matrix-inputs (((lu-matrix (n n%) n2) lu% common-type)
+                         ((b n3 (nrhs nrhs%) :output-to x) b% common-type))
       (assert (= n n2 n3))
       (with-nv-input ((ipiv) ipiv% :integer)
         (with-fortran-atom (:char trans% #\N)
-          (call-with-info-check procedure trans% n% nrhs% lu% ld-lu% ipiv% b% ldb% info%)))
+          (call-with-info-check procedure trans% n% nrhs% lu% n% ipiv% b% n% info%)))
       (make-matrix* common-type n nrhs x))))
 
 (defmethod solve ((cholesky cholesky) (b dense-matrix-like))
   (bind (((:slots-read-only factor) cholesky)
          (common-type (lla-type factor))
 	 (procedure (lb-procedure-name 'potrs common-type)))
-    (with-matrix-inputs (((factor (n n%) n2 ld-factor%) factor% common-type)
-                         ((b n3 (nrhs nrhs%) ldb% :output-to x) b% common-type))
+    (with-matrix-inputs (((factor (n n%) n2) factor% common-type)
+                         ((b n3 (nrhs nrhs%) :output-to x) b% common-type))
       (assert (= n n2 n3))
       (with-fortran-atom (:char u-char% (etypecase factor
                                           (upper-triangular-matrix #\U)
                                           (lower-triangular-matrix #\L)))
-        (call-with-info-check procedure u-char% n% nrhs% factor% ld-factor% b% ldb% info%))
+        (call-with-info-check procedure u-char% n% nrhs% factor% n% b% n% info%))
       (make-matrix* common-type n nrhs x))))
 
 (defmethod solve ((hermitian-factorization hermitian-factorization) (b dense-matrix-like))
   (bind (((:slots-read-only factor ipiv) hermitian-factorization)
          (common-type (lla-type factor))
 	 (procedure (lb-procedure-name2 'sytrs 'hetrs common-type)))
-    (with-matrix-inputs (((factor (n n%) n2 ld-factor%) factor% common-type)
-                         ((b n3 (nrhs nrhs%) ldb% :output-to x) b% common-type))
+    (with-matrix-inputs (((factor (n n%) n2) factor% common-type)
+                         ((b n3 (nrhs nrhs%) :output-to x) b% common-type))
       (assert (= n n2 n3))
       (with-nv-input ((ipiv) ipiv% :integer)
         (with-fortran-atom (:char u-char% (etypecase factor
                                             (upper-triangular-matrix #\U)
                                             (lower-triangular-matrix #\L)))
-          (call-with-info-check procedure u-char% n% nrhs% factor% ld-factor% ipiv% b% ldb% info%))
+          (call-with-info-check procedure u-char% n% nrhs% factor% n% ipiv% b% n% info%))
         (make-matrix* common-type n n x)))))
 
 (defgeneric invert (a &key &allow-other-keys)
@@ -241,11 +241,11 @@
   (bind (((:slots-read-only lu-matrix ipiv) lu)
          (common-type (lla-type lu-matrix))
 	 (procedure (lb-procedure-name 'getri common-type)))
-    (with-matrix-input ((lu-matrix (n n%) n2 ld-lu% :output-to inverse) lu% common-type)
+    (with-matrix-input ((lu-matrix (n n%) n2 :output-to inverse) lu% common-type)
       (assert (= n n2))
       (with-nv-input ((ipiv) ipiv% :integer)
         (with-work-query (lwork% work% common-type)
-          (call-with-info-check procedure n% lu% ld-lu% ipiv% work% lwork%
+          (call-with-info-check procedure n% lu% n% ipiv% work% lwork%
                                 info%)))
       (make-matrix* common-type n n inverse))))
 
@@ -261,12 +261,12 @@
                    (upper-triangular-matrix it)))
          (common-type (lla-type factor))
          (procedure (lb-procedure-name2 'sytri 'hetri common-type)))
-    (with-matrix-input ((factor (n n%) n2 ld-factor% :output-to inverse) factor% common-type)
+    (with-matrix-input ((factor (n n%) n2 :output-to inverse) factor% common-type)
       (assert (= n n2))
       (with-work-area (work% common-type n)
         (with-nv-input ((ipiv) ipiv% :integer)
           (with-fortran-atom (:char u-char% #\U)
-            (call-with-info-check procedure u-char% n% factor% ld-factor% ipiv% work% info%))))
+            (call-with-info-check procedure u-char% n% factor% n% ipiv% work% info%))))
       (make-matrix* common-type n n inverse :kind :hermitian))))
 
 (defun invert-triangular% (a upper-p unit-diag-p result-kind)
@@ -277,11 +277,11 @@ information is not used), UNIT-DIAG-P indicates whether the diagonal
 is supposed to consist of 1s.  *For internal use, NOT EXPORTED*."
   (bind ((common-type (lla-type a))
 	 (procedure (lb-procedure-name 'trtri common-type)))
-    (with-matrix-input ((a (n n%) n2 lda% :output-to inverse) a% common-type)
+    (with-matrix-input ((a (n n%) n2 :output-to inverse) a% common-type)
       (assert (= n n2))
       (with-fortran-atoms ((:char u-char% (if upper-p #\U #\L))
                            (:char d-char% (if unit-diag-p #\U #\N)))
-        (call-with-info-check procedure u-char% d-char% n% a% lda% info%))
+        (call-with-info-check procedure u-char% d-char% n% a% n% info%))
       (make-matrix* common-type n n inverse :kind result-kind))))
   
 (defmethod invert ((a upper-triangular-matrix) &key)
@@ -300,10 +300,10 @@ is supposed to consist of 1s.  *For internal use, NOT EXPORTED*."
                        (upper-triangular-matrix it)))
              (common-type (lla-type factor))
              (procedure (lb-procedure-name 'potri common-type)))
-        (with-matrix-input ((factor (n n%) n2 ld-factor% :output-to inverse) factor% common-type)
+        (with-matrix-input ((factor (n n%) n2 :output-to inverse) factor% common-type)
           (assert (= n n2))
           (with-fortran-atom (:char u-char% #\U)
-            (call-with-info-check procedure u-char% n% factor% ld-factor% info%))
+            (call-with-info-check procedure u-char% n% factor% n% info%))
           (make-matrix* common-type n n inverse :kind :hermitian)))
       (make-instance 'cholesky :factor (invert (factor cholesky)))))
 
@@ -346,7 +346,7 @@ first."))
             ((:single :integer) (values :single :complex-single))
             (:double (values :double :complex-double))))
          (procedure (lb-procedure-name 'geev real-type)))
-    (with-matrix-input ((a (n n%) n2 lda% :copied) a% real-type) ; overwritten
+    (with-matrix-input ((a (n n%) n2 :copied) a% real-type) ; overwritten
       (assert (= n n2))
       (with-work-area (w% real-type (* 2 n)) ; eigenvalues, will be zipped
         (let (;; imaginary part
@@ -356,7 +356,7 @@ first."))
             (if vectors-p
                 (with-vector-output (vr (expt n 2) vr% :double)
                   (with-work-query (lwork work :double)
-                    (call-with-info-check procedure n-char% v-char% n% a% lda% 
+                    (call-with-info-check procedure n-char% v-char% n% a% n% 
                                           w% wi% ; eigenvalues
                                           (null-pointer) n% vr% n% ; eigenvectors
                                           work lwork info%))
@@ -369,7 +369,7 @@ first."))
                                                                 complex-type))
                                 (make-matrix* real-type n n vr)))))
                 (with-work-query (lwork work :double)
-                  (call-with-info-check procedure n-char% n-char% n% a% lda% 
+                  (call-with-info-check procedure n-char% n-char% n% a% n% 
                                         w% wi%   ; eigenvalues
                                         (null-pointer) n% (null-pointer) n% ; eigenvectors
                                         work lwork info%)
@@ -380,23 +380,23 @@ first."))
   (bind ((complex-type (lla-type a))
          (procedure (lb-procedure-name 'geev complex-type)))
     (assert (lla-complex-p complex-type) () "This function only handles complex matrices.")
-    (with-matrix-input ((a (n n%) n2 lda% :copied) a% complex-type)
+    (with-matrix-input ((a (n n%) n2 :copied) a% complex-type)
       (assert (= n n2))
       (with-vector-output (w n w% complex-type)
-        (with-work-area (rwork complex-type n)
+        (with-work-area (rwork% complex-type n)
           (with-fortran-atoms ((:char n-char% #\N)
                                (:char v-char% #\V))
             (if vectors-p
                 (with-vector-output (vr (expt n 2) vr% complex-type)
-                  (with-work-query (lwork work complex-type)
-                    (call-with-info-check procedure n-char% v-char% n% a% lda% w%
-                                          (null-pointer) n% vr% n% work lwork rwork info%))
+                  (with-work-query (lwork% work% complex-type)
+                    (call-with-info-check procedure n-char% v-char% n% a% n% w%
+                                          (null-pointer) n% vr% n% work% lwork% rwork% info%))
                   (values (make-nv* complex-type w)
                           (make-matrix* complex-type n n vr)))
-                (with-work-query (lwork work complex-type)
-                  (call-with-info-check procedure n-char% n-char% n% a% lda% w%
+                (with-work-query (lwork% work% complex-type)
+                  (call-with-info-check procedure n-char% n-char% n% a% n% w%
                                         (null-pointer) n% (null-pointer) n% 
-                                        work lwork rwork info%)
+                                        work% lwork% rwork% info%)
                   (make-nv* complex-type w)))))))))
 
 (defmethod eigen ((a dense-matrix-like) &key vectors-p check-real-p)
@@ -472,38 +472,38 @@ first."))
                  ;; *heev require an extra workspace argument
                 (if vectors-p
                     ;; complex, with vectors
-                    (with-matrix-input ((a (n n%) n2 lda% :output-to v) a% common-type nil)
+                    (with-matrix-input ((a (n n%) n2 :output-to v) a% common-type nil)
                       (assert (= n n2))
                       (with-vector-output (w n w% real-type) ; eigenvalues
                         (with-work-area (rwork% real-type (max 1 (- (* 3 n) 2)))
                           (with-work-query (lwork% work% real-type)
-                            (call-with-info-check procedure nv-char% u-char% n% a% lda% w%
+                            (call-with-info-check procedure nv-char% u-char% n% a% n% w%
                                                   work% lwork% rwork% info%))
                           (values w v))))
                     ;; complex, without vectors
-                    (with-matrix-input ((a (n n%) n2 lda% :copied) a% common-type nil)
+                    (with-matrix-input ((a (n n%) n2 :copied) a% common-type nil)
                       (assert (= n n2))
                       (with-vector-output (w n w% real-type) ; eigenvalues
                         (with-work-area (rwork% real-type (max 1 (- (* 3 n) 2)))
                           (with-work-query (lwork% work% real-type)
-                            (call-with-info-check procedure nv-char% u-char% n% a% lda% w%
+                            (call-with-info-check procedure nv-char% u-char% n% a% n% w%
                                                   work% lwork% rwork% info%))
                           (values w nil)))))
                 (if vectors-p
                     ;; real, with vectors
-                    (with-matrix-input ((a (n n%) n2 lda% :output-to v) a% common-type nil)
+                    (with-matrix-input ((a (n n%) n2 :output-to v) a% common-type nil)
                       (assert (= n n2))
                       (with-vector-output (w n w% real-type) ; eigenvalues
                         (with-work-query (lwork% work% real-type)
-                          (call-with-info-check procedure nv-char% u-char% n% a% lda% w%
+                          (call-with-info-check procedure nv-char% u-char% n% a% n% w%
                                                 work% lwork% info%))
                         (values w v)))
                     ;; real, without vectors
-                    (with-matrix-input ((a (n n%) n2 lda% :output-to v) a% common-type nil)
+                    (with-matrix-input ((a (n n%) n2 :output-to v) a% common-type nil)
                       (assert (= n n2))
                       (with-vector-output (w n w% real-type) ; eigenvalues
                         (with-work-query (lwork% work% real-type)
-                          (call-with-info-check procedure nv-char% u-char% n% a% lda% w%
+                          (call-with-info-check procedure nv-char% u-char% n% a% n% w%
                                                 work% lwork% info%))
                         (values w nil))))))))
     (values (make-nv* real-type w)
@@ -529,14 +529,14 @@ degrees of freedom."))
   ;; standard statistical notation.
   (bind ((common-type (lb-target-type x y))
          (procedure (lb-procedure-name 'gels common-type)))
-    (with-matrix-inputs (((x (m m%) (n n%) ldx% :output-to qr) x% common-type)
-                         ((y m2 (nrhs nrhs%) ldy% :output-to b) y% common-type))
+    (with-matrix-inputs (((x (m m%) (n n%) :output-to qr) x% common-type)
+                         ((y m2 (nrhs nrhs%) :output-to b) y% common-type))
       (assert (= m m2))
       (unless (<= n m)
         (error "A doesn't have enough columns for least squares"))
       (with-fortran-atoms ((:char n-char% #\N))
         (with-work-query (lwork% work% :double)
-          (call-with-info-check procedure n-char% m% n% nrhs% x% ldx% y% ldy%
+          (call-with-info-check procedure n-char% m% n% nrhs% x% m% y% m%
                                 work% lwork% info%)))
       (values 
         (matrix-from-first-rows common-type b n nrhs m)
@@ -547,7 +547,7 @@ degrees of freedom."))
 
 ;;; univariate versions of least squares: vector ~ vector, vector ~ matrix
 
-(defmethod least-squares ((y numeric-vector-like) (x dense-matrix-like))
+(defmethod least-squares ((y numeric-vector) (x dense-matrix-like))
   (bind (((:values b qr ss nu) (least-squares (vector->column y) x)))
     (values (copy-nv b) qr (aref (elements ss) 0) nu)))
 
@@ -585,8 +585,8 @@ used to generate random draws, etc."
   (bind ((common-type (lb-target-type y x z w))
          (procedure (lb-procedure-name 'gglse common-type)))
     ;; !! after call, x and z contain decompositions, currently not collected
-    (with-matrix-inputs (((x (m m%) (n n%) ldx% :copied) x% common-type)
-                         ((z (p p%) n2 ldz% :copied) z% common-type))
+    (with-matrix-inputs (((x (m m%) (n n%) :copied) x% common-type)
+                         ((z (p p%) n2 :copied) z% common-type))
       (assert (= n n2) () "Dimension mismatch between z and x")
       (assert (= m (xsize y)) () "Dimension mismatch between x and y")
       (assert (= p (xsize w)) () "Dimension mismatch between z and w")
@@ -595,7 +595,7 @@ used to generate random draws, etc."
                        ((w :copied) w% common-type))
         (with-vector-output (b n b% common-type)
           (with-work-query (lwork% work% common-type)
-            (call-with-info-check procedure m% n% p% x% ldx% z% ldz% y% w% b% work% lwork% info%))
+            (call-with-info-check procedure m% n% p% x% m% z% p% y% w% b% work% lwork% info%))
           (make-nv* common-type b))))))
 
 
@@ -610,10 +610,10 @@ used to generate random draws, etc."
          ((:values u-char kind) (ecase component
                                   (:U (values #\U :upper-triangular))
                                   (:L (values #\L :lower-triangular)))))
-    (with-matrix-input ((a (n n%) n2 lda% :output-to cholesky) a% common-type)
+    (with-matrix-input ((a (n n%) n2 :output-to cholesky) a% common-type)
       (assert (= n n2))
       (with-fortran-atoms ((:char u-char% u-char))
-        (call-with-info-check procedure u-char% n% a% lda% info%))
+        (call-with-info-check procedure u-char% n% a% n% info%))
       (make-instance 'cholesky :factor (make-matrix* common-type n n cholesky 
                                                      :kind kind)))))
 
@@ -636,7 +636,7 @@ vectors, DENSE-MATRIX)."
   (bind ((type (lla-type a))
          ((:values procedure real-type complex-p)
           (lb-procedure-name2 'gesvd 'gesvd type)))
-    (with-matrix-input ((a (m m%) (n n%) lda% :copied) a% type)
+    (with-matrix-input ((a (m m%) (n n%) :copied) a% type)
       (bind ((min-mn (min m n))
              ((:values u-ncol jobu) (ecase left-vector-spec
                                       (:none (values 1 #\N)) ; LAPACK needs >=1
@@ -658,10 +658,10 @@ vectors, DENSE-MATRIX)."
                           (if complex-p
                               (with-work-area (rwork% real-type (* 5 min-mn))
                                 (call-with-info-check 
-                                 procedure jobu% jobvt% m% n% a% lda% s%
+                                 procedure jobu% jobvt% m% n% a% m% s%
                                  u% m% vt% vt-nrow% work% lwork% rwork% info%))
                               (call-with-info-check 
-                               procedure jobu% jobvt% m% n% a% lda% s%
+                               procedure jobu% jobvt% m% n% a% m% s%
                                u% m% vt% vt-nrow% work% lwork% info%))))
                       (values u vt))))
               (values (make-diagonal* type s)

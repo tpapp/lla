@@ -10,9 +10,9 @@ copy-columns etc, see that function for variable names."
      (iter
        (for row :from 0 :below nrow)
        (for source-index
-            :from (the fixnum (cm-index2 source-ld 0 col source-offset)))
+            :from (+ source-offset (cm-index2 source-ld 0 col)))
        (for destination-index
-            :from (cm-index2 destination-ld 0 col destination-offset))
+            :from (+ destination-offset (cm-index2 destination-ld 0 col)))
        (declare (iterate:declare-variables)
                 (fixnum row source-index destination-index))
        (setf (row-major-aref destination destination-index)
@@ -44,6 +44,53 @@ coerced."
         (copy-columns-loop% (coerce (row-major-aref source source-index)
                                     destination-lisp-type))))
   (values))
+
+(defgeneric submatrix (matrix row-start row-end col-start col-end)
+  (:documentation "Return submatrix (a DENSE-MATRIX) specified by
+row/column start and end indexes (the latter exclusive, with NIL
+referring to the last one).  Negative indexes count from the last
+column, eg (submatrix matrix 0 0 -1 -1) will drop the last row &
+column."))
+
+(defun submatrix-index-calculations% (nrow ncol row-start row-end col-start col-end
+                                      &optional (leading-dimension nrow))
+  "Return (VALUES NEW-NROW NEW-NCOL OFFSET).  Negative and NIL indexes
+are converted according to the SUBMATRIX syntax.  Resulting indexes
+are checked for validity."
+  (flet ((calc-index (index total start?)
+           ;; calculate new index, converting negative specifications
+           (cond
+             ((null index)
+              (if start?
+                  (error "~A is not a valid start index" index)
+                  total))
+             ((minusp index)
+              (aprog1 (+ total index)
+                (assert (<= 0 it) () "~A~A gives negative index" total index)))
+             (t 
+              (assert (<= index total) () "index ~A above ~A" index total)
+              index))))
+    (let* ((row-start (calc-index row-start nrow t))
+           (new-nrow (- (calc-index row-end nrow nil) row-start))
+           (col-start (calc-index col-start ncol t))
+           (new-ncol (- (calc-index col-end ncol nil) col-start))
+           (offset (+ (* leading-dimension col-start) row-start)))
+      (assert (plusp new-nrow) () "Resulting number of rows is not positive")
+      (assert (plusp new-ncol) () "Resulting number of columns is not positive")
+      (values new-nrow new-ncol offset))))
+
+(defmethod submatrix ((matrix dense-matrix-like) row-start row-end col-start col-end)
+  (declare (optimize (debug 3) (speed 0)))
+  (bind (((:accessors-r/o elements lla-type nrow ncol) matrix)
+         ((:values new-nrow new-ncol offset)
+          (submatrix-index-calculations% nrow ncol row-start row-end
+                                         col-start col-end)))
+    (set-restricted matrix)
+    (let ((result (make-matrix lla-type new-nrow new-ncol)))
+      (copy-columns new-nrow new-ncol
+                    elements offset nrow lla-type
+                    (elements result) 0 new-nrow)
+      result)))
 
 ;;;; transpose
 ;;;

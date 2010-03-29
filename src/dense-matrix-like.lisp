@@ -1,21 +1,20 @@
 (in-package :lla)
 
 ;;; The four basic matrix types: dense, upper/lower triangular and
-;;; hermitian.  All of these pack elements tightly, with
-;;; NROW=LEADING-DIMENSION and OFFSET=0.
+;;; hermitian.
 
-(define-dense-matrix-subclass dense (compact-matrix)
+(define-dense-matrix-subclass dense ()
   "Dense matrix, with elements stored in column-major order.")
 
-(define-dense-matrix-subclass upper-triangular (restricted-elements compact-matrix)
+(define-dense-matrix-subclass upper-triangular (restricted-elements)
     "A dense, upper triangular matrix.  The elements below the
 diagonal are not necessarily initialized and not accessed.")
 
-(define-dense-matrix-subclass lower-triangular (restricted-elements compact-matrix)
+(define-dense-matrix-subclass lower-triangular (restricted-elements)
     "A dense, lower triangular matrix.  The elements above the
 diagonal are not necessarily initialized and not accessed.")
 
-(define-dense-matrix-subclass hermitian (restricted-elements compact-matrix)
+(define-dense-matrix-subclass hermitian (restricted-elements)
   ;; LLA uses the class HERMITIAN-MATRIX to implement both real
   ;; symmetric and complex Hermitian matrices --- as technically, real
   ;; symmetric matrices are also Hermitian.  Complex symmetric
@@ -31,7 +30,6 @@ diagonal are not necessarily initialized and not accessed.")
 ;;; set-restricted* methods
 
 (defmethod set-restricted ((matrix upper-triangular-matrix))
-  (declare (optimize speed))
   (bind (((:slots-read-only nrow ncol elements) matrix)
          (zero (coerce* 0 (lla-type matrix))))
          ;; set the lower triangle (below diagonal) to 0
@@ -78,20 +76,6 @@ diagonal are not necessarily initialized and not accessed.")
 ;;;
 ;;; Notes: XELTTYPE is already defined for the NUMERIC-VECTOR-LIKE
 ;;; superclasses.
-
-(defmethod xrank ((matrix dense-matrix-like))
-  2)
-
-(defmethod xdims ((matrix dense-matrix-like))
-  (list (nrow matrix) (ncol matrix)))
-
-(defmethod xdim ((matrix dense-matrix-like) axis-number)
-  (ecase axis-number
-    (0 (nrow matrix))
-    (1 (ncol matrix))))
-
-(defmethod xsize ((matrix dense-matrix-like))
-  (* (nrow matrix) (ncol matrix)))
 
 ;;; xref for upper triangular matrices
 
@@ -235,7 +219,7 @@ Use with caution."
                 (copy-nv-elements% matrix destination-type copy-p)
                 :kind kind))
 
-(defmethod make-load-form ((matrix compact-matrix) &optional environment)
+(defmethod make-load-form ((matrix dense-matrix-like) &optional environment)
   (declare (ignore environment))
   `(make-matrix* ,(lla-type matrix) ,(nrow matrix) ,(ncol matrix) 
                  ,(make-elements-load-form matrix) :kind ,(matrix-kind matrix)))

@@ -16,9 +16,7 @@
    
    ;; numeric-vector
    
-   numeric-vector elements nv-array-type numeric-vector-integer
-   numeric-vector-single numeric-vector-double
-   numeric-vector-complex-single numeric-vector-complex-double
+   numeric-vector-like numeric-vector elements nv-array-type 
    make-nv* make-nv create-nv copy-elements copy-nv-elements
    copy-nv
 
@@ -26,9 +24,8 @@
 
    ;; matrix-classes
 
-   dense-matrix-like nrow ncol compact-matrix leading-dimension offset
-   cm-index2 square-matrix-p square-matrix matrix-class matrix-kind
-   restricted-elements set-restricted
+   dense-matrix-like nrow ncol cm-index2 square-matrix-p square-matrix
+   matrix-class matrix-kind restricted-elements set-restricted
 
    ;; compact-matrix
 
@@ -38,10 +35,6 @@
    
    matrix-factorization component reconstruct lu-factorization lu-matrix ipiv
    qr-factorization qr-matrix cholesky-factorization factor hermitian-factorization
-
-   ;; submatrix
-   
-   dense-submatrix submatrix
 
    ;; diagonal
    
@@ -57,7 +50,7 @@
    
    ;; matrix-operations
    
-   make-matrix* make-matrix create-matrix reshape
+   submatrix make-matrix* make-matrix create-matrix reshape
    vector->column vector->row transpose stack-horizontally
    stack-vertically
 
