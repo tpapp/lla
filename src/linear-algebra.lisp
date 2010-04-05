@@ -230,9 +230,7 @@
   unnecessary and unwise in most cases, because it is numerically
   unstable.  If you are solving many Ax=b equations with the same A,
   use a matrix factorization like LU.  Most INVERT methods use a
-  matrix factorization anyway.  Methods for factorizations may take a
-  RECONSTRUCT-P argument (defaults to T), if this is nil, the
-  factorization itself is inverted."))
+  matrix factorization anyway."))
 
 (defmethod invert ((a dense-matrix-like) &key)
   (invert (lu a)))
@@ -290,22 +288,20 @@ is supposed to consist of 1s.  *For internal use, NOT EXPORTED*."
 (defmethod invert ((a lower-triangular-matrix) &key)
   (invert-triangular% a nil nil :lower-triangular))
 
-(defmethod invert ((cholesky cholesky) &key (reconstruct-p t))
+(defmethod invert ((cholesky cholesky) &key)
   ;; If the FACTOR of CHOLESKY is lower triangular, we need to
   ;; transpose it, as hermitian matrices always store the upper
   ;; triangle.
-  (if reconstruct-p
-      (bind ((factor (aetypecase (factor cholesky)
-                       (lower-triangular-matrix (transpose it))
-                       (upper-triangular-matrix it)))
-             (common-type (lla-type factor))
-             (procedure (lb-procedure-name 'potri common-type)))
-        (with-matrix-input ((factor (n n%) n2 :output-to inverse) factor% common-type)
-          (assert (= n n2))
-          (with-fortran-atom (:char u-char% #\U)
-            (call-with-info-check procedure u-char% n% factor% n% info%))
-          (make-matrix* common-type n n inverse :kind :hermitian)))
-      (make-instance 'cholesky :factor (invert (factor cholesky)))))
+  (bind ((factor (aetypecase (factor cholesky)
+                   (lower-triangular-matrix (transpose it))
+                   (upper-triangular-matrix it)))
+         (common-type (lla-type factor))
+         (procedure (lb-procedure-name 'potri common-type)))
+    (with-matrix-input ((factor (n n%) n2 :output-to inverse) factor% common-type)
+      (assert (= n n2))
+      (with-fortran-atom (:char u-char% #\U)
+        (call-with-info-check procedure u-char% n% factor% n% info%))
+      (make-matrix* common-type n n inverse :kind :hermitian))))
 
 (defmethod invert ((d diagonal) &key (tolerance 0))
   "For pseudoinverse, suppressing diagonal elements below TOLERANCE
@@ -556,7 +552,7 @@ degrees of freedom."))
                                               (vector->column x))))
     (values (aref (elements b) 0) qr (aref (elements ss) 0) nu)))
 
-(defun least-squares-xx-inverse (qr &key (reconstruct-p t) )
+(defun least-squares-xx-inverse (qr)
   "Calculate (X^T X)-1 (which is used for calculating the variance of
 estimates) from the qr decomposition of X.  Return a CHOLESKY
 decomposition.  Note: the FACTOR of the cholesky decomposition can be
@@ -566,8 +562,7 @@ used to generate random draws, etc."
   ;; using its Cholesky factorization.
   (with-slots (nrow ncol) (qr-matrix qr)
     (assert (<= ncol nrow))
-    (invert (make-instance 'cholesky :factor (component qr :R))
-            :reconstruct-p reconstruct-p)))
+    (invert (make-instance 'cholesky :factor (component qr :R)))))
 
 
 ;;;; constrained-least-squares
