@@ -10,7 +10,8 @@
    ;; types
    
    dimension lla-type lla-complex-p lla-double-p not-within-lla-type
-   lisp-type->lla-type lla-type->lisp-type *force-float* *force-double*
+   lisp-type->lla-type lla-type->lisp-type zero* coerce* epsilon* 
+   *force-float* *force-double*
 
    ;; fortran-atoms -- nothing is exported
    
