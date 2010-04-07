@@ -144,7 +144,7 @@ conversion etc, so nothing else should be optimized."
   (values))
 
 (defun copy-nv-elements (nv &key (destination-type (lla-type nv))
-                      (length (length (elements nv))))
+                         (length (length (elements nv))))
   "Return a vector that is a copy if ELEMENTS in NUMERIC-VECTOR,
 converting if necessary.  Note: to copy a numeric-vector, just use
 COPY-NV."

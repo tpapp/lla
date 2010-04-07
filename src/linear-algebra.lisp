@@ -94,6 +94,10 @@
   ;; A A^T
   (mm-hermitian% a nil alpha))
 
+(defmethod mm ((a dense-matrix-like) (b (eql t)) &optional (alpha 1))
+  ;; A A^T
+  (mm-hermitian% a nil alpha))
+
 (defmethod mm ((a (eql t)) (b dense-matrix-like) &optional (alpha 1))
   ;; A^T A
   (mm-hermitian% b t alpha))
@@ -537,7 +541,7 @@ degrees of freedom."))
       (values 
         (matrix-from-first-rows common-type b n nrhs m)
         (make-instance 'qr :qr-matrix (make-matrix* common-type m n qr))
-        (sum-last-rows b common-type m nrhs n)
+        (sum-last-rows common-type b m nrhs n)
         (- m n)))))
 
 
