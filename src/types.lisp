@@ -228,13 +228,28 @@ floats."
    (reduce #'logior objects :key (compose #'lla-type->binary-code
                                           #'lla-type))))
 
+(defun coercible-type-of (number)
+  "Return the LLA type that number can be coerced to.  For (complex)
+rationals, :(complex)-single or :(complex)-double is used, depending
+on *force-double*."
+  (typecase number
+    (single-float :single)
+    (double-float :double)
+    (rational (if *force-double* :double :single))
+    ((complex single-float) :complex-single)
+    ((complex double-float) :complex-double)
+    ((complex rational) (if *force-double* :complex-double :complex-single))
+    ((signed-byte #+int32 32 #+int64 64) :integer)
+    (otherwise (error 'not-within-lla-type))))
+
 (defun find-element-type (sequence)
   "Finds the smallest LLA-TYPE that can accomodate the elements of
   sequence.  If no such LLA-TYPE can be found, return nil.  Uses
   *FORCE-FLOAT* and *FORCE-DOUBLE*."
   (determine-forced-type 
    (binary-code->lla-type
-    (reduce #'logior sequence :key (compose #'lla-type->binary-code #'lisp-type->lla-type #'type-of)))))
+    (reduce #'logior sequence :key (compose #'lla-type->binary-code 
+                                            #'coercible-type-of)))))
 
 (defun infer-lla-type (lla-type initial-contents)
   "Infer LLA-TYPE from given type and/or INITIAL-CONTENTS.  Useful for
@@ -242,7 +257,8 @@ MAKE-NV and MAKE-MATRIX.  Uses *FORCE-FLOAT* and *FORCE-DOUBLE*."
   (cond
     (lla-type lla-type)
     ((null initial-contents) (error "Could not infer LLA-TYPE without initial-contents."))
-    ((numberp initial-contents) (determine-forced-type (lisp-type->lla-type (type-of initial-contents))))
+    ((numberp initial-contents) (determine-forced-type 
+                                 (lisp-type->lla-type (type-of initial-contents))))
     ((typep initial-contents 'sequence) (find-element-type initial-contents))
     (t (error "~A is not valid as INITIAL-CONTENTS." initial-contents))))
 
