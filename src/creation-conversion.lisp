@@ -58,7 +58,7 @@ size."
     (make-matrix lla-type nrow ncol)))
 
 (defmethod as* ((class (eql 'numeric-vector)) 
-                (object dense-matrix-like) copy-p options)
+                (object numeric-vector-like) copy-p options)
   (set-restricted object)
   (copy-nv object :destination-type (parse-nv-options options (lla-type object))
            :copy-p copy-p))
