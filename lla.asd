@@ -54,7 +54,8 @@
      (:file "printing")
      (:file "readmacros")
      (:file "creation-conversion")
-     (:file "binary-operations")))
+     (:file "binary-operations")
+     (:file "specialized-utilities")))
    (:module
     "linear-algebra"
     :pathname #P"src/"

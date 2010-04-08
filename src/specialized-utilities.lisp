@@ -7,7 +7,7 @@
 conform to LLA-TYPE.  For internal use."
   (declare (optimize speed (safety 0))
            (fixnum start end))
-  (lla::expand-for-lla-types (lla-type :prologue (ecase lla-type))
+  (expand-for-lla-types (lla-type :prologue (ecase lla-type))
     `(,lla-type
       (let ((sum (zero* ,lla-type)))
           (declare (cl:type ,(lla::nv-array-type lla-type) elements)
@@ -18,14 +18,15 @@ conform to LLA-TYPE.  For internal use."
           (incf sum (aref elements index)))
         sum))))
 
-(defun squared-lla-type (lla-type)
-  "Return the lla-type of (* x (conjugate x), when x is of LLA-TYPE."
-  (ecase lla-type
-    (:integer :integer)
-    (:single :single)
-    (:double :double)
-    (:complex-single :single)
-    (:complex-double :double)))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun squared-lla-type (lla-type)
+    "Return the lla-type of (* x (conjugate x), when x is of LLA-TYPE."
+    (ecase lla-type
+      (:integer :integer)
+      (:single :single)
+      (:double :double)
+      (:complex-single :single)
+      (:complex-double :double))))
 
 (defun sum-squared-elements (lla-type elements start end)
   "Sum of the squares of elements in the given range (for complex
