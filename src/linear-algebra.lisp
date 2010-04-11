@@ -341,6 +341,7 @@ first."))
   ;; S/DEEV returns real and imaginary parts for eigenvectors and
   ;; eigenvalues separately, so they have to be "zipped" together,
   ;; with two utility functions.
+  (declare (optimize debug))
   (bind (((:values real-type complex-type)
           (ecase (lla-type a)
             ((:single :integer) (values :single :complex-single))
@@ -350,12 +351,12 @@ first."))
       (assert (= n n2))
       (with-work-area (w% real-type (* 2 n)) ; eigenvalues, will be zipped
         (let (;; imaginary part
-              (wi% (inc-pointer w% (* n (foreign-type-size real-type)))))
+              (wi% (inc-pointer w% (* n (foreign-size* real-type)))))
           (with-fortran-atoms ((:char n-char% #\N)
                                (:char v-char% #\V))
             (if vectors-p
-                (with-vector-output (vr (expt n 2) vr% :double)
-                  (with-work-query (lwork work :double)
+                (with-vector-output (vr (expt n 2) vr% real-type)
+                  (with-work-query (lwork work real-type)
                     (call-with-info-check procedure n-char% v-char% n% a% n% 
                                           w% wi% ; eigenvalues
                                           (null-pointer) n% vr% n% ; eigenvectors
@@ -368,11 +369,11 @@ first."))
                                               (zip-eigenvectors w% vr% n real-type
                                                                 complex-type))
                                 (make-matrix* real-type n n vr)))))
-                (with-work-query (lwork work :double)
+                (with-work-query (lwork% work% real-type)
                   (call-with-info-check procedure n-char% n-char% n% a% n% 
                                         w% wi%   ; eigenvalues
                                         (null-pointer) n% (null-pointer) n% ; eigenvectors
-                                        work lwork info%)
+                                        work% lwork% info%)
                   (zip-eigenvalues w% n real-type complex-type check-real-p)))))))))
 
 (defun eigen-dense-complex% (a vectors-p)

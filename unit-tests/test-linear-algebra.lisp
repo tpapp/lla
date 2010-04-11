@@ -49,6 +49,20 @@
                      (0.5657675 -0.9093767)) :test #'x=)))
 
 (addtest (linear-algebra-tests)
+  eigen-single
+  ;; necessary to test for single type because eigen is so hairy
+  (bind ((a (create-matrix 2 '(1 2 3 4) :lla-type :single))
+         ((:values eigenvalues eigenvectors)
+          (eigen a :vectors-p t :check-real-p t))
+         (order (xorder eigenvalues #'<)))
+    ;; we order by eigenvector magnitude
+    (ensure-same (slice eigenvalues order)
+                 #(-0.3722813 5.3722813) :test #'x=)
+    (ensure-same (slice eigenvectors :all order)
+                 #2A((-0.8245648 -0.4159736)
+                     (0.5657675 -0.9093767)) :test #'x=)))
+
+(addtest (linear-algebra-tests)
   hermitian
   (bind ((a (create-matrix 2 '(1 2 3 4)))
          (aa (mm t a))

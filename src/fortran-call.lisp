@@ -200,23 +200,23 @@ separately, we have to assemble them. *NOT EXPORTED*."
   (let ((real-p (and check-real-p 
                      (iter
                        (for i :from 0 :below n)
-                       (always (zerop (mem-aref val-pointer 
-                                                real-type (+ n i))))))))
+                       (always (zerop (mem-aref* val-pointer 
+                                                 real-type (+ n i))))))))
     (if real-p
         ;; no complex eigenvalues
         (let ((elements (make-nv-elements real-type n)))
           (iter
             (for i :from 0 :below n)
-            (setf (aref elements i) (mem-aref val-pointer real-type i)))
+            (setf (aref elements i) (mem-aref* val-pointer real-type i)))
           (values (make-nv* real-type elements) nil))
         ;; complex eigenvalues
         (let ((elements (make-nv-elements complex-type n)))
           (iter
             (for i :from 0 :below n)
-            (setf (aref elements i) (complex (mem-aref val-pointer
-                                                       real-type i)
-                                             (mem-aref val-pointer
-                                                       real-type (+ n i)))))
+            (setf (aref elements i) (complex (mem-aref* val-pointer
+                                                        real-type i)
+                                             (mem-aref* val-pointer
+                                                        real-type (+ n i)))))
           (values (make-nv* complex-type elements) t)))))
 
 (defun zip-eigenvectors (val-pointer vec-pointer n real-type complex-type)
@@ -226,14 +226,14 @@ when the second value returned by ZIP-EIGENVALUES is non-nil."
          (i 0))
    top
      (let ((column-start-index (cm-index2 n 0 i)))
-       (if (zerop (mem-aref val-pointer real-type (+ n i)))
+       (if (zerop (mem-aref* val-pointer real-type (+ n i)))
            ;; real
            (progn
              (iter
                (for j :from 0 :below n)
                (for vec-index :from column-start-index)
                (setf (aref vec vec-index)
-                     (complex (mem-aref vec-pointer real-type vec-index))))
+                     (complex (mem-aref* vec-pointer real-type vec-index))))
              (incf i))
            ;; complex, assemble from real +- imaginary columns
            (progn
@@ -241,8 +241,8 @@ when the second value returned by ZIP-EIGENVALUES is non-nil."
                (for j :from 0 :below n)
                (for vec-index :from column-start-index)
                (for vec-index2 :from (+ column-start-index n))
-               (with realpart := (mem-aref vec-pointer real-type vec-index))
-               (with imagpart := (mem-aref vec-pointer real-type vec-index2))
+               (with realpart := (mem-aref* vec-pointer real-type vec-index))
+               (with imagpart := (mem-aref* vec-pointer real-type vec-index2))
                (setf (aref vec vec-index) (complex realpart imagpart)
                      (aref vec vec-index2) (complex realpart (- imagpart))))
              (incf i 2))))
