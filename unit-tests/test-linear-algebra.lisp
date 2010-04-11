@@ -148,8 +148,8 @@
                      -0.9145143  0.4045536))
          (vt-true #2v(-0.5760484 -0.8174156
                       0.8174156 -0.5760484))
-         ((:values d u vt) (svd a :all :all))
-         ((:values d2 u2 vt2) (svd a :none :none)))
+         ((:values d u vt) (svd a :left :all :right :all))
+         ((:values d2 u2 vt2) (svd a)))
     ;; all, all
     (ensure (== d d-true))
     (ensure (== u u-true))
@@ -162,7 +162,7 @@
 (addtest (linear-algebra-tests)
   svd-rectangular
   (bind ((a (create-matrix 2 '(1 2 3 4 5 6)))
-         ((:values d u vt) (svd a :singular :singular)))
+         ((:values d u vt) (svd a :left :singular :right :singular)))
     (ensure (== d (create-diagonal '(9.5255181 0.5143006))))
     (ensure (== u (create-matrix 2 '(0.2298477  0.8834610
                                      0.5247448  0.2407825

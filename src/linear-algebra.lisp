@@ -627,7 +627,7 @@ used to generate random draws, etc."
 
 ;;; SVD
 
-(defun svd (a left-vector-spec right-vector-spec)
+(defun svd (a &key (left :none) (right :none))
   "Singular value decomposition.  Valid vector specifications
 are :NONE, :SINGULAR (singular vectors only) and :ALL.  Return values
 S (singular values, descending order, as a DIAGONAL), U (left singular
@@ -638,11 +638,11 @@ vectors, DENSE-MATRIX)."
           (lb-procedure-name2 'gesvd 'gesvd type)))
     (with-matrix-input ((a (m m%) (n n%) :copied) a% type)
       (bind ((min-mn (min m n))
-             ((:values u-ncol jobu) (ecase left-vector-spec
+             ((:values u-ncol jobu) (ecase left
                                       (:none (values 1 #\N)) ; LAPACK needs >=1
                                       (:singular (values min-mn #\S))
                                       (:all (values m #\A))))
-             ((:values vt-nrow jobvt) (ecase right-vector-spec
+             ((:values vt-nrow jobvt) (ecase right
                                         (:none (values 1 #\N)) ; LAPACK needs >=1
                                         (:singular (values min-mn #\S))
                                         (:all (values n #\A)))))
@@ -665,10 +665,10 @@ vectors, DENSE-MATRIX)."
                                u% m% vt% vt-nrow% work% lwork% info%))))
                       (values u vt))))
               (values (make-diagonal* type s)
-                      (if (eq left-vector-spec :none)
+                      (if (eq left :none)
                           nil
                           (make-matrix* type m u-ncol u))
-                      (if (eq right-vector-spec :none)
+                      (if (eq right :none)
                           nil
                           (make-matrix* type vt-nrow n vt))))))))))
 
@@ -710,7 +710,7 @@ value."
             (;; no matrix multiplication
              t
              (values matrix nil))))
-         (d (svd matrix :none :none))
+         (d (svd matrix))
          (d-elements (elements d)))
     (map-into d-elements (if squared-p
                              (lambda (x)
