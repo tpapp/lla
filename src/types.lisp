@@ -153,15 +153,6 @@ for :INTEGER."
 (defmethod lla-type ((object number))
   (lisp-type->lla-type (type-of object)))
 
-(defmacro append-lla-type (prefix lla-type)
-  "Return prefix-LLA-TYPE."
-  `(ecase ,lla-type
-     (:integer ',(make-symbol* prefix '-integer))
-     (:single ',(make-symbol* prefix '-single))
-     (:double ',(make-symbol* prefix '-double))
-     (:complex-single ',(make-symbol* prefix '-complex-single))
-     (:complex-double ',(make-symbol* prefix '-complex-double))))
-
 ;;;; automatic type classification
 ;;;
 ;;; We find the smallest common target type, the type we can all
@@ -262,16 +253,5 @@ MAKE-NV and MAKE-MATRIX.  Uses *FORCE-FLOAT* and *FORCE-DOUBLE*."
     ((typep initial-contents 'sequence) (find-element-type initial-contents))
     (t (error "~A is not valid as INITIAL-CONTENTS." initial-contents))))
 
-;;;; macros for defining subclasses of NUMERIC-VECTOR-*
 
 
-(defmacro define-lla-class (class &optional (superclasses (list class)))
-  "Define subclasses of all NUMERIC-VECTOR types and given
-superclasses, with appropriate names.  If no superclasses are given,
-class is used instead."
-  `(progn ,@(mapcar 
-             (lambda (lla-type)
-               `(defclass ,(make-symbol* class "-" lla-type)
-                      (,@superclasses ,(append-lla-type numeric-vector lla-type))
-                  ()))
-             +lla-type-list+)))

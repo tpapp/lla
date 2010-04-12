@@ -70,7 +70,7 @@ size."
   ;; wreak havoc.  See COPY-MATRIX% for not copying elements between
   ;; different kinds.
   (check-type target-type symbol)
-  (let ((kind (make-keyword* target-type)))
+  (let ((kind (make-keyword target-type)))
     `(defmethod as* ((class (eql ',(matrix-class kind))) (object dense-matrix-like)
                      copy-p options)
        (let ((same-kind? (eq (matrix-kind object) ,kind)))

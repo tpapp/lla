@@ -2,7 +2,7 @@
 
 (defpackage #:lla
     (:use :common-lisp :cl-utilities :iterate :bind :cffi :xarray
-          :anaphora :named-readtables)
+          :anaphora :named-readtables :tpapp-utils)
   (:shadowing-import-from :iterate :collecting :collect)
   (:export 
    ;; utilities -- nothing is exported

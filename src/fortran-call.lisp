@@ -25,10 +25,10 @@ this macro."
   (check-type name symbol)
   (check-type lla-type symbol)
   (ecase lla-type
-    (:single (make-symbol* "%S" name))
-    (:double (make-symbol* "%D" name))
-    (:complex-single (make-symbol* "%C" name))
-    (:complex-double (make-symbol* "%Z" name))))
+    (:single (make-symbol% "%S" name))
+    (:double (make-symbol% "%D" name))
+    (:complex-single (make-symbol% "%C" name))
+    (:complex-double (make-symbol% "%Z" name))))
 
 (defun lb-procedure-name2 (real-name complex-name lla-type)
   "Evaluate to the LAPACK/BLAS procedure name, differentiating real
@@ -38,10 +38,10 @@ as appropriate, and the third value is true iff lla-type is complex."
   (check-type complex-name symbol)
   (check-type lla-type symbol)
   (ecase lla-type
-    (:single (values (make-symbol* "%S" real-name) :single nil))
-    (:double (values (make-symbol* "%D" real-name) :double nil))
-    (:complex-single (values (make-symbol* "%C" complex-name) :single t))
-    (:complex-double (values (make-symbol* "%Z" complex-name) :double t))))
+    (:single (values (make-symbol% "%S" real-name) :single nil))
+    (:double (values (make-symbol% "%D" real-name) :double nil))
+    (:complex-single (values (make-symbol% "%C" complex-name) :single t))
+    (:complex-double (values (make-symbol% "%Z" complex-name) :double t))))
 
 ;;; Some LAPACK procedures can signal errors, they do this via an INFO
 ;;; output integer.  Here we provide macros to capture these errors.
@@ -256,13 +256,13 @@ when the second value returned by ZIP-EIGENVALUES is non-nil."
   "Sum & return (as a NUMERIC-VECTOR) the last (- M N) rows of an M x
 NRHS matrix, given as a Lisp vector in column-major view.  NOTE:
 needed to interface to LAPACK routines like xGELS."
-  (bind (((:lla-vector sum) (make-nv (squared-lla-type lla-type) nrhs)))
+  (bind (((:lla-vector row-sums) (make-nv (squared-lla-type lla-type) nrhs)))
     (dotimes (col nrhs)
-      (setf (sum col)
+      (setf (row-sums col)
             (sum-squared-elements lla-type elements
                                   (cm-index2 m n col)
                                   (cm-index2 m m col))))
-    sum))
+    row-sums))
 
 
 ;;;; nice interface for matrices, probably the most important macro

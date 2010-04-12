@@ -73,6 +73,7 @@
     ((:file "adjustable"))))
   :depends-on
   (:cl-utilities :iterate :metabang-bind :cffi :xarray
-                 :anaphora :named-readtables :alexandria))
+                 :anaphora :named-readtables :alexandria
+                 :tpapp-utils))
 
 ;;;; ?? providing something else besides ASDF?  Mudballs? -- Tamas

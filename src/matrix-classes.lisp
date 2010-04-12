@@ -104,8 +104,8 @@
   "Macro for defining simple subclasses of DENSE-MATRIX-LIKE."
   (check-type kind symbol)
   (check-type documentation string)
-  (let ((class (make-symbol* kind '-matrix))
-        (kind (make-keyword* kind)))
+  (let ((class (make-symbol% kind '-matrix))
+        (kind (make-keyword kind)))
     `(progn
        (defclass ,class (,@additional-superclasses dense-matrix-like)
          ,additional-slots
