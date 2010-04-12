@@ -681,7 +681,7 @@ vectors, DENSE-MATRIX)."
     (bind (((:lla-matrix a) a))
       (iter
         (for i :from 0 :below (nrow a))
-        (summing (a i i)))))
+        (summing (a (a-index i i))))))
   (:method ((a diagonal))
     (reduce #'+ (elements a))))
 
