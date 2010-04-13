@@ -190,3 +190,16 @@ like xGELS."
 (defun stack-horizontally (&rest arguments)
   (declare (ignore arguments))
   (error "This function needs to be implemented."))
+
+;;;; identity
+
+(defun eye (n &key (kind :dense) (initial-element 1) (lla-type :double))
+  "Return an identity matrix of the given KIND (can also be :diagonal)
+and LLA-TYPE.  INITIAL-ELEMENT will be used for the diagonal."
+  (if (eq kind :diagonal)
+      (make-diagonal lla-type n initial-element)
+      (bind (((:lla-matrix eye) (make-matrix lla-type n n :kind kind))
+             (initial-element (coerce* initial-element lla-type)))
+        (dotimes (i n)
+          (setf (eye (eye-index i i)) initial-element))
+        eye)))

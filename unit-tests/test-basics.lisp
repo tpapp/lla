@@ -172,3 +172,15 @@
     (ensure-same (submatrix matrix 1 -1 1 -1) submatrix1)
     (ensure-same (solve submatrix1 submatrix) #2v(1 0 0 1)
                  :test (x~= 1d-8))))
+
+;;; diagonal
+
+(addtest (basic-tests)
+  eye
+  (let ((*lift-equality-test* #'==))
+    (ensure-same (eye 2) #2v(1 0 0 1))
+    (ensure-same (eye 1 :kind :hermitian) #1v:hermitian(1))
+    (ensure-same (eye 2 :kind :upper-triangular :initial-element 3)
+                 #2v:upper(3 0 0 3))
+    (ensure-same (eye 3 :kind :diagonal :initial-element 5 :lla-type :integer)
+                 #vi:diagonal(5 5 5))))

@@ -53,7 +53,7 @@
    
    submatrix make-matrix* make-matrix create-matrix reshape
    vector->column vector->row transpose stack-horizontally
-   stack-vertically
+   stack-vertically eye
 
    ;; readmacros
 
