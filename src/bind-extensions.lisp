@@ -15,8 +15,9 @@
      variable-form value-form
      body declarations remaining-bindings)
   (bind (((value) value-form)
-         ((var &key elements
-               (accessor (unless elements var))
+         ((var &key
+               (elements (gensym* 'elements- var) elements?)
+               (accessor (unless elements? var))
                length) variable-form)
          (elements (aif elements
                         it
@@ -41,8 +42,9 @@
      variable-form value-form
      body declarations remaining-bindings)
   (bind (((value) value-form)
-         ((var &key elements
-               (accessor (if (not elements) var))
+         ((var &key
+               (elements (gensym* 'elements- var) elements?)
+               (accessor (unless elements? var))
                (indexer (make-symbol* var '#:-index))
                length (nrow (gensym* '#:nrow- var))) variable-form)
          (elements (aif elements
