@@ -46,7 +46,8 @@
                (elements (gensym* 'elements- var) elements?)
                (accessor (unless elements? var))
                (indexer (make-symbol* var '#:-index))
-               length (nrow (gensym* '#:nrow- var))) variable-form)
+               length (nrow (gensym* '#:nrow- var))
+               ncol) variable-form)
          (elements (aif elements
                         it
                         (gensym* 'elements- var))))
@@ -56,7 +57,9 @@
              (,nrow (nrow ,var))
              ,@(if length
                    `((,length (length ,elements)))
-                   nil))
+                   nil)
+             ,@(if ncol
+                   `((,ncol (ncol ,var)))))
         (flet (,@(when accessor
                    `((,accessor (index)
                                 (aref ,elements index))
@@ -66,9 +69,11 @@
                    `((,indexer (row col)
                                (cm-index2 ,nrow row col)))))
           ,@(when accessor
-              `(declare (ignorable (function ,accessor) (function (setf ,accessor)))))
+              `((declare (ignorable (function ,accessor) (function (setf ,accessor))))))
           ,@(when indexer
-              `(declare (ignorable (function ,indexer))))
+              `((declare (ignorable (function ,indexer)))))
+          ,@(when ncol
+              `((declare (ignorable ncol))))
           ,(metabang-bind::bind-filter-declarations declarations variable-form)
           ,@(metabang-bind::bind-macro-helper 
              remaining-bindings declarations body))))))
