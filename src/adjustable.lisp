@@ -24,9 +24,12 @@
 
 ;;;  General interface
 
+(defparameter *default-expansion* 0
+  "Default expansion for adjustable objects.")
+
 (define-abstract-class adjustable ()
   ((default-expansion :accessor default-expansion :initarg :default-expansion
-     :initform 0 :documentation "Default relative expansion."))
+     :initform *default-expansion* :documentation "Default relative expansion."))
   (:documentation "Object with one dimension adjustable.
 
 Adjustable objects are flexible along one dimension -- eg vectors can
@@ -95,7 +98,7 @@ strict (see default-expansion).  Return new capacity."
   (size anv))
 
 (defun make-anv (lla-type size &key (initial-element 0) (capacity size)
-                 (default-expansion 0))
+                 (default-expansion *default-expansion*))
   "Return an ADJUSTABLE-NUMERIC-VECTOR."
   (assert (<= 0 size capacity))
   (make-instance 'adjustable-numeric-vector 
@@ -218,7 +221,7 @@ strict (see default-expansion).  Return new capacity."
           value)))
 
 (defun make-ra-matrix (lla-type nrow ncol &key
-                       (capacity nrow) (default-expansion 0))
+                       (capacity nrow) (default-expansion *default-expansion*))
   (assert (<= nrow capacity))
   (make-instance 'row-adjustable-matrix
                  :default-expansion default-expansion
