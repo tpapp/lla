@@ -55,6 +55,10 @@
    vector->column vector->row transpose stack-horizontally
    stack-vertically eye
 
+   ;; clo
+
+   clo
+
    ;; readmacros
 
    read-vector-or-matrix v-syntax

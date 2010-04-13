@@ -95,6 +95,11 @@
   (:documentation "Return the name of the matrix class corresponding
   to KIND (which can be :dense, :upper-triangular, etc)."))
 
+(defgeneric valid-matrix-kind? (kind)
+  (:documentation "Return non-NIL if KIND is a valid matrix kind.")
+  (:method (kind)
+    nil))
+
 (defgeneric matrix-kind (matrix)
   (:documentation "Return the matrix kind, eg :DENSE, :UPPER-TRIANGULAR, etc."))
 
@@ -111,7 +116,8 @@
          ,additional-slots
          (:documentation ,documentation))
        (defmethod matrix-kind ((matrix ,class)) ,kind)
-       (defmethod matrix-class ((kind (eql ,kind))) ',class))))
+       (defmethod matrix-class ((kind (eql ,kind))) ',class)
+       (defmethod valid-matrix-kind? ((kind (eql ,kind))) t))))
 
 ;;; Framework for dense matrices with restricted elements.
 

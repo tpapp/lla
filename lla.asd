@@ -52,6 +52,7 @@
      (:file "factorizations")
      (:file "bind-extensions")
      (:file "printing")
+     (:file "clo")
      (:file "readmacros")
      (:file "creation-conversion")
      (:file "binary-operations")
