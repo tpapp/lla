@@ -27,15 +27,16 @@
              (,elements (elements ,var))
              ,@(when length
                  `((,length (length ,elements)))))
-        (,@(when accessor
-             `(flet ((,accessor (index)
-                       (aref ,elements index))
+        (flet (,@(when accessor
+                   `((,accessor (index)
+                                (aref ,elements index))
                      ((setf ,accessor) (value index)
-                       (setf (aref ,elements index) value)))
-                (declare (ignorable (function ,accessor) (function (setf ,accessor))))))
-           ,(metabang-bind::bind-filter-declarations declarations variable-form)
-           ,@(metabang-bind::bind-macro-helper 
-              remaining-bindings declarations body))))))
+                      (setf (aref ,elements index) value)))))
+          ,@(when accessor
+              `((declare (ignorable (function ,accessor) (function (setf ,accessor))))))
+          ,(metabang-bind::bind-filter-declarations declarations variable-form)
+          ,@(metabang-bind::bind-macro-helper 
+             remaining-bindings declarations body))))))
 
 (defmethod metabang.bind.developer:bind-generate-bindings
     ((kind (eql :lla-matrix))
