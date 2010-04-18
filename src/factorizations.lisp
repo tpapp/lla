@@ -42,8 +42,8 @@
            :initarg :factor :reader factor
            :documentation "upper/lower triangular matrix M such
              that MDM^* is equal to the original matrix")
-      (ipiv :type numeric-vector :initarg :ipiv :reader ipiv
-            :documentation "pivot indices"))
+   (ipiv :type numeric-vector :initarg :ipiv :reader ipiv
+         :documentation "pivot indices"))
   (:documentation "Factorization for an indefinite hermitian matrix
   with pivoting."))
 
