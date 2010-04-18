@@ -22,6 +22,22 @@
     (ensure (== x-solve-lu x))))
 
 (addtest (linear-algebra-tests)
+  mm-solve-triangular
+  (bind ((u (clo :upper-triangular 
+                 1 2 :/
+                 0 3))
+         (l (clo :lower-triangular
+                 1 0 :/
+                 2 3))
+         (b (clo :dense
+                 5 6 :/
+                 7 8))
+         (x-u (solve u b))
+         (x-l (solve l b)))
+    (ensure-same (mm u x-u) b :test #'==)
+    (ensure-same (mm l x-l) b :test #'==)))
+
+(addtest (linear-algebra-tests)
   invert
   (let ((m (create-matrix 2 '(1 2 3 4))))
     (flet ((invert (kind)

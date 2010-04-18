@@ -229,6 +229,41 @@
           (call-with-info-check procedure u-char% n% nrhs% factor% n% ipiv% b% n% info%))
         (make-matrix* common-type n n x)))))
 
+(defun trsm% (a b side transpose-a? &optional (alpha 1))
+  "Wrapper for BLAS routine xTRSM.  Calculates op(A^-1) B (if SIDE
+is :LEFT) or B op(A^-1) (if SIDE is :RIGHT).  A has to be a triangular
+matrix.  transpose-a? determines whether op(A) is A^T or A.  The
+result is multiplied by ALPHA."
+  (bind ((common-type (lb-target-type a b))
+         (procedure (lb-procedure-name 'trsm common-type)))
+    (with-matrix-inputs (((a (a-n lda%) a-m) a% common-type)
+                         ((b (m m%) (n n%) :output-to result) b% common-type))
+      (bind ((side (ecase side
+                     (:left
+                        (assert (= a-m m))
+                        #\L)
+                     (:right
+                        (assert (= a-n n))
+                        #\R))))
+        (with-fortran-atoms ((:char side% side)
+                             (:char uplo% (ecase (matrix-kind a)
+                                            (:lower-triangular #\L)
+                                            (:upper-triangular #\U)))
+                             (:char transa% (if transpose-a?
+                                                #\C
+                                                #\N))
+                             (:char diag% #\N)
+                             (common-type alpha% (coerce* alpha common-type)))
+          (funcall procedure side% uplo% transa% diag%
+                   m% n% alpha% a% lda% b% m%)
+          (make-matrix* common-type m n result))))))
+
+(defmethod solve ((a lower-triangular-matrix) b)
+  (trsm% a b :left nil))
+
+(defmethod solve ((a upper-triangular-matrix) b)
+  (trsm% a b :left nil))
+
 (defgeneric invert (a &key &allow-other-keys)
   (:documentation "Invert A.  Usage note: inverting matrices is
   unnecessary and unwise in most cases, because it is numerically
