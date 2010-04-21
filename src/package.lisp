@@ -2,7 +2,7 @@
 
 (defpackage #:lla
     (:use :common-lisp :cl-utilities :iterate :bind :cffi :xarray
-          :anaphora :named-readtables :tpapp-utils)
+          :anaphora :tpapp-utils)
   (:shadowing-import-from :iterate :collecting :collect)
   (:export 
    ;; utilities -- nothing is exported
@@ -61,7 +61,7 @@
 
    ;; readmacros
 
-   read-vector-or-matrix v-syntax
+   read-vector-or-matrix
 
    ;; fortran-call -- nothing is exported
 
@@ -74,6 +74,7 @@
 
    *default-expansion* default-expansion adjustable size capacity add shrink
    adjustable-numeric-vector make-anv row-adjustable-matrix make-ra-matrix
+   adjustable-columns-dont-match
    
    ))
 

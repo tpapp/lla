@@ -2,8 +2,6 @@
 
 (in-package #:lla-unit-tests)
 
-(in-readtable lla:v-syntax)
-
 (deftestsuite linear-algebra-tests (lla-unit-tests)
   ())
 
@@ -115,18 +113,18 @@
 (addtest (linear-algebra-tests)
   constrained-least-squares
   ;;  Taken from the LAPACK documentation
-  (bind ((x #4v(1 1 1 1
-                  1 3 1 1
-                  1 -1 3 1
-                  1 1 1 3
-                  1 1 1 -1))
-         (y #v(2 1 6 3 1))
-         (z #4v(1 1 1 -1
-                  1 -1 1 1
-                  1 1 -1 1))
-         (w #v(1 3 -1)))
+  (bind ((x (clo 1 1 1 1 :/
+                 1 3 1 1
+                 1 -1 3 1
+                 1 1 1 3
+                 1 1 1 -1))
+         (y (clo 2 1 6 3 1))
+         (z (clo 1 1 1 -1 :/
+                 1 -1 1 1
+                 1 1 -1 1))
+         (w (clo 1 3 -1)))
     (ensure-same (constrained-least-squares y x z w)
-                 #v(0.5 -0.5 1.5 0.5) :test #'==)))
+                 (clo 0.5 -0.5 1.5 0.5) :test #'==)))
 
 (addtest (linear-algebra-tests)
   cholesky                       ; also tests hermitian factorizations
@@ -159,11 +157,11 @@
 (addtest (linear-algebra-tests)
   svd
   (bind ((a (create-matrix 2 '(1d0 2 3 4)))
-         (d-true #v:diagonal(5.4649857 0.3659662))
-         (u-true #2v(-0.4045536 -0.9145143
+         (d-true (clo :diagonal 5.4649857 0.3659662))
+         (u-true (clo -0.4045536 -0.9145143 :/
                      -0.9145143  0.4045536))
-         (vt-true #2v(-0.5760484 -0.8174156
-                      0.8174156 -0.5760484))
+         (vt-true (clo -0.5760484 -0.8174156 :/
+                       0.8174156 -0.5760484))
          ((:values d u vt) (svd a :left :all :right :all))
          ((:values d2 u2 vt2) (svd a)))
     ;; all, all
@@ -179,25 +177,31 @@
   svd-rectangular
   (bind ((a (create-matrix 2 '(1 2 3 4 5 6)))
          ((:values d u vt) (svd a :left :singular :right :singular)))
-    (ensure (== d (create-diagonal '(9.5255181 0.5143006))))
-    (ensure (== u (create-matrix 2 '(0.2298477  0.8834610
-                                     0.5247448  0.2407825
-                                     0.8196419 -0.4018960))))
-    (ensure (== vt (create-matrix 2 '(0.6196295 0.7848945
-                                      -0.7848945 0.6196295))))))
+    (ensure (== d (clo :diagonal 9.5255181 0.5143006)))
+    (ensure (== u (clo 0.2298477  0.8834610 :/
+                       0.5247448  0.2407825
+                       0.8196419 -0.4018960)))
+    (ensure (== vt (clo 0.6196295 0.7848945 :/
+                        -0.7848945 0.6196295)))))
 
 (addtest (linear-algebra-tests)
   tr
-  (ensure-same (tr #2v(1 2 3 4)) 5d0)
-  (ensure-same (tr #2v:hermitian(1 2 0 9)) 10d0)
-  (ensure-same (tr #2v:lower(1 2 3 4)) 5d0)
-  (ensure-same (tr #2v:upper(1 2 3 4)) 5d0)
-  (ensure-same (tr #v:diagonal(2 15)) 17d0))
+  (ensure-same (tr (clo 1 2 :/
+                        3 4)) 5d0)
+  (ensure-same (tr (clo :hermitian
+                        1 2 :/
+                        0 9)) 10d0)
+  (ensure-same (tr (clo 1 2 :/
+                        3 4)) 5d0)
+  (ensure-same (tr (clo :upper-triangular
+                        1 2 :/
+                        3 4)) 5d0)
+  (ensure-same (tr (clo :diagonal 2 15)) 17d0))
 
 (addtest (linear-algebra-tests)
   rank
-  (ensure-same (rank #2v(1 1 1 1)) 1)
-  (ensure-same (rank #2v(2 4 1 3
-                         -1 -2 1 0
-                         0 0 2 2
-                         3 6 2 5)) 2))
+  (ensure-same (rank (clo 1 1 :/ 1 1)) 1)
+  (ensure-same (rank (clo 2 4 1 3 :/
+                          -1 -2 1 0
+                          0 0 2 2
+                          3 6 2 5)) 2))

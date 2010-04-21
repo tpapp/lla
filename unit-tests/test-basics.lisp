@@ -1,8 +1,6 @@
 ;;; -*- Mode:Lisp; Syntax:ANSI-Common-Lisp; Coding:us-ascii -*-
 
 (in-package :lla-unit-tests)
-(in-readtable lla:v-syntax)
-
 
 (deftestsuite basic-tests (lla-unit-tests)
   ())
@@ -99,9 +97,8 @@
 
 (addtest (basic-tests)
   create-matrix
-  ;; Note: here we compare to Lisp arrays.  If we compared to LLA
-  ;; objects created with the #v read macro, we could never detect
-  ;; bugs in CREATE-MATRIX as it is used by the readmacro itself.
+  ;; Note: here we compare elements.  If we used CLO, its
+  ;; implementation could share bugs with CREATE-MATRIX.
   (flet ((make (kind)
            (create-matrix 2 '(1 2 3 4) :kind kind)))
     (ensure-same (make :dense)
@@ -145,7 +142,7 @@
 
 (addtest (basic-tests)
   set-restricted-and-as
-  (bind ((dense #2v(1 2 3 4))
+  (bind ((dense (clo 1 2 :/ 3 4))
          (hermitian (as 'hermitian-matrix dense))
          (upper-triangular (as 'upper-triangular-matrix dense))
          (lower-triangular (as 'lower-triangular-matrix dense))
@@ -161,16 +158,16 @@
 
 (addtest (basic-tests)
   submatrix
-  (let* ((matrix #4v(1 2 3 4
-                     5 6 7 8
-                     9 10 11 12
-                     13 14 15 16))
-         (submatrix #2v(6 7 10 11))
+  (let* ((matrix (clo 1 2 3 4 :/
+                      5 6 7 8
+                      9 10 11 12
+                      13 14 15 16))
+         (submatrix (clo 6 7 :/ 10 11))
          (submatrix1 (submatrix matrix 1 3 1 3))
          (*lift-equality-test* #'x=))
     (ensure-same submatrix submatrix1)
     (ensure-same (submatrix matrix 1 -1 1 -1) submatrix1)
-    (ensure-same (solve submatrix1 submatrix) #2v(1 0 0 1)
+    (ensure-same (solve submatrix1 submatrix) (clo 1 0 :/ 0 1)
                  :test (x~= 1d-8))))
 
 ;;; diagonal
@@ -178,9 +175,9 @@
 (addtest (basic-tests)
   eye
   (let ((*lift-equality-test* #'==))
-    (ensure-same (eye 2) #2v(1 0 0 1))
-    (ensure-same (eye 1 :kind :hermitian) #1v:hermitian(1))
+    (ensure-same (eye 2) (clo 1 0 :/ 0 1))
+    (ensure-same (eye 1 :kind :hermitian) (clo :hermitian 1))
     (ensure-same (eye 2 :kind :upper-triangular :initial-element 3)
-                 #2v:upper(3 0 0 3))
+                 (clo :upper-triangular 3 0 :/ 0 3))
     (ensure-same (eye 3 :kind :diagonal :initial-element 5 :lla-type :integer)
-                 #vi:diagonal(5 5 5))))
+                 (clo :integer :diagonal 5 5 5))))

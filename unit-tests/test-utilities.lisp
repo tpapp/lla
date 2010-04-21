@@ -2,8 +2,6 @@
 
 (in-package #:lla-unit-tests)
 
-(in-readtable lla:v-syntax)
-
 (deftestsuite utilities-tests (lla-unit-tests)
   ())
 
@@ -15,12 +13,14 @@
 
 (addtest (utilities-tests)
   ==-test
-  (ensure (== #1v(1) #1v(1)))
-  (ensure-error (== #1v(1) #1v(2))))
+  (ensure (== (clo 1 :/) (clo 1 :/)))
+  (ensure-error (== (clo 1 :/) (clo 2 :/))))
 
 (addtest (utilities-tests)
   make-nv-or-matrix-test
   (let ((*lift-equality-test* #'==))
-    (ensure-same (make-nv-with-seq :single 3) #vs(0 1 2))
+    (ensure-same (make-nv-with-seq :single 3) (clo :single 0 1 2))
     (ensure-same (make-matrix-with-seq :complex-double 2 2)
-                 #2vcd(0 2 1 3))))
+                 (clo :complex-double
+                      0 2 :/
+                      1 3))))
