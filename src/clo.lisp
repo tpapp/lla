@@ -39,12 +39,13 @@ of ELEMENTS, return (values ELEMENTS NROW).  ELEMENTS is a list."
   "Create LLA Object.  Syntax:
 
   arguments ::= keyword* elements
-  keywords ::= kind | lla-type | no-coerce
+  keyword ::= kind | lla-type | no-coerce
   elements ::= element* | element* :/ element*
 
   Possible KIND keywords are :diagonal, :dense, :lower-triangular
   and :upper-triangular.  If none are given, the result is a
-  numeric-vector.  At most one KIND keyword can be given.
+  numeric-vector, unless an element separator (:/) is given.  At most
+  one KIND keyword can be given.
 
   At most one LLA-TYPE keyword can be given, if none is supplied, it
   will be determined from the elements at runtime.
@@ -102,6 +103,10 @@ of ELEMENTS, return (values ELEMENTS NROW).  ELEMENTS is a list."
                                       (coerce* x ,lla-type-var))
                                     ,elements-var))))
                    ,creation-form))))
+      ;; no kind specification, but separator found => dense matrix
+      (when (and (not kind) (find :/ elements))
+        (setf kind :dense))
+      ;; return form
       (case kind
         ((nil)
            (elements-form elements `(make-nv* ,lla-type-var ,elements-var)))
