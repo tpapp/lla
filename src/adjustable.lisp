@@ -274,12 +274,18 @@ strict (see default-expansion).  Return new capacity."
     (setf elements (make-nv-elements lla-type (* capacity ncol)))
     ncol))
 
+(define-condition adjustable-columns-dont-match (error)
+  ()
+  (:documentation "This condition is used when the number of columns in
+  an adjustable object do not match that of another object."
+   :report "The number of columns don't match that of the adjustable object."))
+
 (defmethod add ((ram row-adjustable-matrix) (matrix dense-matrix-like))
   (bind (((:slots elements nrow ncol capacity lla-type) ram)
          ((:slots-read-only (nrow-matrix nrow) (ncol-matrix ncol)) matrix))
     (if (zerop nrow)
         (setf (ncol ram) ncol-matrix)
-        (assert (= ncol ncol-matrix) () "Columns don't match."))
+        (assert (= ncol ncol-matrix) () 'adjustable-columns-dont-match))
     (set-restricted matrix)
     (ensure-excess-capacity ram nrow-matrix)
     (copy-columns% nrow-matrix ncol
@@ -291,6 +297,17 @@ strict (see default-expansion).  Return new capacity."
 (defmethod add ((ram row-adjustable-matrix) (nv numeric-vector))
   (add ram (vector->row nv)))
 
+(defmethod add ((ram row-adjustable-matrix) (vector vector))
+  (bind (((:accessors-r/o length) vector)
+         ((:slots lla-type elements nrow ncol capacity) ram))
+    (assert (= ncol length) () 'adjustable-columns-dont-match)
+    (ensure-excess-capacity ram 1)
+    (copy-columns 1 ncol
+                  vector 0 1 t
+                  elements nrow capacity lla-type)
+    (incf nrow))
+  ram)
+
 (defmethod add ((ram row-adjustable-matrix) (diagonal diagonal))
   (add ram (diagonal->matrix diagonal)))
 
@@ -299,7 +316,7 @@ strict (see default-expansion).  Return new capacity."
   (bind (((:slots elements nrow ncol lla-type) ram))
     (if (zerop nrow)
         (setf (ncol ram) 1)
-        (assert (= ncol 1) () "Columns don't match."))
+        (assert (= ncol 1) () 'adjustable-columns-dont-match))
     (ensure-excess-capacity ram 1)
     (setf (aref elements nrow) (coerce* x lla-type))
     (incf nrow))
