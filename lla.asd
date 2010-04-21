@@ -48,12 +48,11 @@
      (:file "matrix-classes")
      (:file "dense-matrix-like")
      (:file "diagonal")
+     (:file "bind-extensions")
      (:file "matrix-operations")
      (:file "factorizations")
-     (:file "bind-extensions")
      (:file "printing")
      (:file "clo")
-     (:file "readmacros")
      (:file "creation-conversion")
      (:file "binary-operations")
      (:file "specialized-utilities")))
@@ -74,7 +73,6 @@
     ((:file "adjustable"))))
   :depends-on
   (:cl-utilities :iterate :metabang-bind :cffi :xarray
-                 :anaphora :named-readtables :alexandria
-                 :tpapp-utils))
+                 :anaphora :alexandria :tpapp-utils))
 
 ;;;; ?? providing something else besides ASDF?  Mudballs? -- Tamas
