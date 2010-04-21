@@ -2,8 +2,6 @@
 
 (in-package #:lla-unit-tests)
 
-(in-readtable lla:v-syntax)
-
 (deftestsuite bind-extensions-tests (lla-unit-tests)
   ())
 
@@ -14,7 +12,7 @@
       (setf (a i) (coerce* i :double)))
     (dotimes (i length)
       (incf (a i)))
-    (ensure-same a #v(1 2 3 4 5) :test #'==)))
+    (ensure-same a (clo 1 2 3 4 5) :test #'==)))
 
 (addtest (bind-extensions-tests)
   lla-matrix
@@ -22,7 +20,7 @@
     (dotimes (row a-nrow)
       (dotimes (col a-ncol)
         (setf (a (a-index row col)) (+ (* 10d0 row) col))))
-    (ensure-same a #4v(0 1 2 3
-                       10 11 12 13
-                       20 21 22 23)
+    (ensure-same a (clo 0 1 2 3 :/
+                        10 11 12 13
+                        20 21 22 23)
                  :test #'==)))
