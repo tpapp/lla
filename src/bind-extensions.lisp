@@ -2,6 +2,8 @@
 
 (in-package #:lla)
 
+
+
 (setf (binding-form-docstring :lla-vector)
       (cons :lla-vector
             "(:lla-vector var &key elements accessor length) will bind
@@ -11,9 +13,9 @@
             is given, when it is NIL)."))
 
 (defmethod metabang.bind.developer:bind-generate-bindings 
-    ((kind (eql :lla-vector))
-     variable-form value-form
-     body declarations remaining-bindings)
+  ((kind (eql :lla-vector))
+   variable-form value-form
+   body declarations remaining-bindings)
   (bind (((value) value-form)
          ((var &key
                (elements (gensym* 'elements- var) elements?)
@@ -39,9 +41,9 @@
              remaining-bindings declarations body))))))
 
 (defmethod metabang.bind.developer:bind-generate-bindings
-    ((kind (eql :lla-matrix))
-     variable-form value-form
-     body declarations remaining-bindings)
+  ((kind (eql :lla-matrix))
+   variable-form value-form
+   body declarations remaining-bindings)
   (bind (((value) value-form)
          ((var &key
                (elements (gensym* 'elements- var) elements?)
