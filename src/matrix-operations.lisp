@@ -34,7 +34,8 @@ copy-columns etc, see that function for variable names."
                      destination destination-offset destination-ld
                      &optional (destination-type source-type))
   "Copy elements from one matrix to another, respecting leading
-dimensions and offsets.  If types are different, elements are
+dimensions and offsets.  If types are different, elements are coerced.
+Source-type is allowed to be T, in which case elements are always
 coerced."
   (if (eq source-type destination-type)
       (copy-columns% nrow ncol
