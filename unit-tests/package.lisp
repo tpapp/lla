@@ -1,6 +1,6 @@
 (defpackage #:lla-unit-tests
     (:use #:cl #:cl-utilities #:iterate #:metabang-bind #:cffi #:xarray
-          #:anaphora #:named-readtables #:lift #:lla)
+          #:anaphora #:named-readtables #:lift #:lla #:cl-num-utils)
   (:shadowing-import-from :iterate :collecting :collect)
   (:import-from lla coercible-pairs-list mem-aref* 
                 with-fortran-atoms make-nv-elements

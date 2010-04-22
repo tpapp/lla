@@ -55,7 +55,8 @@
      (:file "clo")
      (:file "creation-conversion")
      (:file "binary-operations")
-     (:file "specialized-utilities")))
+     (:file "specialized-utilities")
+     (:file "misc-operations")))
    (:module
     "linear-algebra"
     :pathname #P"src/"
@@ -73,6 +74,7 @@
     ((:file "adjustable"))))
   :depends-on
   (:cl-utilities :iterate :metabang-bind :cffi :xarray
-                 :anaphora :alexandria :tpapp-utils))
+                 :anaphora :alexandria :tpapp-utils
+                 :cl-num-utils))
 
 ;;;; ?? providing something else besides ASDF?  Mudballs? -- Tamas
