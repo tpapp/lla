@@ -2,7 +2,7 @@
 
 (defpackage #:lla
     (:use :common-lisp :cl-utilities :iterate :bind :cffi :xarray
-          :anaphora :tpapp-utils)
+          :anaphora :tpapp-utils :cl-num-utils)
   (:shadowing-import-from :iterate :collecting :collect)
   (:export 
    ;; utilities -- nothing is exported
@@ -51,7 +51,7 @@
    
    ;; matrix-operations
    
-   submatrix make-matrix* make-matrix create-matrix reshape
+   submatrix subcolumn subrow make-matrix* make-matrix create-matrix reshape
    vector->column vector->row transpose stack-horizontally
    stack-vertically eye
 

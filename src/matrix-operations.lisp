@@ -93,6 +93,14 @@ are checked for validity."
                     (elements result) 0 new-nrow)
       result)))
 
+(defun subcolumn (matrix col)
+  "Return a column from a matrix"
+  (copy-nv (submatrix matrix 0 nil col (1+ col)) :copy-p nil))
+
+(defun subrow (matrix row)
+  "Return a row from a matrix"
+  (copy-nv (submatrix matrix row (1+ row) 0 nil) :copy-p nil))
+
 ;;;; transpose
 ;;;
 ;;; Methods should take care of returning the correct result type (eg
