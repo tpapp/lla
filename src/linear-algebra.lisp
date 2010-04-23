@@ -38,11 +38,21 @@
   (:documentation "multiply A and B, also by the scalar
   alpha (defaults to 1)."))
 
-(defmethod mm ((a numeric-vector) (b dense-matrix-like) &optional (alpha 1))
+(defun mm-nv-row% (a b alpha)
+  "Matrix multiplication, with A converted to a row matrix, and the
+product converted back to a numeric-vector."
   (copy-nv (mm (vector->row a) b alpha)))
 
-(defmethod mm ((a dense-matrix-like) (b numeric-vector) &optional (alpha 1))
+(defun mm-nv-column% (a b alpha)
+  "Matrix multiplication, with B converted to a column matrix, and the
+product converted back to a numeric-vector."
   (copy-nv (mm a (vector->column b) alpha)))
+
+(defmethod mm ((a numeric-vector) (b dense-matrix-like) &optional (alpha 1))
+  (mm-nv-row% a b alpha))
+
+(defmethod mm ((a dense-matrix-like) (b numeric-vector) &optional (alpha 1))
+  (mm-nv-column% a b alpha))
 
 (defmethod mm ((a numeric-vector) (b numeric-vector) &optional (alpha 1))
   ;; a dot product, basically
@@ -132,6 +142,12 @@
                 (* (aref matrix-elements i) d*alpha))
           (incf i))))
     result))
+
+(defmethod mm ((a numeric-vector) (b diagonal) &optional (alpha 1))
+  (mm-nv-row% a b alpha))
+
+(defmethod mm ((a diagonal) (b numeric-vector) &optional (alpha 1))
+  (mm-nv-column% a b alpha))
 
 
 ;;;; LU factorization
