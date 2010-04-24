@@ -126,17 +126,35 @@
 
 (addtest (basic-tests)
   stack
-  (ensure (== (stack-vertically 
-               (create-nv '(1 2 3))
-               (create-matrix 3 '(4d0 5 6 7 8 9))
-               (create-diagonal '(-1 -2 -3)))
-              (create-matrix 3'(1 2 3
-                                4 5 6
-                                7 8 9
-                                -1 0 0
-                                0 -2 0
-                                0 0 -3)))))
-
+  (let ((*lift-equality-test* #'==))
+    (ensure-same (stack-vertically 
+                  (clo 1 2 3)
+                  (clo 4d0 5 6 :/
+                       7 8 9)
+                  (clo :diagonal -1 -2 -3))
+                 (clo 1 2 3 :/
+                      4 5 6
+                      7 8 9
+                      -1 0 0
+                      0 -2 0
+                      0 0 -3))
+    (ensure-same (stack-horizontally
+                  (clo 1 2)
+                  (clo 3 4 :/
+                       5 6)
+                  (clo :diagonal 7 8))
+                 (clo 1 3 4 7 0 :/
+                      2 5 6 0 8))
+    (ensure-same (stack-vertically
+                  (clo 1 2)
+                  (clo 3 4 :/
+                       5 6)
+                  (clo :diagonal 7 8))
+                 (clo 1 2 :/
+                      3 4
+                      5 6
+                      7 0
+                      0 8))))
 
 ;;;; set-restricted
 

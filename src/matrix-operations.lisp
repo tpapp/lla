@@ -168,37 +168,84 @@ like xGELS."
      
 ;;;; stacking
 
-(defun stack-vertically (&rest arguments)
-  "Stack arguments vertically, converting to a common type.  A vector
-  is interpreted as a row matrix."
-  (let* ((matrices (mapcar (lambda (arg)
-                             (etypecase arg
-                               (diagonal (diagonal->matrix arg))
-                               (dense-matrix-like (set-restricted arg))
-                               (numeric-vector (vector->row arg))))
-                           arguments))
-         (common-type (apply #'common-target-type (mapcar #'lla-type matrices)))
-         (nrow-total (reduce #'+ matrices :key #'nrow))
-         (ncol (ncol (first matrices)))
-         (result (make-matrix common-type nrow-total ncol))
-         (result-elements (elements result))
-         (row 0))
+(defgeneric fill-matrix-elements-using% (object matrix-elements offset
+                                                leading-dimension lla-type
+                                                horizontal?)
+  (:method ((nv numeric-vector) matrix-elements offset leading-dimension
+            lla-type horizontal?)
+    (bind (((:slots-r/o elements) nv))
+      (if horizontal?
+          (copy-elements (length elements)
+                         elements 0 (lla-type nv)
+                         matrix-elements offset lla-type)
+          (copy-columns 1 (length elements)
+                        elements 0 1 (lla-type nv)
+                        matrix-elements offset leading-dimension lla-type))))
+  (:method ((diagonal diagonal) matrix-elements offset leading-dimension
+            lla-type horizontal?)
     (iter
-      (for matrix :in matrices)
-      (for nrow := (nrow matrix))
-      (for elements := (elements matrix))
-      (for lla-type := (lla-type matrix))
-      (assert (= ncol (ncol matrix)) ()
-              "Matrix columns (or vector lengths) do not match.")
-      (copy-columns nrow ncol 
-                    elements 0 nrow lla-type
-                    result-elements (cm-index2 nrow-total row 0) nrow-total common-type)
-      (incf row nrow))
-    result))
+      (for element :in-vector (elements diagonal) :with-index index)
+      (setf (aref matrix-elements (+ offset (cm-index2 leading-dimension index index)))
+            (coerce* element lla-type))))
+  (:method ((matrix dense-matrix-like) matrix-elements offset leading-dimension
+            lla-type horizontal?)
+    (bind (((:slots-r/o nrow ncol) matrix))
+      (copy-columns nrow ncol
+                    (elements matrix) 0 nrow (lla-type matrix)
+                    matrix-elements offset leading-dimension)) lla-type))
 
-(defun stack-horizontally (&rest arguments)
-  (declare (ignore arguments))
-  (error "This function needs to be implemented."))
+(defun stack% (objects horizontal?)
+  (bind (((:values nrows ncols)
+          (iter
+            (for object :in objects)
+            (for (values nrow ncol) :=
+                 (etypecase object
+                   (dense-matrix-like
+                      (values (nrow object) (ncol object)))
+                   (diagonal
+                      (let ((l (length (elements object))))
+                        (values l l)))
+                   (numeric-vector
+                      (let ((l (length (elements object))))
+                        (if horizontal?
+                            (values l 1)
+                            (values 1 l))))))
+            (collecting nrow :into nrows)
+            (collecting ncol :into ncols)
+            (finally
+             (return (values nrows ncols))))))
+    (assert (apply #'= (if horizontal? nrows ncols)) () "Dimensions don't match.")
+    (bind ((offset 0)
+           (lla-type (apply #'common-target-type (mapcar #'lla-type objects))))
+      (if horizontal?
+          (bind ((nrow (first nrows))
+                 ((:lla-matrix result :elements elements) (make-matrix lla-type nrow (reduce #'+ ncols))))
+            (iter
+              (for ncol% :in ncols)
+              (for object :in objects)
+              (fill-matrix-elements-using% object elements offset nrow lla-type t)
+              (incf offset (* ncol% nrow)))
+            result)
+          (bind ((nrow (reduce #'+ nrows))
+                 (ncol (first ncols))
+                 ((:lla-matrix result :elements elements) (make-matrix lla-type nrow ncol)))
+            (iter
+              (for nrow% :in nrows)
+              (for object :in objects)
+              (fill-matrix-elements-using% object elements offset nrow lla-type nil)
+              (incf offset nrow%))
+            result)))))
+
+(defun stack-horizontally (&rest objects)
+  "Stack arguments horizontally, converting to a common type.  A
+  vector is interpreted as a column matrix."
+  (stack% objects t))
+
+(defun stack-vertically (&rest objects)
+  "Stack arguments horizontally, converting to a common type.  A
+  vector is interpreted as a column matrix."
+  (stack% objects nil))
+
 
 ;;;; identity
 
