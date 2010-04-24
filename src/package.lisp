@@ -51,7 +51,7 @@
    
    ;; matrix-operations
    
-   submatrix subcolumn subrow make-matrix* make-matrix create-matrix reshape
+   submatrix subvector subcolumn subrow make-matrix* make-matrix create-matrix reshape
    vector->column vector->row transpose stack-horizontally
    stack-vertically eye
 

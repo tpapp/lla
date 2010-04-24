@@ -53,32 +53,33 @@ referring to the last one).  Negative indexes count from the last
 column, eg (submatrix matrix 0 0 -1 -1) will drop the last row &
 column."))
 
+(defun calc-index (index total start?)
+  ;; calculate new index, converting negative specifications
+  (cond
+    ((null index)
+     (if start?
+         (error "~A is not a valid start index" index)
+         total))
+    ((minusp index)
+     (aprog1 (+ total index)
+       (assert (<= 0 it) () "~A~A gives negative index" total index)))
+    (t 
+     (assert (<= index total) () "index ~A above ~A" index total)
+     index)))
+
 (defun submatrix-index-calculations% (nrow ncol row-start row-end col-start col-end
                                       &optional (leading-dimension nrow))
   "Return (VALUES NEW-NROW NEW-NCOL OFFSET).  Negative and NIL indexes
 are converted according to the SUBMATRIX syntax.  Resulting indexes
 are checked for validity."
-  (flet ((calc-index (index total start?)
-           ;; calculate new index, converting negative specifications
-           (cond
-             ((null index)
-              (if start?
-                  (error "~A is not a valid start index" index)
-                  total))
-             ((minusp index)
-              (aprog1 (+ total index)
-                (assert (<= 0 it) () "~A~A gives negative index" total index)))
-             (t 
-              (assert (<= index total) () "index ~A above ~A" index total)
-              index))))
-    (let* ((row-start (calc-index row-start nrow t))
-           (new-nrow (- (calc-index row-end nrow nil) row-start))
-           (col-start (calc-index col-start ncol t))
-           (new-ncol (- (calc-index col-end ncol nil) col-start))
-           (offset (+ (* leading-dimension col-start) row-start)))
-      (assert (plusp new-nrow) () "Resulting number of rows is not positive")
-      (assert (plusp new-ncol) () "Resulting number of columns is not positive")
-      (values new-nrow new-ncol offset))))
+  (let* ((row-start (calc-index row-start nrow t))
+         (new-nrow (- (calc-index row-end nrow nil) row-start))
+         (col-start (calc-index col-start ncol t))
+         (new-ncol (- (calc-index col-end ncol nil) col-start))
+         (offset (+ (* leading-dimension col-start) row-start)))
+    (assert (plusp new-nrow) () "Resulting number of rows is not positive")
+    (assert (plusp new-ncol) () "Resulting number of columns is not positive")
+    (values new-nrow new-ncol offset)))
 
 (defmethod submatrix ((matrix dense-matrix-like) row-start row-end col-start col-end)
   (declare (optimize (debug 3) (speed 0)))
@@ -92,6 +93,17 @@ are checked for validity."
                     elements offset nrow lla-type
                     (elements result) 0 new-nrow)
       result)))
+
+(defgeneric subvector (vector start end)
+  (:documentation "Return a subvector of an a NUMERIC-VECTOR.  Index
+conventions follow those of submatrix etc."))
+
+(defmethod subvector ((nv numeric-vector) start end)
+  (bind (((:slots-r/o lla-type elements) nv)
+         ((:accessors-r/o length) elements)
+         (start (calc-index start length t))
+         (end (calc-index end length nil)))
+    (make-nv* lla-type (subseq elements start end))))
 
 (defun subcolumn (matrix col)
   "Return a column from a matrix"
