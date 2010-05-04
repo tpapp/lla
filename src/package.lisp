@@ -59,6 +59,10 @@
 
    clo
 
+   ;; misc-operations
+
+   map1
+
    ;; readmacros
 
    read-vector-or-matrix
@@ -69,6 +73,7 @@
 
    mmm mm lu solve invert eigen least-squares least-squares-xx-inverse
    constrained-least-squares cholesky svd hermitian-factorization tr rank
+   logdet det
 
    ;; adjustable
 

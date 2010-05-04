@@ -65,4 +65,3 @@ guaranteed to conform to LLA-TYPE.  For internal use."
           (for (the fixnum index) :from start :below end)
           (declare (iterate:declare-variables))
           (decf (aref elements index) value))))))
-

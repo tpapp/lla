@@ -205,3 +205,18 @@
                           -1 -2 1 0
                           0 0 2 2
                           3 6 2 5)) 2))
+
+(addtest (linear-algebra-tests)
+  det
+  (let ((*lift-equality-test* (x~= 1e-4)))
+    (ensure-same (det (clo :upper-triangular
+                           1 2 :/
+                           0 4))
+                 4)
+    (ensure-same (det (clo :lower-triangular
+                           7 0 :/
+                           8 12))
+                 (* 7 12))
+    (ensure-same (det (mm t (clo 1 2 :/
+                                 3 4)))
+                 4)))

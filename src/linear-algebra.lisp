@@ -54,9 +54,18 @@ product converted back to a numeric-vector."
 (defmethod mm ((a dense-matrix-like) (b numeric-vector) &optional (alpha 1))
   (mm-nv-column% a b alpha))
 
+;;; for numeric vectors, mm is the dot product; !!! need to do this
+;;; decently one day using BLAS
+
 (defmethod mm ((a numeric-vector) (b numeric-vector) &optional (alpha 1))
-  ;; a dot product, basically
   (aref (elements (mm (vector->row a) (vector->column b) alpha)) 0))
+
+(defmethod mm ((a numeric-vector) (b (eql t)) &optional (alpha 1))
+  (mm a a alpha))
+
+(defmethod mm ((a (eql t)) (b numeric-vector) &optional (alpha 1))
+  (mm b b alpha))
+
 
 (defmethod mm ((a dense-matrix-like) (b dense-matrix-like) &optional (alpha 1))
   (bind ((common-type (lb-target-type a b))
@@ -274,10 +283,10 @@ result is multiplied by ALPHA."
                    m% n% alpha% a% lda% b% m%)
           (make-matrix* common-type m n result))))))
 
-(defmethod solve ((a lower-triangular-matrix) b)
+(defmethod solve ((a lower-triangular-matrix) (b dense-matrix-like))
   (trsm% a b :left nil))
 
-(defmethod solve ((a upper-triangular-matrix) b)
+(defmethod solve ((a upper-triangular-matrix) (b dense-matrix-like))
   (trsm% a b :left nil))
 
 (defgeneric invert (a &key &allow-other-keys)
@@ -776,3 +785,30 @@ value."
       (count-if (lambda (x) (<= threshold (abs x)))
                 (elements d))
       d))))
+
+;;; determinants
+
+(defgeneric logdet (matrix)
+  (:documentation "Logarithm of the determinant of a matrix."))
+
+(defun det (matrix)
+  "Determinant of a matrix.  If you need the log of this, use LOGDET
+  directly."
+  (exp (logdet matrix)))
+
+(defun diagonal-log-sum% (matrix)
+  "Sum of the log of the elements in the diagonal."
+  (assert (square-matrix-p matrix))
+  (bind (((:lla-matrix matrix :nrow nrow) matrix))
+    (iter
+      (for i :from 0 :below nrow)
+      (summing (log (matrix (matrix-index i i)))))))
+
+(defmethod logdet ((matrix lower-triangular-matrix))
+  (diagonal-log-sum% matrix))
+
+(defmethod logdet ((matrix upper-triangular-matrix))
+  (diagonal-log-sum% matrix))
+
+(defmethod logdet ((matrix hermitian-matrix))
+  (reduce #'+ (elements (eigen matrix)) :key #'log))
