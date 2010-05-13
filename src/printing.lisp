@@ -64,21 +64,17 @@ constraint is binding."
 (defvar *print-matrix-paddig* 1
   "Number of spaces between columns.")
 
-(defun upper-triangular-mask (row col)
-  (if (<= row col)
-      nil
-      "."))
-
-(defun lower-triangular-mask (row col)
-  (if (>= row col)
-      nil
-      "."))
-
-(defun hermitian-mask (row col)
-  ;; print * instead of . in the lower triangle
-  (if (<= row col)
-      nil
-      "*"))
+(defgeneric matrix-masked-element-string (kind)
+  (:documentation "Return a string that can be used to represend
+  masked elements when printing.  Return value may not be modified.")
+  (:method ((kind (eql :dense)))
+    nil)
+  (:method ((kind (eql :upper-triangular)))
+    ".")
+  (:method ((kind (eql :lower-triangular)))
+    ".")
+  (:method ((kind (eql :hermitian)))
+    "*"))
 
 (defun print-matrix (matrix stream &key 
 		     (formatter #'standard-numeric-formatter)
@@ -128,25 +124,15 @@ printed instead (should be a string)."
     (when row-trunc-p
       (format stream "~&..."))))
 
-(defmacro define-matrix-like-printer ((instance class stream) slots &body body)
-  "Simple wrapper for the standard printing style."
-  (check-type class symbol)
-  (check-type instance symbol)
-  (check-type stream symbol)
-  `(defmethod print-object ((,instance ,class) ,stream)
-     (print-unreadable-object (,instance ,stream :type t)
-       (format ,stream "~s with ~a x ~a elements~&" (lla-type ,instance) (nrow ,instance) (ncol ,instance))
-       (with-slots ,slots ,instance
-         ,@body))))
-
-(define-matrix-like-printer (matrix dense-matrix-like stream) ()
-  (print-matrix matrix stream))
-
-(define-matrix-like-printer (matrix upper-triangular-matrix stream) ()
-  (print-matrix matrix stream :mask #'upper-triangular-mask))
-
-(define-matrix-like-printer (matrix lower-triangular-matrix stream) ()
-  (print-matrix matrix stream :mask #'lower-triangular-mask))
-
-(define-matrix-like-printer (matrix hermitian-matrix stream) ()
-  (print-matrix matrix stream :mask #'hermitian-mask))
+(defmethod print-object ((matrix dense-matrix-like) stream)
+  (bind (((:slots lla-type nrow ncol) matrix)
+         (kind (matrix-kind matrix))
+         (masked-element-string (matrix-masked-element-string kind)))
+    (print-unreadable-object (matrix stream :type t)
+      (format stream "~s with ~a x ~a elements~&"
+              lla-type nrow ncol)
+      (print-matrix matrix stream 
+                    :mask (lambda (row col)
+                            (if (matrix-mask kind row col)
+                                nil
+                                masked-element-string))))))
