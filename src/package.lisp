@@ -28,9 +28,10 @@
    dense-matrix-like nrow ncol cm-index2 square-matrix-p square-matrix
    matrix-class matrix-kind restricted-elements set-restricted
 
-   ;; compact-matrix
+   ;; dense-matrix-like
 
    dense-matrix upper-triangular-matrix lower-triangular-matrix hermitian-matrix
+   matrix-mask
 
    ;; factorizations
    
@@ -52,7 +53,7 @@
    ;; matrix-operations
    
    submatrix subvector subcolumn subrow make-matrix* make-matrix create-matrix reshape
-   vector->column vector->row transpose stack-horizontally
+   vector->column vector->row conjugate-transpose stack-horizontally
    stack-vertically eye
 
    ;; clo
