@@ -62,9 +62,9 @@
       (etypecase factor
         (lower-triangular-matrix
            (ecase component
-             (:U (copy-maybe (transpose factor)))
+             (:U (copy-maybe (conjugate-transpose factor)))
              (:L factor)))
         (upper-triangular-matrix
            (ecase component
              (:U factor)
-             (:L (copy-maybe (transpose factor)))))))))
+             (:L (copy-maybe (conjugate-transpose factor)))))))))
