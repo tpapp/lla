@@ -25,7 +25,8 @@
      (:file "test-linear-algebra")
      (:file "test-adjustable")
      (:file "test-bind-extensions")
-     (:file "test-misc-operations"))))
+     (:file "test-misc-operations")
+     (:file "test-sub"))))
   :depends-on
   (:cl-utilities :iterate :metabang-bind :xarray :anaphora :lla
                  :named-readtables :lift :cl-num-utils))

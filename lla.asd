@@ -56,7 +56,8 @@
      (:file "creation-conversion")
      (:file "binary-operations")
      (:file "specialized-utilities")
-     (:file "misc-operations")))
+     (:file "misc-operations")
+     (:file "sub")))
    (:module
     "linear-algebra"
     :pathname #P"src/"
