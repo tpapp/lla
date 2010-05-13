@@ -119,7 +119,7 @@ conventions follow those of submatrix etc."))
 ;;; lower-triangular into upper-triangular, etc).  Helper function
 ;;; transpose% can be used for implementation.
 
-(defun transpose% (matrix transposed-matrix-kind conjugate-p)
+(defun transpose% (matrix transposed-matrix-kind &optional conjugate-p)
   "Return the transpose of MATRIX, which will be of kind
 TRANSPOSED-MATRIX-KIND.  SET-RESTRICTED is *NOT* enforced (so the
 caller has to decide whether to enforce it).  Meant to be used as a
@@ -146,21 +146,33 @@ helper function, *NOT EXPORTED*."
                     (make-matrix* ,lla-type ncol nrow transposed 
                                   :kind transposed-matrix-kind))))))
 
-(defgeneric transpose (matrix &optional conjugate-p)
-  (:documentation "Return the transpose of a matrix.")
-  (:method ((matrix dense-matrix) &optional (conjugate-p t))
-    (transpose% matrix :dense conjugate-p))
-  (:method ((matrix upper-triangular-matrix) &optional (conjugate-p t))
-    (transpose% matrix :lower-triangular conjugate-p))
-  (:method ((matrix lower-triangular-matrix) &optional (conjugate-p t))
-    (transpose% matrix :upper-triangular conjugate-p))
-  (:method ((matrix hermitian-matrix) &optional (conjugate-p t))
-    (set-restricted matrix)
-    (case (lla-type matrix)
-      ((:complex-single :complex-double)
-         (transpose% matrix :hermitian conjugate-p))
-      (otherwise
-         (copy-matrix% matrix :copy-p t)))))
+(defmethod transpose ((matrix dense-matrix))
+  (transpose% matrix :dense))
+
+(defmethod transpose ((matrix lower-triangular-matrix))
+  (transpose% matrix :upper-triangular))
+
+(defmethod transpose ((matrix upper-triangular-matrix))
+  (transpose% matrix :lower-triangular))
+
+(defmethod transpose ((matrix hermitian-matrix))
+  (set-restricted matrix)
+  (copy-matrix% matrix :copy-p t))
+
+(defgeneric conjugate-transpose (matrix)
+  (:documentation "Conjugate transpose of a matrix."))
+
+(defmethod conjugate-transpose ((matrix dense-matrix))
+  (transpose% matrix :dense t))
+
+(defmethod conjugate-transpose ((matrix lower-triangular-matrix))
+  (transpose% matrix :upper-triangular t))
+
+(defmethod conjugate-transpose ((matrix upper-triangular-matrix))
+  (transpose% matrix :lower-triangular t))
+
+(defmethod conjugate-transpose ((matrix hermitian-matrix))
+  (transpose% matrix :hermitian t))
 
 ;;;; extraction methods for factorization components and related
 ;;;; utility functions
