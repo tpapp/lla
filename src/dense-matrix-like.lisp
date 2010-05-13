@@ -27,6 +27,20 @@ diagonal are not necessarily initialized and not accessed.")
                                        &key &allow-other-keys)
   (check-type object square-matrix))
 
+;;; element mask query functions
+
+(defgeneric matrix-mask (kind row col)
+  (:documentation "Return NIL iff the element is not used in the dense
+  representation of KIND for element (ROW,COL).")
+  (:method ((kind (eql :dense)) row col)
+    t)
+  (:method ((kind (eql :upper-triangular)) row col)
+    (>= row col))
+  (:method ((kind (eql :lower-triangular)) row col)
+    (>= row col))
+  (:method ((kind (eql :hermitian)) row col)
+    (>= row col)))
+
 ;;; set-restricted* methods
 
 (defmethod set-restricted ((matrix upper-triangular-matrix))

@@ -15,7 +15,7 @@ second value. "
             "Multiple separators (~S) found." separator)
     (values (remove separator elements) ncol)))
 
-(defun rearrange-elements% (elements ncol)
+(defun rearrange-elements% (elements ncol kind)
   "Rearrange ELEMENTS into a matrix.  Check that NCOL divides length
 of ELEMENTS, return (values ELEMENTS NROW).  ELEMENTS is a list."
   (bind (((:accessors-r/o length) elements)
@@ -28,7 +28,10 @@ of ELEMENTS, return (values ELEMENTS NROW).  ELEMENTS is a list."
              length ncol))
     (iter
       (for element :in elements)
-      (setf (aref result (cm-index2 nrow row col)) element)
+      (setf (aref result (cm-index2 nrow row col)) 
+            (if (matrix-mask kind row col)
+                element
+                0))
       (incf col)
       (when (= col ncol)
         (incf row)
@@ -116,7 +119,7 @@ of ELEMENTS, return (values ELEMENTS NROW).  ELEMENTS is a list."
                (bind (((:values elements ncol)
                        (remove-row-separators% elements))
                       ((:values elements nrow)
-                       (rearrange-elements% elements ncol)))
+                       (rearrange-elements% elements ncol kind)))
                  (elements-form elements
                                 `(make-matrix* ,lla-type-var ,nrow ,ncol
                                                ,elements-var :kind ,kind))))))))
