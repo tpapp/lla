@@ -300,7 +300,9 @@ strict (see default-expansion).  Return new capacity."
 (defmethod add ((ram row-adjustable-matrix) (vector vector))
   (bind (((:accessors-r/o length) vector)
          ((:slots lla-type elements nrow ncol capacity) ram))
-    (assert (= ncol length) () 'adjustable-columns-dont-match)
+    (if (zerop nrow)
+        (setf (ncol ram) length)
+        (assert (= ncol length) () 'adjustable-columns-dont-match))
     (ensure-excess-capacity ram 1)
     (copy-columns 1 ncol
                   vector 0 1 t
