@@ -29,6 +29,7 @@
                           matrix-inc matrix-index end? result-dimensions)
       (bind (((:values result-length result)
               (ecase (length result-dimensions)
+                (0 (return-from sub (aref elements (matrix-index))))
                 (1 (bind ((#(length) result-dimensions))
                      (values length (make-nv lla-type length))))
                 (2 (bind ((#(result-ncol result-nrow) result-dimensions))

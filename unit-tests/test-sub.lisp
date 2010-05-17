@@ -22,4 +22,6 @@
     (ensure-same (sub a t t) a)
     (ensure-same (sub a '(1 . 0) '(0 . -1)) (clo 3 4 :/
                                                  6 7))
-    (ensure-same (sub a t 1) (clo 1 4 7))))
+    (ensure-same (sub a t 1) (clo 1 4 7))
+    (sub a 1 -1)
+    (ensure-same (sub a 1 -1) 5d0 :test #'equal)))
