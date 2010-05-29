@@ -2,25 +2,6 @@
 
 (in-package #:lla)
 
-(defun emap-preprocess (args type dimensions-reader)
-  "Preprocess args, comparing dimension for args of TYPE, return
-extracted elements and the dimensions as the second value (which is
-NIL, if no ARGS are of TYPE)."
-  (let (dimensions)
-    ;; determine and check length
-    (values 
-      (mapcar
-       (lambda (arg)
-         (if (typep arg type)
-             (let ((arg-dimensions (funcall dimensions-reader arg)))
-               (if dimensions
-                   (assert (equal arg-dimensions dimensions)
-                           () "Dimension mismatch for ~A" arg)
-                   (setf dimensions arg-dimensions))
-               (elements arg))))
-       args)
-      dimensions)))
-
 (defgeneric emap-elements% (object)
   (:documentation "Return (values TYPE ELEMENTS DIMENSIONS) for
   objects which are analogous to vectors, or (values nil ELEMENTS nil)
@@ -46,9 +27,33 @@ NIL, if no ARGS are of TYPE)."
   (:method ((matrix dense-matrix-like))
     (set-restricted matrix)
     (bind (((:accessors-r/o elements nrow ncol) matrix))
-      (values 'dense-matrix
+      (values (type-of matrix)
               elements
               (list nrow ncol)))))
+
+(defgeneric emap-dense-type% (function type scalars?)
+  (:documentation "EMAP uses this function to recognize certain operations that
+  preserve the matrix type.  It is called when TYPE is a subtype of
+  DENSE-MATRIX-LIKE.  SCALARS? is nil only when all ARGs are matrices.")
+  (:method (function type scalars?)
+    ;; fallback method: always assume dense, unless have reason not to
+    (declare (ignore function type scalars?))
+    'dense-matrix)
+  (:method ((function (eql #'+)) type scalars?)
+    (if scalars?
+        'dense-matrix
+        type))
+  (:method ((function (eql #'-)) type scalars?)
+    (if scalars?
+        'dense-matrix
+        type))
+  (:method ((function (eql #'*)) type scalars?)
+    (declare (ignore scalars?))
+    type)
+  (:method ((function (eql #'/)) type scalars?)
+    ;; the correctness of this depends on (/ ... 0) leading to an error
+    (declare (ignore scalars?))
+    type))
 
 (defgeneric emap-result% (type elements dimensions)
   (:documentation "Create return value for EMAP.")
@@ -56,13 +61,22 @@ NIL, if no ARGS are of TYPE)."
     elements)
   (:method ((type (eql 'array)) elements dimensions)
     (displace-array elements dimensions))
-  (:method ((type (eql 'dense-matrix)) elements dimensions)
-    (bind (((nrow ncol) dimensions))
-      (make-matrix% nrow ncol elements)))
+
   (:method ((type (eql 'diagonal)) elements dimensions)
     (make-diagonal% elements))
   (:method ((type (eql nil)) elements dimensions)
     elements))
+
+(defmacro define-dense-emap-result% (kind)
+  `(defmethod emap-result% ((type (eql ',(matrix-type kind)))
+                            elements dimensions)
+     (bind (((nrow ncol) dimensions))
+       (make-matrix% nrow ncol elements :kind ,kind))))
+
+(define-dense-emap-result% :dense)
+(define-dense-emap-result% :hermitian)
+(define-dense-emap-result% :lower)
+(define-dense-emap-result% :upper)
 
 (defun emap-vectors% (function args length)
   "Map ARGS into a simple vector elementwise, using FUNCTION.  The
@@ -106,30 +120,42 @@ in which case they are treated as a vector filled with that atom."
         result)
       (apply function args)))
 
+(defun emap-common-type% (common-type type)
+  "Find the accumulated common type, if possible, otherwise signal an error."
+  (cond
+    ((null type) common-type)           ; scalar, ignored
+    ((null common-type) type)           ; all scalars so far
+    ((and (subtypep common-type 'dense-matrix-like) 
+          (subtypep type 'dense-matrix-like))
+     (if (eq common-type type)
+         type
+         'dense-matrix))
+    ((eq common-type type) type)
+    (t "Type ~A is not compatible with ~A." type common-type)))
+
 (defun emap (function &rest args)
-  "Map ARGS into a similar object elementwise, using FUNCTION.  The
-element type of the result the narrowest common (extended) LLA type
-that can accommodate all results.  Some of the args can be atoms, in
-which case they are treated as an object filled with that atom.  All
-ARGs need to have the same type, see EMAP-ELEMENTS%."
+  "Map ARGS into a similar object elementwise, using FUNCTION.  The element type
+of the result the narrowest common (extended) LLA type that can accommodate all
+results.  Some of the args can be atoms, in which case they are treated as an
+object filled with that atom.  All ARGs need to have the same type, see
+EMAP-ELEMENTS%.  FORCE-DENSE? "
   (let* (type
          dimensions
+         scalars?
          (elements
           (iter
             (for arg :in args)
             (bind (((:values arg-type arg-elements arg-dimensions)
                     (emap-elements% arg)))
-              (when arg-type
-                (if type
-                    (progn
-                      (assert (eq arg-type type) ()
-                              "Type ~A is not compatible with ~A."
-                              arg-type type)
+              (if arg-type
+                  (if type
                       (assert (equal arg-dimensions dimensions) ()
                               "Dimensions ~A are not compatible ~
-                                 with ~A" arg-dimensions dimensions))
-                    (setf type arg-type
-                          dimensions arg-dimensions)))
+                                 with ~A" arg-dimensions dimensions)
+                      (setf dimensions arg-dimensions))
+                  (setf scalars? t))
+              (setf type (emap-common-type% type arg-type))
+
               (collecting arg-elements))))
          (result (emap-vectors% function elements
                                 (cond 
@@ -138,6 +164,8 @@ ARGs need to have the same type, see EMAP-ELEMENTS%."
                                   ((listp dimensions)
                                    (reduce #'* dimensions))
                                   (t dimensions)))))
+    (when (subtypep type 'dense-matrix-like)
+      (setf type (emap-dense-type% function type scalars?)))
     (emap-result% type result dimensions)))
 
 (defmacro define-elementwise-operation (name arglist documentation
@@ -149,20 +177,6 @@ ARGs need to have the same type, see EMAP-ELEMENTS%."
 
 ;;; shorthand for specific elementwise operations
 
-;;; !!! TODO: have the result inherit matrix class whenever possible
-;;; - Matrix-scalar operations:
-;;; * and / ALWAYS preserve matrix kind (dense, lower/upper, hermitian)
-;;; + and - NEVER preserve matrix kind, result is dense
-;;;
-;;; - Elementwise matrix operations:
-;;; if matrices are of the same kind, so is the result
-;;; if they are different kind, the result is dense, except for
-;;; multiplication by lower/upper triangular matrices
-;;;
-;;; - Theoretically, a lower triangular matrix multiplied by an upper
-;;; triangular one would be diagonal, but here constrain ourselves
-;;; to returning a dense-matrix-like object. ??? Maybe we could
-;;; return a diagonal here, I haven't fixed this in x
 
 (define-elementwise-operation e+ (object &rest objects)
   "Elementwise +."
@@ -188,5 +202,9 @@ ARGs need to have the same type, see EMAP-ELEMENTS%."
   "Elementwise EXP."
   (emap #'exp arg))
 
+;;; !!! write optimized 2-argument versions
 
-
+;;; ?? Theoretically, a lower triangular matrix multiplied by an upper
+;;; triangular one would be diagonal, but here constrain ourselves to returning
+;;; a dense-matrix-like object. ??? Maybe we could return a diagonal here, I
+;;; haven't fixed this in x
