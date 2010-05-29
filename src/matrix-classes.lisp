@@ -74,6 +74,9 @@ in other LLA classes."
   (:method (kind)
     nil))
 
+(defgeneric matrix-type (kind)
+  (:documentation "Return type for matrix kind."))
+
 (defgeneric matrix-kind (matrix)
   (:documentation "Return the matrix kind, eg :DENSE, :UPPER, etc."))
 
@@ -93,7 +96,8 @@ in other LLA classes."
              (:include dense-matrix-like)))
        ,documentation
        (defmethod matrix-kind ((matrix ,class)) ,kind)
-       (defmethod valid-matrix-kind? ((kind (eql ,kind))) t))))
+       (defmethod valid-matrix-kind? ((kind (eql ,kind))) t)
+       (defmethod matrix-type ((kind (eql ,kind))) ',class))))
 
 ;;; The four basic matrix types: dense, upper/lower (triangular) and
 ;;; hermitian.
