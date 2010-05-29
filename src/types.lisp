@@ -1,135 +1,190 @@
 (in-package :lla)
 
-;;;; Type for dimension.
+;;; Notes on LLA's optimization model
+;;;
+;;; LLA is designed to allow the use of Lisp arrays (most notably
+;;; vectors) almost everywhere.  Many operations work directly on
+;;; vectors, and most LLA objects are nothing but a lightweight
+;;; wrapper for such vectors.
+;;;
+;;; 1. Upgraded element types
+;;;
+;;; When interfacing with BLAS/LAPACK, LLA tries to make use of the
+;;; implementation's facilities for avoiding copying into foreign
+;;; memory (array "pinning"), whenever possible.  However, for
+;;; deciding which BLAS/LAPACK function to call, the type of elements
+;;; in vectors or matrices has to be established.
+;;;
+;;; For this purpose, LLA recognizes five numeric types as special,
+;;; and denotes them by the following keywords: :INTEGER (for 32 or
+;;; 64-bit integers, depending on the platform), :SINGLE, :DOUBLE,
+;;; :COMLEX-SINGLE and :COMPLEX-DOUBLE, for single- and double-floats,
+;;; either real or complex.  NIL is used for arrays which were not
+;;; recognized as either of these.
+;;;
+;;; Some implementations upgrade these element types to themselves in
+;;; arrays, in which case LLA can select types very quickly.  In case
+;;; the implementation upgrades to something else (eg T, but not
+;;; necessarily), LLA has to sweep the array before BLAS/LAPACK calls
+;;; before to establish the common element type.
+;;;
+;;; 2. Simple arrays
+;;;
+;;; Elements in LLA objects are represented by rank-one arrays.  LLA
+;;; prefers if these arrays are simple, this makes certain
+;;; optimizations possible by declaring this type.  Because of this,
+;;; LLA objects that encapsulate arrays always enforce the restriction
+;;; that they are simple (specifically, of type simple-array1, which
+;;; is a shorthand for (simple-array * (*)).  For vectors which are
+;;; not encapsulated in LLA objects, either a conversion will take
+;;; place silently, or an error message will result (the former is
+;;; more common).
+;;;
+;;; 3. Optimal way of using LLA
+;;;
+;;; LLA will gobble any kind of vector if the elements make sense for
+;;; the given operation.  But you can avoid unnecessary
+;;; conversions/checks by adhering to the following guidelines:
+;;;
+;;;   a. Keep you vectors rank 1, SIMPLE-ARRAY, and preferably of the
+;;;   narrowest element type supported by your implementation.  See
+;;;   LLA-VECTOR and AS-SIMPLE-ARRAY1.
+;;;
+;;;   b. When using matrices, use DENSE-MATRIX-LIKE objects.  LLA is
+;;;   column-major, and 
+
+
+;;; Type for dimension.
 
 (deftype dimension ()
    "Type for vector/matrix dimensions, basically a nonnegative fixnum."
-  '(integer 0 #.most-positive-fixnum))
+  '(integer 0 #.array-total-size-limit))
 
 (defun check-index (index dimension)
   "Error if index is outside dimension."
   ;; ?? should this be a macro, could this signal more information
-  (unless (and (<= 0 index) (< index dimension))
+  (unless (within? 0 index dimension)
     (error "index ~a is outside [0,~a)" index dimension)))
 
-
-;;;; Element types
+;;; Element types
 ;;;
-;;; Some types are symbols (eg 'DOUBLE-FLOAT), some are lists (eg
-;;; '(COMPLEX SINGLE-FLOAT).  CFFI uses its own naming scheme (and
+;;; In CL, some types are symbols (eg 'DOUBLE-FLOAT), some are lists
+;;; (eg '(COMPLEX SINGLE-FLOAT).  CFFI uses its own naming scheme (and
 ;;; does not have complex types, as of Sep 2009), so we will introduce
 ;;; our own names -- which are sometimes appended to class and or
 ;;; function names --- and mappings, to and from the other naming
 ;;; schemes (currently only CL, as CFFI stuff is handled inside
 ;;; mem-aref*).
-
+;;;
 ;;; NOTE Types are hardwired, because I don't think I will need more.
 ;;; This is not as nice/robust as LISP-MATRIX, but lookup tables
 ;;; would not help me much, as (1) sometimes I need to handle special
 ;;; cases, eg complex types with mem-aref* and (2) I would need to
 ;;; define a very complex DSL for possible coercions. -- Tamas
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (defparameter +lla-type-list+
-    '(:single :double :complex-single :complex-double :integer)
-    "This should be a constant, if CL supported lists as constants.
-This is not exported: types are hardwired into LLA, they are just
-enumerated here for convenience."))
-
 (deftype lla-type ()
   "All LLA types."
-  `(member ,@+lla-type-list+))
+  `(member :single :double :complex-single :complex-double :integer))
 
-(defun lla-complex-p (lla-type)
+(defun lla-complex? (lla-type)
   "Non-nil iff complex type."
   (or (eq lla-type :complex-single) (eq lla-type :complex-double)))
 
-(defun lla-double-p (lla-type)
+(defun lla-double? (lla-type)
   "Non-nil iff double-precision type."
   (or (eq lla-type :double) (eq lla-type :complex-double)))
 
-(defmacro expand-for-lla-types ((typevar &key (prologue '(progn))
-                                         (exclude-integer-p nil))
-                                &body form)
-  "Expand FORM (using EVAL) with TYPEVAR bound to all possible LLA
-types, return the results inside a (,@PROLOGUE ...), PROGN by
-default."
-  (when (cadr form)
-    ;; FORM is a &body argument only for saner indentation.
-    (error "Multiple forms provided."))
-  `(,@prologue
-    ,@(mapcar (lambda (typename)
-                (eval `(let ((,typevar ',typename)) ,(car form))))
-              (if exclude-integer-p
-                  '(:single :double :complex-single :complex-double)
-                  +lla-type-list+))))
+(defun real-lla-type (lla-type)
+    "Return the lla-type of (* x (conjugate x), when x is of LLA-TYPE."
+    (ecase lla-type
+      (:integer :integer)
+      (:single :single)
+      (:double :double)
+      (:complex-single :single)
+      (:complex-double :double)
+      ((nil) nil)))
 
-(defun coercible-p (lla-source-type lla-target-type)
-  "Permitted coercions for LLA types.  It is guaranteed that
-CL:COERCE can perform these coercions on the corresponding lisp
-types. Basic summary: (1) integers can be coerced to anything, \(2)
-single<->double precision coercions are possible both ways, (3) real
-floats can be upgraded to complex."
-  (check-type lla-source-type lla-type)
-  (check-type lla-target-type lla-type)
-  (cond
-    ;; always valid
-    ((eq lla-source-type :integer) t)
-    ;; nothing else can be converted to integer
-    ((eq lla-target-type :integer) nil)
-    ;; no complex->real
-    ((and (lla-complex-p lla-source-type)
-          (not (lla-complex-p lla-target-type)))
-     nil)
-    ;; all the rest should be possible
-    (t t)))
-
-(defun coercible-pairs-list ()
-  ;;   "Generate the list of all LLA (source target) pairs for which
-  ;; coercible-p holds.  For internal use only, NOT EXPORTED."
-  (let ((lla-types +lla-type-list+)
-        coercible)
-    (dolist (source lla-types)
-      (dolist (target lla-types)
-        (when (coercible-p source target)
-          (push (list source target) coercible))))
-    ;; reverse only for cosmetic purposes
-    (nreverse coercible)))
-
-(defgeneric lla-type (numeric-vector)
-  (:documentation "Return the lla-type of the elements of the
-  object."))
-(expand-for-lla-types (lla-type)
-  ;; LLA types are types of themselves, so functions can be passed
-  ;; objects or types.
-  `(defmethod lla-type ((type (eql ,lla-type)))
-     ,lla-type))
+(defun complex-lla-type (lla-type)
+  "Return the complex type corresponding to LLA-TYPE."
+  (ecase lla-type
+    ((:integer :single :complex-single) :complex-single)
+    ((:double :complex-double) :complex-double)
+    ((nil) nil)))
 
 (define-condition not-within-lla-type (error)
   ()
-  (:documentation "Could not classify given type as a subtype of an LLA-TYPE."))
+  (:documentation "Could not classify given type as a subtype of an
+  LLA-TYPE."))
 
-(defun lisp-type->lla-type (lisp-type &optional value-if-not-recognized)
-  (cond
-    ((subtypep lisp-type 'single-float) :single)
-    ((subtypep lisp-type 'double-float) :double)
-    ((subtypep lisp-type '(complex single-float)) :complex-single)
-    ((subtypep lisp-type '(complex double-float)) :complex-double)
-    ((subtypep lisp-type '(signed-byte #+int32 32 #+int64 64)) :integer)
-    (t (if (eq value-if-not-recognized 'error)
-           (error 'not-within-lla-type)
-           value-if-not-recognized))))
+(define-condition invalid-lla-type (error)
+  ()
+  (:documentation "The given type is not a valid LLA type."))
 
-(defun lla-type->lisp-type (lla-type)
-  (case lla-type
-    (:single 'single-float)
-    (:double 'double-float)
-    (:complex-single '(complex single-float))
-    (:complex-double '(complex double-float))
-    (:integer '(signed-byte #+int32 32 #+int64 64))
-    ;; !! should define & use conditions -- Tamas
-    (otherwise (error "~a is not a valid LLA type" lla-type))))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun lla->lisp-type (lla-type)
+    "Return the lisp type spec corresponding to LLA-TYPE.  Signals an
+error for invalid LLA types."
+    (case lla-type
+      (:single 'single-float)
+      (:double 'double-float)
+      (:complex-single '(complex single-float))
+      (:complex-double '(complex double-float))
+      (:integer '(signed-byte #-lla-int64 32 #+lla-int64 64))
+      ((nil) t)
+      (otherwise (error 'invalid-lla-type)))))
 
+(defun lla-vector-type (lla-type)
+  "Return the type of a vector with elements conforming to LLA-TYPE.  May be
+upgraded by the implementation."
+  `(simple-array ,(lla->lisp-type lla-type) (*)))
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (labels ((type= (type1 type2)
+             "Test if two types are equal (ie subtypes of each other)."
+             (and (subtypep type1 type2)
+                  (subtypep type2 type1)))
+           (check-upgraded (lla-type feature)
+             (let ((lisp-type (lla->lisp-type lla-type)))
+               (when (type= (upgraded-array-element-type lisp-type) lisp-type)
+                 (pushnew feature *features*)))))
+    (check-upgraded :integer :lla-vector-integer)
+    (check-upgraded :single :lla-vector-single)
+    (check-upgraded :double :lla-vector-double)
+    (check-upgraded :complex-single :lla-vector-complex-single)
+    (check-upgraded :complex-double :lla-vector-complex-double)))
+
+(defun array-lla-type (array)
+  "If the array element type corresponds to an LLA type, return that, otherwise NIL."
+  (let ((element-type (array-element-type array)))
+    (cond
+      #+lla-vector-integer 
+      ((subtypep element-type '(signed-byte #-lla-int64 32 #+lla-int64 64)) :integer)
+      #+lla-vector-single 
+      ((subtypep element-type 'single-float) :single)
+      #+lla-vector-double 
+      ((subtypep element-type 'double-float) :double)
+      #+lla-vector-complex-single 
+      ((subtypep element-type '(complex single-float)) :complex-single)
+      #+lla-vector-complex-double 
+      ((subtypep element-type '(complex double-float))
+       :complex-double))))
+
+(defun lla-vector (lla-type length &optional (initial-element (zero* lla-type)))
+  "Create a vector with given LLA type and length."
+  (make-array length :element-type (lla->lisp-type lla-type)
+              :initial-element initial-element))
+
+(defun representable-lla-type (atom)
+  "If the (upgraded) type of atom is supported by the implementation,
+return the corresponding LLA type, otherwise NIL."
+  (typecase atom
+    #+lla-vector-integer ((signed-byte #-lla-int64 32 #+lla-int64 64) :integer)
+    #+lla-vector-single (single-float :single)
+    #+lla-vector-double (double-float :double)
+    #+lla-vector-complex-single ((complex single-float) :complex-single)
+    #+lla-vector-complex-double ((complex double-float) :complex-double)))
+
+(declaim (inline zero* coerce* epsilon*))
 (defun zero* (lla-type)
   "Return 0, coerced to the desired LLA-TYPE."
   (ecase lla-type
@@ -137,11 +192,11 @@ floats can be upgraded to complex."
     (:double 0d0)
     (:complex-single #C(0.0 0.0))
     (:complex-double #C(0.0d0 0.0d0))
-    (:integer 0)))
+    ((:integer nil) 0)))
 
 (defun coerce* (value lla-type)
-  "Coerce VALUE to type given by LLA-TYPE."
-  (coerce value (lla-type->lisp-type lla-type)))
+  "Coerce VALUE to type given by LLA-TYPE, NIL implies no coercion."
+  (coerce value (lla->lisp-type lla-type)))
 
 (defun epsilon* (lla-type)
   "Return the float epsilon for the given LLA-TYPE, signal an error
@@ -150,108 +205,93 @@ for :INTEGER."
     ((:single :complex-single) single-float-epsilon)
     ((:double :complex-double) double-float-epsilon)))
 
-(defmethod lla-type ((object number))
-  (lisp-type->lla-type (type-of object)))
+(defun similar-simple-array? (first &rest rest)
+  (let ((element-type (array-element-type first)))
+    (every (lambda (array)
+             (and (simple-array? array)
+                  (equal (array-element-type array) element-type)))
+           rest)))
 
-;;;; automatic type classification
-;;;
-;;; We find the smallest common target type, the type we can all
-;;; coerce to, using binary or.  Bits: float-p, double-p, complex-p
+(defmacro with-vector-type-expansion ((vector &key
+                                              other-vectors
+                                              (simple-test t)
+                                              (vector? t))
+                                      body-generator)
+  "Expand based on the LLA type of vector, declaring the vector (and
+other vectors, if given) to be of this type.  Only expand w/ type
+declarations for upgraded element type is supported by the
+implementation.  Also, these cases apply only when VECTOR is a
+SIMPLE-VECTOR, and SIMPLE-TEST is satisfied.
 
-(defconstant +integer+ #b000)
-(defconstant +single+ #b100)
-(defconstant +double+ #b110)
-(defconstant +complex-single+ #b101)
-(defconstant +complex-double+ #b111)
+The body for each case is generated by converting body-generator to a
+function, and calling it on the appropriate LLA type, including NIL as
+the fallback case.
 
-(defconstant +forced-float+ :double)
+Usage note: it is implicitly assumed that OTHER-VECTORS are
+SIMPLE-VECTORs, created with the same element type as VECTOR.  If this
+is cannot be known for certain, use SIMPLE-TEST: :OTHER-VECTORS
+implements this behavior by default."
+  (check-type vector symbol)
+  (assert (every #'symbolp other-vectors))
+  (setf body-generator (coerce body-generator 'function))
+  (with-unique-names (lla-type simple?)
+    (flet ((clause (case-lla-type)
+             `((and ,simple? (eq ,lla-type ,case-lla-type))
+               (locally 
+                   (declare (type (simple-array 
+                                   ,(lla->lisp-type case-lla-type)
+                                   ,(if vector? '(*) '*))
+                                  ,vector ,@other-vectors))
+                 ,(funcall body-generator case-lla-type)))))
+      `(let ((,lla-type (array-lla-type ,vector))
+             (,simple? (and (simple-array? ,vector)
+                            ,(if (eq simple-test :other-vectors)
+                                 `(similar-simple-array? ,vector
+                                                         ,@other-vectors)
+                                 simple-test))))
+         (cond
+           #+lla-vector-integer
+           ,(clause :integer)
+           #+lla-vector-single
+           ,(clause :single)
+           #+lla-vector-double
+           ,(clause :double)
+           #+lla-vector-complex-single
+           ,(clause :complex-single)
+           #+lla-vector-complex-double
+           ,(clause :complex-double)
+           (t (muffle-optimization-notes
+                ,(funcall body-generator nil))))))))
 
-(declaim (inline lla-type->binary-code binary-code->lla-type
-                 common-target-type))
 
-(defun lla-type->binary-code (type)
-  "Convert LLA type to bits."
-  (ecase type
-    (:integer +integer+)
-    (:single +single+)
-    (:double +double+)
-    (:complex-single +complex-single+)
-    (:complex-double +complex-double+)))
+(defmacro with-vector-type-declarations ((vector &key
+                                                 other-vectors
+                                                 (simple-test t)
+                                                 (vector? t))
+                                         &body body)
+  "Like WITH-VECTOR-TYPE-EXPANSION, but constant body-generatoe taken
+from BODY."
+  `(with-vector-type-expansion (,vector
+                                :other-vectors ,other-vectors
+                                :simple-test ,simple-test
+                                :vector? ,vector?)
+     (lambda (lla-type)
+       (declare (ignore lla-type))
+       `(progn ,',@body))))
 
-(defvar *force-float* t "If non-nil, sequences with automatically
-detected :integer types will be converted to float (see
-*FORCE-DOUBLE*). This should only influence type autodetection, not
-operations.")
-
-(defvar *force-double* t "If non-nil, automatically detected types
-will be converted to double precision.")
-
-(defun determine-forced-type (type)
-  "Convert type according to *force-float* and *force-double*."
-  (ecase type
-    (:integer (if *force-float*
-                  (if *force-double*
-                      :double
-                      :single)
-                  :integer))
-    (:single (if *force-double*
-                 :double
-                 :single))
-    (:complex-single (if *force-double*
-                         :complex-double
-                         :complex-single))
-    ((:double :complex-double) type)))
-
-(defun binary-code->lla-type (binary-code)
-  "Convert bits to LLA type."
-  (ecase binary-code
-    (#.+integer+ :integer)
-    (#.+single+ :single)
-    (#.+double+ :double)
-    (#.+complex-single+ :complex-single)
-    (#.+complex-double+ :complex-double)))
-
-(defun common-target-type (&rest objects)
-  "Find the smallest supertype that all objects can be coerced to.
-Uses LLA-TYPE, so it also accepts LLA-TYPE keywords.  Does NOT force
-floats."
-  (binary-code->lla-type
-   (reduce #'logior objects :key (compose #'lla-type->binary-code
-                                          #'lla-type))))
-
-(defun coercible-type-of (number)
-  "Return the LLA type that number can be coerced to.  For (complex)
-rationals, :(complex)-single or :(complex)-double is used, depending
-on *force-double*."
-  (typecase number
-    (single-float :single)
-    (double-float :double)
-    (rational (if *force-double* :double :single))
-    ((complex single-float) :complex-single)
-    ((complex double-float) :complex-double)
-    ((complex rational) (if *force-double* :complex-double :complex-single))
-    ((signed-byte #+int32 32 #+int64 64) :integer)
-    (otherwise (error 'not-within-lla-type))))
-
-(defun find-element-type (sequence)
-  "Finds the smallest LLA-TYPE that can accomodate the elements of
-  sequence.  If no such LLA-TYPE can be found, return nil.  Uses
-  *FORCE-FLOAT* and *FORCE-DOUBLE*."
-  (determine-forced-type 
-   (binary-code->lla-type
-    (reduce #'logior sequence :key (compose #'lla-type->binary-code 
-                                            #'coercible-type-of)))))
-
-(defun infer-lla-type (lla-type initial-contents)
-  "Infer LLA-TYPE from given type and/or INITIAL-CONTENTS.  Useful for
-MAKE-NV and MAKE-MATRIX.  Uses *FORCE-FLOAT* and *FORCE-DOUBLE*."
+(defun common-lla-type (lla-type1 lla-type2)
+  "Return a common LLA type that both of the given types can be
+coerced to, or NIL if that is not possible.  Arguments have to be
+valid LLA types, which is not checked."
   (cond
-    (lla-type lla-type)
-    ((null initial-contents) (error "Could not infer LLA-TYPE without initial-contents."))
-    ((numberp initial-contents) (determine-forced-type 
-                                 (lisp-type->lla-type (type-of initial-contents))))
-    ((typep initial-contents 'sequence) (find-element-type initial-contents))
-    (t (error "~A is not valid as INITIAL-CONTENTS." initial-contents))))
-
-
-
+    ((or (null lla-type1) (null lla-type2))
+     nil)
+    ((eq lla-type1 lla-type2)
+     lla-type1)
+    (t (let ((complex? (or (lla-complex? lla-type1)
+                           (lla-complex? lla-type2)))
+             (double? (or (lla-double? lla-type1)
+                          (lla-double? lla-type2))))
+         (if complex?
+             (if double? :complex-double :complex-single)
+             (if double? :double :single))))))

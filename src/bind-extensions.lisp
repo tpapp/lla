@@ -6,9 +6,8 @@
 
 (setf (binding-form-docstring :lla-vector)
       (cons :lla-vector
-            "(:lla-vector var &key elements accessor length) will bind
-            the value form to VAR, its elements to ELEMENTS (if given,
-            default is NIL), and bind a local function as the
+            "(:lla-vector var &key accessor length) will bind the
+            value form to VAR and bind a local function as the
             accessor (ACCESSOR INDEX) (default is VAR, unless ELEMENTS
             is given, when it is NIL)."))
 
@@ -18,27 +17,25 @@
    body declarations remaining-bindings)
   (bind (((value) value-form)
          ((var &key
-               (elements (gensym* 'elements- var) elements?)
-               (accessor (unless elements? var))
-               length) variable-form)
-         (elements (aif elements
-                        it
-                        (gensym* 'elements- var))))
+               (accessor var)
+               length
+               declarations?) variable-form))
     (check-type var symbol)
     `((let* ((,var ,value)
-             (,elements (elements ,var))
              ,@(when length
-                 `((,length (length ,elements)))))
+                 `((,length (length ,var)))))
         (flet (,@(when accessor
                    `((,accessor (index)
-                                (aref ,elements index))
+                                (aref ,var index))
                      ((setf ,accessor) (value index)
-                      (setf (aref ,elements index) value)))))
+                      (setf (aref ,var index) value)))))
           ,@(when accessor
               `((declare (ignorable (function ,accessor) (function (setf ,accessor))))))
           ,(metabang-bind::bind-filter-declarations declarations variable-form)
-          ,@(metabang-bind::bind-macro-helper 
-             remaining-bindings declarations body))))))
+          ,@(maybe-wrap-list
+             (when declarations? `(with-vector-type-declarations (,var)))
+             (metabang-bind::bind-macro-helper 
+              remaining-bindings declarations body)))))))
 
 (defmethod metabang.bind.developer:bind-generate-bindings
   ((kind (eql :lla-matrix))
@@ -50,7 +47,8 @@
                (accessor (unless elements? var))
                (indexer (make-symbol* var '#:-index))
                length (nrow (gensym* '#:nrow- var))
-               ncol) variable-form)
+               ncol
+               declarations?) variable-form)
          (elements (aif elements
                         it
                         (gensym* 'elements- var))))
@@ -78,5 +76,7 @@
           ,@(when ncol
               `((declare (ignorable ncol))))
           ,(metabang-bind::bind-filter-declarations declarations variable-form)
-          ,@(metabang-bind::bind-macro-helper 
-             remaining-bindings declarations body))))))
+          ,@(maybe-wrap-list
+             (when declarations? `(with-vector-type-declarations (,elements)))
+             (metabang-bind::bind-macro-helper 
+              remaining-bindings declarations body)))))))

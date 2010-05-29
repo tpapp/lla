@@ -5,7 +5,7 @@
 (defun remove-row-separators% (elements &optional (separator :/))
   "Remove SEPARATORs from elements.  The position of the first
 separator (or if none, the length of elements) is returned as the
-second value. "
+second value."
   (let ((ncol (aif (position separator elements)
                    it
                    (length elements))))
@@ -50,11 +50,8 @@ of ELEMENTS, return (values ELEMENTS NROW).  ELEMENTS is a list."
   numeric-vector, unless an element separator (:/) is given.  At most
   one KIND keyword can be given.
 
-  At most one LLA-TYPE keyword can be given, if none is supplied, it
-  will be determined from the elements at runtime.
-
-  :NO-COERCE can occur at most once.  If given, elements will be used
-  as is.
+  At most one LLA-TYPE keyword can be given, if one is supplied, it
+  elements will be coerced to that type.
 
   :/ in elements terminates a row for matrix types.  It can occur at
   most once.  If not given, all elements will be in a single row."
@@ -67,7 +64,7 @@ of ELEMENTS, return (values ELEMENTS NROW).  ELEMENTS is a list."
                          `(error "Multiple ~A declarations (~S,~S)" 
                                  ,name ,place ,arg))
                     (setf ,place ,arg))))
-    (bind (kind lla-type no-coerce
+    (bind (kind lla-type
            (elements
             (iter
               (for on-arg :on arguments)
@@ -81,45 +78,33 @@ of ELEMENTS, return (values ELEMENTS NROW).  ELEMENTS is a list."
                  (set-if-first kind arg))
                 ((typep arg 'lla-type)
                  (set-if-first lla-type arg))
-                ((eq :no-coerce arg)
-                 (set-if-first no-coerce arg :single-value? t)))))
-           (lla-type-var (gensym* '#:lla-type))
+                (t (error "Unrecognized keyword: ~A" arg)))))
            (elements-var (gensym* '#:elements-var))
            ((:flet elements-form (elements creation-form))
             (assert (notany #'keywordp elements) ()
                     "Elements ~A contain keywords." elements)
-            `(locally
-                 (declare (inline lla-type->lisp-type nv-array-type coerce*))
-                 (let* ((,elements-var (vector ,@elements))
-                        (,lla-type-var
-                         ,(aif lla-type
-                               it
-                               `(find-element-type ,elements-var)))
-                        (,elements-var 
-                         ,(if no-coerce
-                              `(make-array ,(length elements)
-                                           :element-type
-                                           (lla-type->lisp-type ,lla-type-var)
-                                           :initial-contents ,elements-var)
-                              `(map (nv-array-type ,lla-type-var)
-                                    (lambda (x)
-                                      (coerce* x ,lla-type-var))
-                                    ,elements-var))))
-                   ,creation-form))))
+             `(let* ((,elements-var 
+                      ,(if lla-type
+                           `(map '(simple-array ,(lla->lisp-type lla-type) (*))
+                                 (lambda (x)
+                                   (coerce* x ,lla-type))
+                                 (vector ,@elements))
+                           `(vector ,@elements))))
+                ,creation-form)))
       ;; no kind specification, but separator found => dense matrix
       (when (and (not kind) (find :/ elements))
         (setf kind :dense))
       ;; return form
       (case kind
         ((nil)
-           (elements-form elements `(make-nv* ,lla-type-var ,elements-var)))
-            (:diagonal
-               (elements-form elements `(make-diagonal* ,lla-type-var ,elements-var)))
-            (otherwise
-               (bind (((:values elements ncol)
-                       (remove-row-separators% elements))
-                      ((:values elements nrow)
-                       (rearrange-elements% elements ncol kind)))
-                 (elements-form elements
-                                `(make-matrix* ,lla-type-var ,nrow ,ncol
-                                               ,elements-var :kind ,kind))))))))
+           (elements-form elements elements-var))
+        (:diagonal
+           (elements-form elements `(make-diagonal% ,elements-var)))
+        (otherwise
+           (bind (((:values elements ncol)
+                   (remove-row-separators% elements))
+                  ((:values elements nrow)
+                   (rearrange-elements% elements ncol kind)))
+             (elements-form elements
+                            `(make-matrix% ,nrow ,ncol
+                                           ,elements-var :kind ,kind))))))))

@@ -5,10 +5,6 @@
 (deftestsuite basic-tests (lla-unit-tests)
   ())
 
-;;;;
-;;;; utilities
-;;;;
-
 (addtest (basic-tests)
   ;; This is basically testing that your system is ASCII.  If this
   ;; fails, then you should consider buying a more recent computer.
@@ -20,182 +16,149 @@
     (ensure-same (mem-ref c% :unsigned-char) 67)
     (ensure-same (mem-ref t% :unsigned-char) 84)))
 
-;;;;
-;;;; types
-;;;;
-
-;; !!! should write some basic tests for type functions, especially
-;;     coercible-p and smallest-common-destination-type -- Tamas
+;;; utilities
+;;;
+;;; !! nothing tested at the moment, all functions are very basic
 
 
-;;;;
-;;;; numeric-vector
-;;;;
+;;; types
+;;;
+;;; !! should write some basic tests for type functions, some
+;;; !! conceptual tests would be nice
 
-;; nv-input
 
-(addtest (basic-tests)
-  nv-input
-  (iter 
-    (for (source destination) :in (coercible-pairs-list))
-    (ensure
-     (test-nv-input-readonly source destination))))
-
-;; nv-input-copied
+;;; fortran-atoms
 
 (addtest (basic-tests)
-  nv-input-copied
-  (iter 
-    (for (source destination) :in (coercible-pairs-list))
-    (ensure
-     (test-nv-input-copied source destination))))
+  fortran-atoms
+  (let ((*lift-equality-test* #'eql))
+    (with-fortran-atoms ((:char char% #\X)
+                         (:integer integer% 1029)
+                         (:single single% 19.0)
+                         (:double double% 177d0)
+                         (:complex-single complex-single% #C(5.0 3.0))
+                         (:complex-double complex-double% #C(42d0 119d0)))
+      (ensure-same (lla::mem-aref* char% :char) #\X)
+      (ensure-same (lla::mem-aref* integer% :integer) 1029)
+      (ensure-same (lla::mem-aref* single% :single) 19.0)
+      (ensure-same (lla::mem-aref* double% :double) 177d0)
+      (ensure-same (lla::mem-aref* complex-single% :complex-single) #C(5.0 3.0))
+      (ensure-same (lla::mem-aref* complex-double% :complex-double) #C(42d0 119d0)))))
 
-;; nv-output
 
-(addtest (basic-tests)
-  vector-output
-  (ensure (test-vector-output :integer))
-  (ensure (test-vector-output :single))
-  (ensure (test-vector-output :double))
-  (ensure (test-vector-output :complex-single))
-  (ensure (test-vector-output :complex-double)))
-
-
-;;;; diagonal
-
-(addtest (basic-tests)
-  diagonal
-  (ensure (== (diagonal->matrix 
-               (create-diagonal '(1 2 3 4)))
-              (create-matrix 4 '(1 0 0 0
-                                 0 2 0 0
-                                 0 0 3 0
-                                 0 0 0 4))))
-  (ensure (== (matrix->diagonal 
-               (create-matrix 3 '(5 0 0
-                                  0 7 0)))
-              (create-diagonal '(5 7)))))
+;;; copy-elements
 
 (addtest (basic-tests)
-  diagonal-mm
-  (let ((a (create-matrix 3 '(1 2 3
-                              4 5 6)))
-        (left-d (create-diagonal '(7 8)))
-        (right-d (create-diagonal '(9 10 11))))
-    (ensure (== (mm (diagonal->matrix left-d) a)
-                (mm left-d a)))
-    (ensure (== (mm a (diagonal->matrix right-d))
-                (mm a right-d)))))
-
-
-;;;;
-;;;; matrix
-;;;;
-
-;;;; !!!! tests for lazy copy mechanism working correctly and copying on demand
-;;;;
+  copy-elements
+  (let ((source (make-vector-with-seq :single 10))
+        (destination1 (lla-vector :single 5))
+        (destination2 (lla-vector :double 5))
+        (*lift-equality-test* #'==))
+    (copy-elements source 2 destination1 1 3)
+    (copy-elements source 2 destination2 2 3)
+    (ensure-same destination1 (clo :single 0 2 3 4 0))
+    (ensure-same destination2 (clo :double 0 0 2 3 4))))
 
 (addtest (basic-tests)
-  create-matrix
-  ;; Note: here we compare elements.  If we used CLO, its
-  ;; implementation could share bugs with CREATE-MATRIX.
-  (flet ((make (kind)
-           (create-matrix 2 '(1 2 3 4) :kind kind)))
-    (ensure-same (make :dense)
-                 #2A((1 2) (3 4))
-                 :test #'x=)
-    (ensure-same (make :upper-triangular)
-                 #2A((1 2) (0 4))
-                 :test #'x=)
-    (ensure-same (make :lower-triangular)
-                 #2A((1 0) (3 4))
-                 :test #'x=)
-    (ensure-same (make :hermitian)
-                 #2A((1 2) (2 4))
-                 :test #'x=)))
+  copy-vector
+  (let ((source (make-vector-with-seq :single 3))
+        (*lift-equality-test* #'==))
+    (ensure-same (copy-vector source) (clo :single 0 1 2))
+    (ensure-same (copy-vector source :double) (clo :double 0 1 2))
+    (ensure-same (copy-vector source :complex-single) (clo :complex-single 0 1 2))
+    (ensure-same (copy-vector source :complex-double) (clo :complex-double 0 1 2))))
 
 (addtest (basic-tests)
-  transpose
-  ;; !!! test transpose for other classes, lower-upper triangular, symmetric, etc
-  ;; !!! check for type of resulting class
-  (ensure (== (transpose (make-matrix-with-seq :double 3 4))
-              (create-matrix 3 '(0.0d0 1.0d0 2.0d0
-                                 3.0d0 4.0d0 5.0d0
-                                 6.0d0 7.0d0 8.0d0
-                                 9.0d0 10.0d0 11.0d0)))))
+  copy-columns
+  (let ((4x4-double (make-vector-with-seq :double 16))
+        (4x4-single (make-vector-with-seq :single 16))
+        (2x2 (make-vector-with-seq :single 4))
+        (expected-result (elements (clo :single
+                                    0 4 8 12 :/
+                                    1 0 2 13
+                                    2 1 3 14
+                                    3 7 11 15))))
+    (copy-columns 2 2
+                  2x2 0 2
+                  4x4-single 5 4)
+    (copy-columns 2 2
+                  2x2 0 2
+                  4x4-double 5 4)
+    (ensure-same 4x4-single expected-result 
+                 :test #'==)
+    (ensure-same 4x4-double (copy-vector expected-result :double) 
+                 :test #'==)))
+
+
+;;; pinned-vector is tested in a separate file
+
+;;; matrix-classes
 
 (addtest (basic-tests)
-  stack
-  (let ((*lift-equality-test* #'==))
-    (ensure-same (stack-vertically 
-                  (clo 1 2 3)
-                  (clo 4d0 5 6 :/
-                       7 8 9)
-                  (clo :diagonal -1 -2 -3))
-                 (clo 1 2 3 :/
-                      4 5 6
-                      7 8 9
-                      -1 0 0
-                      0 -2 0
-                      0 0 -3))
-    (ensure-same (stack-horizontally
-                  (clo 1 2)
-                  (clo 3 4 :/
-                       5 6)
-                  (clo :diagonal 7 8))
-                 (clo 1 3 4 7 0 :/
-                      2 5 6 0 8))
-    (ensure-same (stack-vertically
-                  (clo 1 2)
-                  (clo 3 4 :/
-                       5 6)
-                  (clo :diagonal 7 8))
-                 (clo 1 2 :/
-                      3 4
-                      5 6
-                      7 0
-                      0 8))))
-
-;;;; set-restricted
-
-(addtest (basic-tests)
-  set-restricted-and-as
-  (bind ((dense (clo 1 2 :/ 3 4))
-         (hermitian (as 'hermitian-matrix dense))
-         (upper-triangular (as 'upper-triangular-matrix dense))
-         (lower-triangular (as 'lower-triangular-matrix dense))
-         (*lift-equality-test* #'equalp))
-    (set-restricted hermitian)
-    (ensure-same (elements hermitian) #(1 2 2 4))
-    (set-restricted upper-triangular)
-    (ensure-same (elements upper-triangular) #(1 0 2 4))
-    (set-restricted lower-triangular)
-    (ensure-same (elements lower-triangular) #(1 3 0 4))))
-
-;;; submatrix 
-
-(addtest (basic-tests)
-  submatrix
-  (let* ((matrix (clo 1 2 3 4 :/
-                      5 6 7 8
-                      9 10 11 12
-                      13 14 15 16))
-         (submatrix (clo 6 7 :/ 10 11))
-         (submatrix1 (submatrix matrix 1 3 1 3))
-         (*lift-equality-test* #'x=))
-    (ensure-same submatrix submatrix1)
-    (ensure-same (submatrix matrix 1 -1 1 -1) submatrix1)
-    (ensure-same (solve submatrix1 submatrix) (clo 1 0 :/ 0 1)
-                 :test (x~= 1d-8))))
+  matrix-classes
+  (let ((m (make-matrix :double 2 2)))
+   (setf (mref m 0 0) 6d0)
+   (incf (mref m 0 1) 7d0)
+   (decf (mref m 1 0) 6d0)
+   (setf (mref m 1 1) 5d0)
+   (ensure-same m (clo :double
+                       6 7 :/
+                       -6 5)
+                :test #'==)
+   (let ((l (copy-matrix m :kind :lower))
+         (u (copy-matrix m :kind :upper))
+         (h (copy-matrix m :kind :hermitian)))
+     ;; we didn't call set-restricted, so we are testing mref here
+     (ensure-same (mref l 0 1) 0d0)
+     (ensure-same (mref u 1 0) 0d0)
+     (ensure-same (mref h 1 0) 7d0)
+     (let ((*lift-equality-test* #'==))
+       ;; set-restricted is called by ==
+       (ensure-same l (clo :lower :double
+                           6 0 :/
+                           -6 5))
+       (ensure-same u (clo :upper :double
+                           6 7 :/
+                           0 5))
+       (ensure-same h (clo :hermitian :double
+                           6 7 :/
+                           7 5))))))
 
 ;;; diagonal
 
 (addtest (basic-tests)
-  eye
-  (let ((*lift-equality-test* #'==))
-    (ensure-same (eye 2) (clo 1 0 :/ 0 1))
-    (ensure-same (eye 1 :kind :hermitian) (clo :hermitian 1))
-    (ensure-same (eye 2 :kind :upper-triangular :initial-element 3)
-                 (clo :upper-triangular 3 0 :/ 0 3))
-    (ensure-same (eye 3 :kind :diagonal :initial-element 5 :lla-type :integer)
-                 (clo :integer :diagonal 5 5 5))))
+  diagonal
+  (let ((d1 (clo :diagonal :double 1 2 3))
+        (d2 (lla::make-diagonal% (clo :double 1 2 3))))
+    (ensure-same d1 d2 :test #'==)))
+
+;;; bind-extensions
+
+(addtest (basic-tests)
+  bind-lla-vector
+  (bind (((:lla-vector a :length length) (lla-vector :double 5)))
+    (dotimes (i length)
+      (setf (a i) (coerce* i :double)))
+    (dotimes (i length)
+      (incf (a i)))
+    (ensure-same a (clo :double 1 2 3 4 5) :test #'==)))
+
+(addtest (basic-tests)
+  bind-lla-matrix
+  (bind (((:lla-matrix a :nrow a-nrow :ncol a-ncol) (make-matrix :double 3 4)))
+    (dotimes (row a-nrow)
+      (dotimes (col a-ncol)
+        (setf (a (a-index row col)) (+ (* 10d0 row) col))))
+    (ensure-same a (clo :double
+                        0 1 2 3 :/
+                        10 11 12 13
+                        20 21 22 23)
+                 :test #'==)))
+
+;;; clo
+
+(addtest (basic-tests)
+  ;; only test corner cases of CLO, since pretty much everything is
+  ;; using it anyway
+  (ensure-error (eval '(clo :invalid-keyword 1 2 3)))
+  (ensure-error (eval '(clo 1 2 :/ 3))))

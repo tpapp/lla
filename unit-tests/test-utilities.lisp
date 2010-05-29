@@ -17,9 +17,9 @@
   (ensure-error (== (clo 1 :/) (clo 2 :/))))
 
 (addtest (utilities-tests)
-  make-nv-or-matrix-test
+  make-vector-or-matrix-test
   (let ((*lift-equality-test* #'==))
-    (ensure-same (make-nv-with-seq :single 3) (clo :single 0 1 2))
+    (ensure-same (make-vector-with-seq :single 3) (clo :single 0 1 2))
     (ensure-same (make-matrix-with-seq :complex-double 2 2)
                  (clo :complex-double
                       0 2 :/

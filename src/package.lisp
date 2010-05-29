@@ -1,88 +1,99 @@
 (in-package #:lla-asd)
 
 (defpackage #:lla
-    (:use :common-lisp :cl-utilities :iterate :bind :cffi :xarray
+    (:use :common-lisp :cl-utilities :iterate :bind :cffi
           :anaphora :tpapp-utils :cl-num-utils)
   (:shadowing-import-from :iterate :collecting :collect)
   (:export 
-   ;; utilities -- nothing is exported
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; basics
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+   
+   ;; utilities
+
+   zero-like simple-array1 simple-array? simple-array1? displace-array
+   as-simple-array1
    
    ;; types
    
-   dimension lla-type lla-complex-p lla-double-p not-within-lla-type
-   lisp-type->lla-type lla-type->lisp-type zero* coerce* epsilon* 
-   *force-float* *force-double*
-
+   dimension lla-type lla-complex? lla-double? not-within-lla-type 
+   invalid-lla-type array-lla-type lla-vector
+   
    ;; fortran-atoms -- nothing is exported
-   
-   ;; numeric-vector
-   
-   numeric-vector-like numeric-vector elements nv-array-type 
-   make-nv* make-nv create-nv copy-elements copy-nv-elements
-   copy-nv
 
-   ;; numeric-vector-wrappers -- nothing is exported
+   ;; copy-elements
+
+   copy-elements copy-vector copy-columns
+   
+   ;; pinned-vectors -- nothing is exported
 
    ;; matrix-classes
-
-   dense-matrix-like nrow ncol cm-index2 square-matrix-p square-matrix
-   matrix-class matrix-kind restricted-elements set-restricted
-
-   ;; dense-matrix-like
-
-   dense-matrix upper-triangular-matrix lower-triangular-matrix hermitian-matrix
-   matrix-mask
-
-   ;; factorizations
    
-   matrix-factorization component reconstruct lu-factorization lu-matrix ipiv
-   qr-factorization qr-matrix cholesky-factorization factor hermitian-factorization
+   elements dense-matrix-like nrow ncol mref mref-setting-readonly
+   square-matrix? square-matrix valid-matrix-kind? matrix-kind
+   dense-matrix upper-matrix lower-matrix hermitian-matrix
+   set-restricted make-matrix copy-matrix
 
    ;; diagonal
    
-   diagonal diagonal-integer diagonal-single diagonal-double
-   diagonal-complex-single diagonal-complex-double make-diagonal
-   create-diagonal nv->diagonal diagonal->nv matrix->diagonal
-   diagonal->matrix
+   diagonal make-diagonal
 
    ;; printing
-   
-   *pring-matrix-aligned* *print-matrix-padding*
-   *print-matrix-precision*
-   
-   ;; matrix-operations
-   
-   submatrix subvector subcolumn subrow make-matrix* make-matrix create-matrix reshape
-   vector->column vector->row conjugate-transpose stack-horizontally
-   stack-vertically eye
+
+   *print-lla-precision* *pring-matrix-aligned* *print-matrix-padding*
 
    ;; clo
 
    clo
 
-   ;; misc-operations
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; operations
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-   map1
+   ;; elementwise-operations
 
-   ;; readmacros
+   emap e+ e- e* e/ eexpt eexp
 
-   read-vector-or-matrix
+   ;; transpose
 
-   ;; fortran-call -- nothing is exported
+   conjugate-transpose
+
+   ;; conversions
+
+   as-diagonal as-matrix as-array as-row as-column reshape
+
+   ;; matrix-operations
+
+   stack-horizontally stack-vertically eye
+
+   ;; specialized-utilities -- nothing is exported, already done by CLNU
+   
+   ;; sub -- nothing is exported, already done by CLNU
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; pinned-vector
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+   ;; nothing is exported
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; linear-algebra
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+   
+   ;; ;; factorizations
+   
+   matrix-factorization component reconstruct lu lu-matrix ipiv
+   qr qr-matrix cholesky factor hermitian
 
    ;; linear-algebra
 
-   mmm mm lu solve invert eigen least-squares least-squares-xx-inverse
-   constrained-least-squares cholesky svd hermitian-factorization tr rank
-   logdet det
+   mm mmm lu hermitian solve invert eigen least-squares least-squares-xx-inverse
+   constrained-least-squares cholesky svd tr rank logdet det
 
-   ;; adjustable
+   ;; ;; adjustable
 
-   *default-expansion* default-expansion adjustable size capacity add shrink
-   adjustable-numeric-vector make-anv row-adjustable-matrix make-ra-matrix
-   adjustable-columns-dont-match
+   ;; *default-expansion* default-expansion adjustable size capacity add shrink
+   ;; adjustable-numeric-vector make-anv row-adjustable-matrix make-ra-matrix
+   ;; adjustable-columns-dont-match
    
    ))
-
-;;;; ??? !!! maybe an lla-user package for playing around, once things
-;;;; stabilize

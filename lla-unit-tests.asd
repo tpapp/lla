@@ -22,11 +22,9 @@
     :components
     ((:file "test-utilities")
      (:file "test-basics")
-     (:file "test-linear-algebra")
-     (:file "test-adjustable")
-     (:file "test-bind-extensions")
-     (:file "test-misc-operations")
-     (:file "test-sub"))))
+     (:file "test-pinned-vector")
+     (:file "test-operations")
+     (:file "test-linear-algebra"))))
   :depends-on
-  (:cl-utilities :iterate :metabang-bind :xarray :anaphora :lla
-                 :named-readtables :lift :cl-num-utils))
+  (:cl-utilities :iterate :metabang-bind :anaphora 
+                 :lla :lift :cl-num-utils))

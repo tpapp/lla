@@ -29,11 +29,11 @@
     :pathname #P"src/"
     :serial t
     :components
-    ((:file "architecture")
-     (:file "load-libs")
+    ((:file "load-libs")
      (:file "fortran-types")
      (:file "blas-cffi")
-     (:file "lapack-cffi")))
+     (:file "lapack-cffi")
+     (:file "architecture")))
    (:module 
     "basics"
     :pathname #P"src/"
@@ -43,39 +43,41 @@
     ((:file "utilities")
      (:file "types")
      (:file "fortran-atoms")
-     (:file "numeric-vector")
-     (:file "numeric-vector-wrappers")
+     (:file "copy-elements")
      (:file "matrix-classes")
-     (:file "dense-matrix-like")
      (:file "diagonal")
-     (:file "bind-extensions")
-     (:file "matrix-operations")
-     (:file "factorizations")
      (:file "printing")
-     (:file "clo")
-     (:file "creation-conversion")
-     (:file "binary-operations")
+     (:file "bind-extensions")
+     (:file "clo")))
+   (:module
+    "operations"
+    :pathname #P"src/"
+    :depends-on ("basics")
+    :serial t
+    :components
+    ((:file "elementwise-operations")
+     (:file "transpose")
+     (:file "conversions")
+     (:file "matrix-operations")
      (:file "specialized-utilities")
-     (:file "misc-operations")
      (:file "sub")))
+   (:module
+    "pinned-vector"
+    :pathname #P"src/"
+    :depends-on ("basics")
+    :serial t
+    :components
+    ((:file "pinned-vector")))
    (:module
     "linear-algebra"
     :pathname #P"src/"
-    :depends-on ("basics")
+    :depends-on ("basics" "pinned-vector")
     :serial t
     :components
-     ((:file "fortran-call")
-      (:file "linear-algebra")))
-   (:module
-    "extensions"
-    :pathname #P"src/"
-    :depends-on ("basics")
-    :serial t
-    :components
-    ((:file "adjustable"))))
+     ((:file "factorizations")
+      (:file "lapack-blas-call")
+      (:file "linear-algebra"))))
   :depends-on
-  (:cl-utilities :iterate :metabang-bind :cffi :xarray
+  (:cl-utilities :iterate :metabang-bind :cffi
                  :anaphora :alexandria :tpapp-utils
                  :cl-num-utils))
-
-;;;; ?? providing something else besides ASDF?  Mudballs? -- Tamas

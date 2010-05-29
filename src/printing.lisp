@@ -30,33 +30,18 @@ constraint is binding."
 		     *print-lla-precision* (imagpart x)))
     (t (format nil "~a" x))))
 
+;;;; diagonals
 
-;;; numeric vectors
-;;;
-;;; We dispatch on class NUMERIC-VECTOR-LIKE so it also covers
-;;; DIAGONALs, etc.
-
-(defun print-nv-elements (elements length stream)
-  "Print elements of vector, automatically truncating to *PRINT-LENGTH*."
-  (bind (((:values truncated-length truncated?) (print-length-truncate length)))
-    (dotimes (i truncated-length)
-      (princ (standard-numeric-formatter (aref elements i)) stream)
-      (when (< (1+ i) truncated-length)
-        (princ #\space stream)))
-    (when truncated?
-      (princ " ..." stream))))
-
-(defmethod print-object ((obj numeric-vector-like) stream)
+(defmethod print-object ((obj diagonal) stream)
   (print-unreadable-object (obj stream :type t)
     (with-slots (elements) obj
-      (let* ((length (length elements)))
-	(format stream "~s with ~a elements: " (lla-type obj) length)
-        (print-nv-elements elements length stream)))))
+      (format stream "~s with ~a elements: ~a" (array-lla-type elements) (length elements)
+              elements))))
 
 ;;;; matrices
 
 ;;; None of the code below assumes anything about classes, it just
-;;; uses the xref interface to access elements.
+;;; uses the mref interface to access elements.
 
 (defvar *print-matrix-aligned* t
   "If non-nil, characters will be aligned.")
@@ -69,19 +54,18 @@ constraint is binding."
   masked elements when printing.  Return value may not be modified.")
   (:method ((kind (eql :dense)))
     nil)
-  (:method ((kind (eql :upper-triangular)))
+  (:method ((kind (eql :upper)))
     ".")
-  (:method ((kind (eql :lower-triangular)))
+  (:method ((kind (eql :lower)))
     ".")
   (:method ((kind (eql :hermitian)))
     "*"))
 
 (defun print-matrix (matrix stream &key 
 		     (formatter #'standard-numeric-formatter)
-                     (accessor #'xref)
+                     (accessor #'mref)
                      (mask (constantly nil)))
-  "Format and print the elements of matrix (which is rank 2 xrefable
-object, nothing further is needed) to stream, using
+  "Format and print the elements of matrix to stream, using
 *print-matrix-padding* spaces between columns.  If
 *print-matrix-aligned*, columns will be right-aligned.  Prints at most
 *print-length* rows and columns, indicating more with a ...  Mask is a
@@ -125,12 +109,12 @@ printed instead (should be a string)."
       (format stream "~&..."))))
 
 (defmethod print-object ((matrix dense-matrix-like) stream)
-  (bind (((:slots lla-type nrow ncol) matrix)
+  (bind (((:slots-r/o elements nrow ncol) matrix)
          (kind (matrix-kind matrix))
          (masked-element-string (matrix-masked-element-string kind)))
     (print-unreadable-object (matrix stream :type t)
       (format stream "~s with ~a x ~a elements~&"
-              lla-type nrow ncol)
+              (array-lla-type elements) nrow ncol)
       (print-matrix matrix stream 
                     :mask (lambda (row col)
                             (if (matrix-mask kind row col)
