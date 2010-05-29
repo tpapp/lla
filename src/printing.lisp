@@ -35,7 +35,8 @@ constraint is binding."
 (defmethod print-object ((obj diagonal) stream)
   (print-unreadable-object (obj stream :type t)
     (with-slots (elements) obj
-      (format stream "~s with ~a elements: ~a" (array-lla-type elements) (length elements)
+      (format stream "~s with ~a elements: ~a" (array-lla-type elements)
+              (length elements)
               elements))))
 
 ;;;; matrices
