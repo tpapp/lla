@@ -36,9 +36,6 @@
 (defmethod sum ((diagonal diagonal))
   (sum (elements diagonal)))
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  )
-
 (defun sse-elements% (vector start end &optional (mean 0))
   (declare (optimize speed (safety 0))
            (fixnum start end))
@@ -74,4 +71,3 @@
 
 (defmethod sse ((diagonal diagonal) &optional (mean (mean diagonal)))
   (sse (elements diagonal) mean))
-
