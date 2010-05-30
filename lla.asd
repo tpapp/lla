@@ -32,8 +32,7 @@
     ((:file "load-libs")
      (:file "fortran-types")
      (:file "blas-cffi")
-     (:file "lapack-cffi")
-     (:file "architecture")))
+     (:file "lapack-cffi")))
    (:module 
     "basics"
     :pathname #P"src/"
