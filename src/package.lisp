@@ -11,19 +11,20 @@
    
    ;; utilities
 
-   zero-like simple-array1 simple-array? simple-array1? displace-array
-   as-simple-array1
+   make-similar-vector make-similar-array zero-like simple-array1 simple-array?
+   simple-array1? displace-array as-simple-array1
    
    ;; types
    
-   dimension lla-type lla-complex? lla-double? not-within-lla-type 
-   invalid-lla-type array-lla-type lla-vector
+   dimension lla-type lla-complex? lla-double? real-lla-type complex-lla-type 
+   not-within-lla-type invalid-lla-type lla->lisp-type lla-vector-type
+   array-lla-type lla-vector representable-lla-type zero* coerce* epsilon* 
    
    ;; fortran-atoms -- nothing is exported
 
    ;; copy-elements
 
-   copy-elements copy-vector copy-columns
+   copy-elements copy-vector cm-index2 copy-columns
    
    ;; pinned-vectors -- nothing is exported
 
