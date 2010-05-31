@@ -376,58 +376,8 @@ needed to interface to LAPACK routines like xGELS."
                            (cm-index2 m m col))))
     row-sums))
 
-
 ;;;; nice interface for matrices, probably the most important macro
 
-(defmacro with-matrix-input ((matrix nrow ncol pointer lla-type
-                                     &key (set-restricted t)
-                                     output)
-                             &body body)
-  "Convenience macro for using matrices as input for Fortran calls.
-Essentially like WITH-NV-INPUT, except that matrix dimensions are
-bound to variables.  NROW and NCOL have the following syntax:
-variable-name -- dimensions is assigned to the variable
-  (variable-name fortran-atom-name) -- value is also assigned to a
-memory location as an integer using WITH-FORTRAN-ATOM."
-  (flet ((parse-dimspec (dimspec)
-           "Parse dimension name binding specification."
-           (cond
-             ((and dimspec (atom dimspec))
-              (check-type dimspec symbol)
-              (list dimspec nil))
-             ((and dimspec (listp dimspec) (= (length dimspec) 2))
-              (bind (((name fortran-atom-name) dimspec))
-                (assert (every #'symbolp dimspec) ()
-                        "Need symbol for dimension specification.")
-                `(,name ((:integer ,fortran-atom-name ,name)))))
-             (t (error "Invalid dimension specification ~A.  ~
-                       Use NAME or (NAME FORTRAN-ATOM-NAME)."
-                       dimspec)))))
-    (bind (((nrow-name nrow-fortran-atom-expansion)
-            (parse-dimspec nrow))
-           ((ncol-name ncol-fortran-atom-expansion)
-            (parse-dimspec ncol)))
-      (once-only (matrix lla-type)
-        `(bind (((:slots-read-only (,nrow-name nrow)
-                                   (,ncol-name ncol)) ,matrix))
-           (if ,set-restricted
-               (set-restricted ,matrix))
-           (with-fortran-atoms (,@nrow-fortran-atom-expansion
-                                ,@ncol-fortran-atom-expansion)
-             (with-pinned-vector ((elements ,matrix) ,pointer
-                                  ,lla-type :output ,output)
-               ,@body)))))))
-
-(define-with-multiple-bindings with-matrix-input)
-
-(metabang-bind::defbinding-form 
-    (:matrix-input 
-     :docstring "Same as with-matrix-input."
-     :description ""
-     :use-values-p nil
-     :accept-multiple-forms-p nil)
-  `(with-matrix-input (,metabang-bind::values
-                        ,@metabang-bind::variables)))
 
 ;;; floating point traps
 ;;;
