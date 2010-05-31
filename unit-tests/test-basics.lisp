@@ -9,9 +9,9 @@
   ;; This is basically testing that your system is ASCII.  If this
   ;; fails, then you should consider buying a more recent computer.
   ascii-characters
-  (lla::with-fortran-atoms ((:char n% #\N)
-                            (:char c% #\C)
-                            (:char t% #\T))
+  (lla::with-fortran-atoms ((n% :char #\N)
+                            (c% :char #\C)
+                            (t% :char #\T))
     (ensure-same (mem-ref n% :unsigned-char) 78)
     (ensure-same (mem-ref c% :unsigned-char) 67)
     (ensure-same (mem-ref t% :unsigned-char) 84)))
@@ -32,12 +32,12 @@
 (addtest (basic-tests)
   fortran-atoms
   (let ((*lift-equality-test* #'eql))
-    (with-fortran-atoms ((:char char% #\X)
-                         (:integer integer% 1029)
-                         (:single single% 19.0)
-                         (:double double% 177d0)
-                         (:complex-single complex-single% #C(5.0 3.0))
-                         (:complex-double complex-double% #C(42d0 119d0)))
+    (with-fortran-atoms ((char% :char #\X)
+                         (integer% :integer 1029)
+                         (single% :single 19.0)
+                         (double% :double 177d0)
+                         (complex-single% :complex-single #C(5.0 3.0))
+                         (complex-double% :complex-double #C(42d0 119d0)))
       (ensure-same (lla::mem-aref* char% :char) #\X)
       (ensure-same (lla::mem-aref* integer% :integer) 1029)
       (ensure-same (lla::mem-aref* single% :single) 19.0)

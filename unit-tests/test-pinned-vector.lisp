@@ -47,7 +47,7 @@ floats can be upgraded to complex."
   (let* ((vector (make-random-vector source-type length 100))
          (copy (copy-seq vector))
          (copy-inc (map 'vector #'1+ copy)))
-    (with-pinned-vector (vector pointer destination-type :output :copy)
+    (with-pinned-vector (vector pointer destination-type :copy)
       ;; check equality
       (unless (vector-at-pointer= copy pointer destination-type :report-p report-p)
         (return-from test-pinning-copy nil))
@@ -64,7 +64,7 @@ floats can be upgraded to complex."
          vector-inc
          (copy (copy-seq vector))
          (copy-inc (map 'vector #'1+ copy)))
-    (with-pinned-vector (vector pointer destination-type :output vector-inc)
+    (with-pinned-vector (vector pointer destination-type vector-inc)
       ;; check equality
       (unless (vector-at-pointer= copy pointer destination-type :report-p report-p)
         (return-from test-pinning-output nil))
