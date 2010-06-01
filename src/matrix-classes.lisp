@@ -327,3 +327,7 @@ unless explicitly specified."
                                      (if copy?? copy? default-copy?)
                                      lla-type)
                   :kind kind)))
+
+(defmethod pack ((matrix dense-matrix-like))
+  (set-restricted matrix)
+  (make-matrix% (nrow matrix) (ncol matrix) (pack (elements matrix))))

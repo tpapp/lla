@@ -16,3 +16,5 @@
   "Make a diagonal."
   (make-diagonal% (lla-vector lla-type length initial-element)))
 
+(defmethod pack ((diagonal diagonal))
+  (make-diagonal% (pack (elements diagonal))))

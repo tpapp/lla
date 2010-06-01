@@ -295,3 +295,27 @@ valid LLA types, which is not checked."
          (if complex?
              (if double? :complex-double :complex-single)
              (if double? :double :single))))))
+
+(defgeneric pack (object)
+  (:documentation "The purpose of this is to return objects for immediate
+  detection of element types, affecting speed favorably.  Vectors are converted
+  to simple-arra1.  The returned object may share structure with the
+  original."))
+
+(defmethod pack ((vector vector))
+  #+(or lla-vector-integer lla-vector-single lla-vector-double
+        lla-vector-complex-single lla-vector-complex-double )
+  (let ((lla-type (array-lla-type vector)))
+    (if lla-type
+        (as-simple-array1 vector)
+        (let ((common-lla-type 
+               (reduce #'common-lla-type vector :key #'representable-lla-type)))
+          (if common-lla-type
+              (copy-vector vector common-lla-type)
+              vector))))
+  #+(not (or lla-vector-integer lla-vector-single lla-vector-double
+             lla-vector-complex-single lla-vector-complex-double))
+  ;; CLISP & ilk: don't bother
+  vector)
+
+(define-modify-macro packf () pack "PACK place.")
