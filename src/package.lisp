@@ -18,7 +18,8 @@
    
    dimension lla-type lla-complex? lla-double? real-lla-type complex-lla-type 
    not-within-lla-type invalid-lla-type lla->lisp-type lla-vector-type
-   array-lla-type lla-vector representable-lla-type zero* coerce* epsilon* 
+   array-lla-type lla-vector representable-lla-type zero* coerce* epsilon*
+   common-lla-type
    
    ;; fortran-atoms -- nothing is exported
 
@@ -90,11 +91,5 @@
 
    mm mmm lu hermitian solve invert eigen least-squares least-squares-xx-inverse
    constrained-least-squares cholesky svd tr rank logdet det
-
-   ;; ;; adjustable
-
-   ;; *default-expansion* default-expansion adjustable size capacity add shrink
-   ;; adjustable-numeric-vector make-anv row-adjustable-matrix make-ra-matrix
-   ;; adjustable-columns-dont-match
    
    ))
