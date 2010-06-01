@@ -1,3 +1,11 @@
+;;; Copyright Tamas Papp 2010.
+;;;
+;;; Distributed under the Boost Software License, Version 1.0.  (See
+;;; accompanying file LICENSE_1_0.txt or copy at
+;;; http://www.boost.org/LICENSE_1_0.txt)
+;;;
+;;; This copyright notice pertains to all files in this library.
+
 (defpackage #:lla-asd
   (:use :cl :asdf))
 
@@ -16,7 +24,7 @@
   :description "Lisp Linear Algebra"
   :version "alpha"
   :author "Tamas K Papp <tkpapp@gmail.com>"
-  :license "BSD without advertising clause"
+  :license "Boost Software License - Version 1.0"
   :serial t
   :components 
   ((:module 
