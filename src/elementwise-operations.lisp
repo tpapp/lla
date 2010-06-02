@@ -100,7 +100,7 @@ in which case they are treated as a vector filled with that atom."
                                 args))))
             ;; when first time, create array
             (when (zerop index)
-              (setf lla-type (representable-lla-type element)
+              (setf lla-type (atom-representable-lla-type element)
                     result (lla-vector lla-type length)))
             (locally
                 (declare (type (simple-array * (*)) result))
@@ -111,7 +111,7 @@ in which case they are treated as a vector filled with that atom."
                       (setf lla-type 
                             (common-lla-type 
                              lla-type 
-                             (representable-lla-type element))
+                             (atom-representable-lla-type element))
                             result (lla-vector lla-type length))
                       (dotimes (i index)
                         (setf (aref result i) 
@@ -201,6 +201,10 @@ EMAP-ELEMENTS%.  FORCE-DENSE? "
 (define-elementwise-operation eexp (arg)
   "Elementwise EXP."
   (emap #'exp arg))
+
+(define-elementwise-operation elog (arg)
+  "Elementwise LOG."
+  (emap #'log arg))
 
 ;;; !!! write optimized 2-argument versions
 
