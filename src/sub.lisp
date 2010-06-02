@@ -131,3 +131,6 @@
                   (aref source row col)))))))
   source)
     
+(defmethod create ((type (eql 'dense-matrix)) element-type &rest dimensions)
+  (bind (((nrow ncol) dimensions))
+    (make-matrix (representable-lla-type element-type) nrow ncol)))
