@@ -153,28 +153,32 @@ upgraded by the implementation."
     (check-upgraded :complex-single :lla-vector-complex-single)
     (check-upgraded :complex-double :lla-vector-complex-double)))
 
+(defun representable-lla-type (type)
+  "If TYPE corresponds to an LLA type representable in an array, return that,
+otherwise NIL."
+  (cond
+    #+lla-vector-integer 
+    ((subtypep type '(signed-byte #-lla-int64 32 #+lla-int64 64)) :integer)
+    #+lla-vector-single 
+    ((subtypep type 'single-float) :single)
+    #+lla-vector-double 
+    ((subtypep type 'double-float) :double)
+    #+lla-vector-complex-single 
+    ((subtypep type '(complex single-float)) :complex-single)
+    #+lla-vector-complex-double 
+    ((subtypep type '(complex double-float))
+     :complex-double)))
+
 (defun array-lla-type (array)
   "If the array element type corresponds to an LLA type, return that, otherwise NIL."
-  (let ((element-type (array-element-type array)))
-    (cond
-      #+lla-vector-integer 
-      ((subtypep element-type '(signed-byte #-lla-int64 32 #+lla-int64 64)) :integer)
-      #+lla-vector-single 
-      ((subtypep element-type 'single-float) :single)
-      #+lla-vector-double 
-      ((subtypep element-type 'double-float) :double)
-      #+lla-vector-complex-single 
-      ((subtypep element-type '(complex single-float)) :complex-single)
-      #+lla-vector-complex-double 
-      ((subtypep element-type '(complex double-float))
-       :complex-double))))
+  (representable-lla-type (array-element-type array)))
 
 (defun lla-vector (lla-type length &optional (initial-element (zero* lla-type)))
   "Create a vector with given LLA type and length."
   (make-array length :element-type (lla->lisp-type lla-type)
               :initial-element initial-element))
 
-(defun representable-lla-type (atom)
+(defun atom-representable-lla-type (atom)
   "If the (upgraded) type of atom is supported by the implementation,
 return the corresponding LLA type, otherwise NIL."
   (typecase atom
@@ -309,7 +313,8 @@ valid LLA types, which is not checked."
     (if lla-type
         (as-simple-array1 vector)
         (let ((common-lla-type 
-               (reduce #'common-lla-type vector :key #'representable-lla-type)))
+               (reduce #'common-lla-type vector
+                       :key #'atom-representable-lla-type)))
           (if common-lla-type
               (copy-vector vector common-lla-type)
               vector))))
