@@ -95,7 +95,8 @@ printed instead (should be a string)."
     ;; second pass - print
     (dotimes (row nrow)
       (when (plusp row)
-	(fresh-line stream))
+        (fresh-line stream))
+      (format stream "  ")
       (dotimes (col ncol)
 	(when (plusp col)
 	  (princ padding stream))
