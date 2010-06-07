@@ -485,28 +485,59 @@ first."))
 ;;;; least squares calculations
 ;;;;
 
-(defgeneric least-squares (y x)
-  (:documentation "Return (values b qr ss nu), where beta = argmin_b
-L2norm( y-Xb ), solving a least squares problem, QR is the QR
-decomposition of A, and SS is the sum of squares for each column of Y.
-Y can have multiple columns, in which case X will have the same number
-of columns, each corresponding to a different column of Y.  NU is the
-degrees of freedom."))
+(defgeneric least-squares (y x &key method &allow-other-keys)
+  (:documentation "Return (values b ss nu ...), where beta = argmin_b L2norm(
+y-Xb ), solving a least squares problem, SS is the sum of squares for each
+column of Y, and NU is the degrees of freedom.  Y can have multiple columns, in
+which case X will have the same number of columns, each corresponding to a
+different column of Y.  METHOD selects the method to call, methods may accept
+other keyword arguments and return attitional values."))
 
-(defmethod least-squares ((y dense-matrix-like) (x dense-matrix-like))
+(define-condition not-enough-columns (error)
+  ())
+
+(defmethod least-squares ((y dense-matrix-like) (x dense-matrix-like) &rest
+                          named-pairs &key (method :svd-d) &allow-other-keys)
+  (apply (ecase method
+           (:qr #'least-squares-qr)
+           (:svd-d #'least-squares-svd-d))
+         y x 
+         :allow-other-keys t
+         named-pairs))
+
+;; ;;; univariate versions of least squares: vector ~ vector, vector ~ matrix
+
+(defmethod least-squares ((y vector) (x dense-matrix-like) &rest named-pairs)
+  (bind (((b ss nu . rest)
+          (multiple-value-list 
+              (apply #'least-squares (as-column y) x named-pairs))))
+    (values-list `(,(elements b) ,(aref ss 0) ,nu ,.rest))))
+
+(defmethod least-squares ((y vector) (x vector) &rest named-pairs)
+  (bind (((b ss nu . rest) 
+          (multiple-value-list 
+              (apply #'least-squares (as-column y) (as-column x) named-pairs))))
+    (values-list `(,(aref (elements b) 0) ,(aref ss 0) ,nu ,.rest))))
+
+(defun least-squares-qr (y x &key &allow-other-keys)
+  "Least squares using QR decomposition.  Additional values returned: the QR
+decomposition of X.  See LEAST-SQUARES for additional documentation.  Usage
+note: SVD-based methods are recommended over this one, unless X is
+well-conditioned."
   ;; Note: the naming convention (y,X,b) is different from LAPACK's
   ;; (b,A,x).  Sorry if this creates confusion, I decided to follow
   ;; standard statistical notation.
   (lb-call ((common-type (lb-target-type x y))
+            (real-type (real-lla-type common-type))
             (procedure (lb-procedure-name common-type gels))
             ((:matrix x% common-type (m m%) (n n%) :output qr) x)
             ((:matrix y% common-type m2 (nrhs nrhs%) :output b) y)
             ((:char n-char%) #\N)
-            ((:work-query lwork% work% :double))
+            ((:work-query lwork% work% real-type))
             ((:check info%)))
     (assert (= m m2))
     (unless (<= n m)
-      (error "A doesn't have enough columns for least squares"))
+      (error 'not-enough-columns))
     (call procedure n-char% m% n% nrhs% x% m% y% m% work% lwork% info%)
     (values 
       (matrix-from-first-rows b n nrhs m)
@@ -514,17 +545,24 @@ degrees of freedom."))
       (sum-last-rows b m nrhs n)
       (- m n))))
 
+(defun least-squares-svd-d (y x &key (rcond -1))
+  (lb-call ((common-type (lb-target-type x y))
+            (real-type (real-lla-type common-type))
+            (procedure (lb-procedure-name common-type gelsd))
+            ((:matrix x% common-type (m m%) (n n%) :output :copy) x)
+            ((:matrix y% common-type m2 (nrhs nrhs%) :output b) y)
+            ((:work-query lwork% work% real-type))
+            ((:check info%))
+            ((:output s% real-type ))
+            ((:atom rcond% real-type (coerce* rcond real-type))))
+    (assert (= m m2))
+    (unless (<= n m)
+      (error 'not-enough-columns))
+    (call procedure m% n% nrhs% x% m% y% m% s% rcond% rank% work% lwork%)
+    )
+  )
 
-;; ;;; univariate versions of least squares: vector ~ vector, vector ~ matrix
 
-(defmethod least-squares ((y vector) (x dense-matrix-like))
-  (bind (((:values b qr ss nu) (least-squares (as-column y) x)))
-    (values (elements b) qr (aref ss 0) nu)))
-
-(defmethod least-squares ((y vector) (x vector))
-  (bind (((:values b qr ss nu) (least-squares (as-column y)
-                                              (as-column x))))
-    (values (aref (elements b) 0) qr (aref ss 0) nu)))
 
 (defun least-squares-xx-inverse (qr)
   "Calculate (X^T X)-1 (which is used for calculating the variance of
@@ -629,11 +667,12 @@ transpose of right singular vectors, DENSE-MATRIX, or NIL)."))
             ((:work rwork% real-type) (if complex? (* 5 min-mn) 0))
             ((:work-query lwork% work% type))
             ((:check info%)))
-    (if complex?
-        (call procedure jobu% jobvt% m% n% a% m% s% u% m% vt% vt-nrow%
-              work% lwork% rwork% info%)
-        (call procedure jobu% jobvt% m% n% a% m% s% u% m% vt% vt-nrow%
-              work% lwork% info%))
+    (with-lapack-traps-masked
+      (if complex?
+          (call procedure jobu% jobvt% m% n% a% m% s% u% m% vt% vt-nrow%
+                work% lwork% rwork% info%)
+          (call procedure jobu% jobvt% m% n% a% m% s% u% m% vt% vt-nrow%
+                work% lwork% info%)))
     (values (make-diagonal% s)
             (unless (eq left :none) (make-matrix% m u-ncol u))
             (unless (eq right :none) (make-matrix% vt-nrow n vt)))))
@@ -709,3 +748,13 @@ value."
 
 (defmethod logdet ((matrix hermitian-matrix))
   (reduce #'+ (eigen matrix) :key #'log))
+
+(defun matrix-cond (matrix)
+  "Calculate the condition number of a matrix (with respect to the Euclidean
+  norm).  Implemented as the ratio of the largest and smallest singular values."
+  (check-type matrix dense-matrix-like)
+  (let* ((s (elements (svd matrix)))
+         (s-min (aref s (1- (length s)))))
+    (if (zerop s-min)
+        (error "Matrix is not full rank.")
+        (/ (aref s 0) s-min))))
