@@ -71,3 +71,6 @@
 
 (defmethod sse ((diagonal diagonal) &optional (mean (mean diagonal)))
   (sse (elements diagonal) mean))
+
+(defmethod range ((object elements%))
+  (range (elements object)))
