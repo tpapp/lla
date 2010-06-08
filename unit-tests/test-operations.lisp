@@ -44,6 +44,29 @@
   (ensure-error (emap #'+ (clo 1 2 :/ 3 4) (clo :diagonal 1 2 3)))
   (ensure-error (emap #'+ (clo :diagonal 1 2) (clo :diagonal 1 2 3))))
 
+;;; lla=
+
+(addtest (operations-tests)
+  lla=
+  (let ((a1 (clo :double 1 2 3))
+        (a2 (clo :single 1 2 3))
+        (m1 (clo 1 2 :/ 3 4))
+        (m2 (clo :single 1 2 :/ 3 4))
+        (h (clo :hermitian 1 2 :/ * 4))
+        (d (clo :diagonal 1 4))
+        (*lift-equality-test* #'lla=))
+    ;; compare objects that should be equal
+    (ensure (lla= a1 a2))
+    (ensure (lla= m1 m2))
+    (ensure (lla= h (copy-matrix m1 :kind :hermitian)))
+    (ensure (lla= d (as-diagonal m1)))
+    ;; compare objects that should NOT be equal
+    (ensure (not (lla= a1 m1)))
+    (ensure (not (lla= m1 h)))
+    (ensure (not (lla= m1 d)))
+    (ensure (not (lla= h d)))
+    (ensure (not (lla= d a2)))))
+
 ;;; transpose
 
 (addtest (operations-tests)

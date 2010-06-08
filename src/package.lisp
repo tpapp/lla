@@ -54,7 +54,7 @@
 
    ;; elementwise-operations
 
-   emap e+ e- e* e/ eexpt eexp elog
+   emap e+ e- e* e/ eexpt eexp elog *lla=-difference* lla= lla==
 
    ;; transpose
 

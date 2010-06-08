@@ -212,3 +212,37 @@ EMAP-ELEMENTS%.  FORCE-DENSE? "
 ;;; triangular one would be diagonal, but here constrain ourselves to returning
 ;;; a dense-matrix-like object. ??? Maybe we could return a diagonal here, I
 ;;; haven't fixed this in x
+
+;;; equality
+
+(defparameter *lla=-difference* 1e-9)
+
+(declaim (inline lla-=% lla-vector=%))
+
+(defun lla-=% (a b difference)
+  "Test that numbers A and B don't differ by more than DIFFERENCE."
+  (<= (abs (- a b)) difference))
+
+(defun lla-vector=% (a b difference)
+  "Test that vectors A and B don't differ by more than DIFFERENCE elementwise."
+  (every (lambda (a b) (lla-=% a b difference)) a b))
+
+(defgeneric lla= (a b)
+  (:documentation "Return T iff the two objects are of the same type, and don't
+  differ by more than *lla=-difference*, otherwise NIL.")
+  (:method (a b)
+    nil)
+  (:method ((a number) (b number))
+    (lla-=% a b *lla=-difference*))
+  (:method ((a vector) (b vector))
+    (lla-vector=% a b *lla=-difference*))
+  (:method ((a elements%) (b elements%))
+    
+    (and (eq (class-of a) (class-of b))
+         (lla-vector=% (elements (set-restricted a))
+                       (elements (set-restricted b))
+                       *lla=-difference*))))
+
+(defun lla== (&rest objects)
+  "Compare multiple objects for equality with LLA=."
+  (all-equal? #'lla= objects))
