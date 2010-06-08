@@ -215,7 +215,7 @@ EMAP-ELEMENTS%.  FORCE-DENSE? "
 
 ;;; equality
 
-(defparameter *lla=-difference* 1e-9)
+(defparameter *lla=-difference* 1e-6)
 
 (declaim (inline lla-=% lla-vector=%))
 
