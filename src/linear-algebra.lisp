@@ -545,32 +545,40 @@ well-conditioned."
       `(:qr ,(make-instance 'qr :qr-matrix (make-matrix% m n qr))))))
 
 (defun least-squares-svd-d (y x &key (rcond -1))
-  (bind ((common-type (lb-target-type x y))
-         (real-type (real-lla-type common-type))
-         (procedure (lb-procedure-name common-type gelsd)))
-    (lb-call (((:matrix x% common-type (m m%) (n n%) :output :copy) x)
-              ((:matrix y% common-type m2 (nrhs nrhs%) :output b) y)
-              ((:work-queries lwork% 
-                              (work% common-type)
-                              (rwork% real-type t)
-                              (iwork% :integer)))
-              ((:check info%))
-              ((:output s% real-type s) (min m n))
-              ((:output rank% :integer rank) 1)
-              ((:atom rcond% real-type) (coerce* rcond real-type)))
-      (assert (= m m2))
-      (unless (<= n m)
-        (error 'not-enough-columns))
-      (if (lla-complex? common-type)
-          (call procedure m% n% nrhs% x% m% y% m% s% rcond% rank% work% lwork% 
-                rwork% iwork% info%)
-          (call procedure m% n% nrhs% x% m% y% m% s% rcond% rank% work% lwork% 
-                iwork% info%))
-      (values 
-        (matrix-from-first-rows b n nrhs m)
-        (sum-last-rows b m nrhs n)
-        (- m n)
-        `(:s ,s :rank ,(aref rank 0))))))
+  (lb-call ((common-type (lb-target-type x y))
+            (real-type (real-lla-type common-type))
+            (procedure (lb-procedure-name common-type gelsd))
+            ((:matrix x% common-type (m m%) (n n%) :output :copy) x)
+            ((:matrix y% common-type m2 (nrhs nrhs%) :output b) y)
+            ;; !!! fix for IWORK in DGELSD, need to remove once it is fixed in
+            ;; !!! LAPACK.  Currently using a conservative estimate, as if
+            ;; !!! SMLSIZ=0.
+            (minmn (min m n))
+            (nlvl (max 0 (1+ (ceiling (log minmn 2)))))
+            ((:work iwork% :integer) (* minmn (+ 11 (* 3 nlvl))))
+            ;; !!! end of fix, comment out iwork% below when removed.
+            ((:work-queries lwork% 
+                            (work% common-type)
+                            (rwork% real-type t)
+                            ;; (iwork% :integer)
+                            ))
+            ((:check info%))
+            ((:output s% real-type s) (min m n))
+            ((:output rank% :integer rank) 1)
+            ((:atom rcond% real-type) (coerce* rcond real-type)))
+    (assert (= m m2))
+    (unless (<= n m)
+      (error 'not-enough-columns))
+    (if (lla-complex? common-type)
+        (call procedure m% n% nrhs% x% m% y% m% s% rcond% rank% work% lwork% 
+              rwork% iwork% info%)
+        (call procedure m% n% nrhs% x% m% y% m% s% rcond% rank% work% lwork% 
+              iwork% info%))
+    (values 
+      (matrix-from-first-rows b n nrhs m)
+      (sum-last-rows b m nrhs n)
+      (- m n)
+      `(:s ,s :rank ,(aref rank 0)))))
 
 (defun qr-xx-inverse (qr)
   "Calculate (X^T X)-1 (which is used for calculating the variance of
