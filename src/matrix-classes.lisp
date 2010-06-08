@@ -139,9 +139,9 @@ diagonal are not necessarily initialized and not accessed.")
 ;;; Framework for dense matrices with restricted elements.
 
 (defgeneric set-restricted (matrix)
-  (:method ((matrix dense-matrix))
-    ;; do nothing, return matrix
-    matrix)
+  (:method ((object elements%))
+    ;; default: do nothing
+    object)
   (:documentation "Set restricted/unaccessed elements to the
 appropriate value in the data vector of matrix.  Always return the
 matrix.  Useful when calling functions which expect a proper dense
