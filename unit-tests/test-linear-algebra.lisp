@@ -148,14 +148,22 @@
                  29 32
                  24 29))
          (y (clo :double 67 63 65 94 84))
-         ((:values beta qr ss nu) (least-squares y x))
-         (raw-var (least-squares-xx-inverse qr))
-         (variance (e* raw-var (/ ss nu))))
-    (ensure-same beta (clo :double 0.7633278 2.2350028))
-    (ensure-same ss 6.724986 :test #'approx=)
+         (beta (clo :double 0.7633278 2.2350028))
+         (ss 6.724986d0)
+         ((:values beta1 ss1 nu1 other1) (least-squares y x :method :svd-d))
+         ((:values beta2 ss2 nu2 other2) (least-squares y x :method :qr))
+         (raw-var (qr-xx-inverse (getf other2 :qr)))
+         (variance (e* raw-var (/ ss2 nu2)))
+         (*allowed-difference* 1e-5))
+    (ensure-same beta1 beta)
+    (ensure-same beta2 beta)
+    (ensure-same ss1 ss :test #'approx=)
+    (ensure-same ss2 ss :test #'approx=)
+    (ensure-same nu1 3 :test #'=)
+    (ensure-same nu2 3 :test #'=)
     (ensure-same variance (clo :double :hermitian
                                0.04035491 -0.03885797 :/
-                               -0.03885797  0.03810950))))
+                               *  0.03810950))))
 
 (addtest (linear-algebra-tests)
   constrained-least-squares

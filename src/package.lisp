@@ -89,7 +89,7 @@
 
    ;; linear-algebra
 
-   mm mmm lu hermitian solve invert eigen least-squares least-squares-xx-inverse
+   mm mmm lu hermitian solve invert eigen least-squares qr-xx-inverse
    constrained-least-squares cholesky svd tr rank logdet det matrix-cond
    
    ))

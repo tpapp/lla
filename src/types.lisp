@@ -53,6 +53,13 @@
 ;;;   b. When using matrices, use DENSE-MATRIX-LIKE objects.  LLA is
 ;;;   column-major, and 
 
+;;; Non-nil symbols.
+
+(deftype symbol* ()
+  '(and symbol (not null)))
+
+(defun symbolp* (object)
+  (typep object 'symbol*))
 
 ;;; Type for dimension.
 

@@ -44,8 +44,8 @@ checking each element."
   "Evaluate to the LAPACK/BLAS procedure name.  LLA-TYPE has to
 evaluate to a symbol denoting a float LLA type.  If you need
 conditionals etc, do that outside this macro."
-  (check-type name symbol)
-  (check-type complex-name symbol)
+  (check-type name symbol*)
+  (check-type complex-name symbol*)
   `(ecase ,lla-type
      (:single #',(make-symbol% "%S" name))
      (:double #',(make-symbol% "%D" name))
@@ -74,7 +74,7 @@ conditionals etc, do that outside this macro."
 
 (define-condition lapack-error (error)
   ;; !! write method for formatting the error message
-  ((lapack-procedure :initarg :lapack-procedure :type symbol
+  ((lapack-procedure :initarg :lapack-procedure :type symbol*
 		     :documentation "The name procedure."))
   (:documentation "The LAPACK procedure returned a nonzero info
   code."))
@@ -105,8 +105,8 @@ values, and use CONDITION (a subclass of LAPACK-FAILURE, defaults to
 the latter) for positive values."
   (unless info-pointer
     (setf info-pointer (car (last arguments))))
-  (check-type info-pointer symbol)
-  (check-type procedure-name symbol)
+  (check-type info-pointer symbol*)
+  (check-type procedure-name symbol*)
   (with-unique-names (info-value position)
     (once-only (procedure-name)
       `(with-foreign-object (,info-pointer :int)
@@ -125,78 +125,146 @@ the latter) for positive values."
                           :lapack-procedure ,procedure-name
                           :index ,info-value)))))))))
 
-;;; Some (most?) LAPACK procedures allow the caller to query the
-;;; function for the optimal workspace size, this is a helper macro
-;;; that does exactly that.  We provide the singular case as a
+;;;   We provide the singular case as a
 ;;; special case if the plural one instead of the other way around,
 ;;; since this would not recurse well.
 
-(defmacro with-work-queries ((&rest specifications) &body body)
-  "Call body twice with the given work area specifications, querying
-the size for the workspace area.  NOTE: abstraction leaks a bit (body
-is there twice), but it should not be a problem in practice.  Body is
-most commonly a single function call.
+(defmacro with-work-queries ((&optional lwork-pointer &rest pointer-type-pairs)
+                             &body body)
+  "Some (most?) LAPACK procedures allow the caller to query the a function for
+the optimal workspace size, this is a helper macro that does exactly that.
+LWORK-POINTER is a symbol: a corresponding memory area will be allocated for an
+integer and set to -1 before the first pass of BODY.  POINTER-TYPE-PAIRS is a
+list of (POINTER TYPE &optional INITIALIZE?), where POINTER is a symbol, and
+TYPE evaluates to an LLA type.  In the first pass, a corresponding atom is
+allocated, and the result is saved for the second pass, before which a memory
+area of the given size is allocated.  The first size is assigned to the memory
+are referred to by LWORK-POINTER.  When INITIALIZE?, the atom is initialized
+with 0 before the call.  This is useful when the call may not touch the memory
+area.
 
-SPECIFICATIONS is a list of triplets (SIZE POINTER LLA-TYPE), where
-SIZE and POINTER have to be symbols.  Workspace size (an integer) and
-the allocated memory area (pointer) are assigned to these."
-  (unless specifications
-    (return-from with-work-queries (cons 'progn body)))
-  (bind ((sizes (mapcar #'first specifications))
-         (pointers (mapcar #'second specifications))
+If no arguments are supplied, just return BODY wrapped in a PROGN, once.
+
+NOTE: abstraction leaks a bit (BODY is there twice), but it should not be a
+problem in practice.  BODY is most commonly a single function call."
+  (unless lwork-pointer
+    (return-from with-work-queries `(progn ,@body)))
+  (check-type lwork-pointer symbol*)
+  (assert (car pointer-type-pairs) () "Need at least one (pointer type) pair.")
+  (bind ((pointers (mapcar #'first pointer-type-pairs))
+         (type-values (mapcar #'second pointer-type-pairs))
+         (initialize? (mapcar #'third pointer-type-pairs))
          ((:flet prepend (prefix names))
           (mapcar (lambda (name) (gensym* prefix name)) names))
-         (returned-sizes (prepend '#:returned-size-of- pointers))
-         (foreign-sizes (prepend '#:foreign-size-of- pointers))
-         (lla-types (prepend '#:lla-type-of- pointers)))
-    (assert (every #'symbolp sizes) () "SIZEs have to be symbols")
-    (assert (every #'symbolp pointers) ()
-            "POINTERs have to be symbols")
-    ;; evaluate lla-types, once only
-    `(let ,(mapcar (lambda (lla-type specification)
-                     `(,lla-type ,(third specification)))
-            lla-types specifications)
-       ;; calculate atomic foreign object sizes
-       (let ,(mapcar (lambda (foreign-size lla-type)
-                       `(,foreign-size (foreign-size* ,lla-type)))
-              foreign-sizes lla-types)
-         ;; placeholder variables for returned-sizes
+         (type-names (prepend '#:type-of- pointers))
+         (atom-sizes (prepend '#:atom-size-of- pointers))
+         (returned-sizes (prepend '#:returned-size-of- pointers)))
+    (assert (every #'symbolp* pointers))
+    ;; evaluate types, once only
+    `(let ,(mapcar #'list type-names type-values)
+       ;; memory size for foreign atoms
+       (let ,(mapcar (lambda (atom-size type)
+                       `(,atom-size (foreign-size* ,type)))
+               atom-sizes type-names)
+         ;; placeholders for returned sizes
          (let ,returned-sizes
-           ;; allocate memory for sizes
-           (with-foreign-objects ,(mapcar (lambda (size)
-                                            `(,size :int 1)) sizes)
-             ;; query returned sizes
-             ,@(mapcar (lambda (size) `(setf (mem-ref ,size :int) -1))
-                       sizes)
-             (with-foreign-pointers
-                 ,(mapcar (lambda (pointer foreign-size)
-                            `(,pointer ,foreign-size))
-                          pointers foreign-sizes)
+           ;; allocate memory for lwork
+           (with-foreign-object (,lwork-pointer :int)
+             ;; first pass - query sizes
+             (with-foreign-pointers ,(mapcar #'list pointers atom-sizes)
+               ;; set lwork to -1
+               (setf (mem-ref ,lwork-pointer :int) -1)
+               ;; set first atoms to 0 when needed
+               ,@(iter
+                   (for pointer :in pointers)
+                   (for type-name :in type-names)
+                   (for init? :in initialize?)
+                   (when init?
+                     (collecting `(setf (mem-aref* ,pointer ,type-name)
+                                        (zero* ,type-name)))))
+               ;; call body
                ,@body
-               ,@(mapcar 
-                  (lambda (returned-size pointer lla-type size)
-                    ;; POINTER can be complex, we have to use ABS
-                    `(setf ,returned-size 
-                           (as-integer (mem-aref* ,pointer ,lla-type))
-                           (mem-ref ,size :int) 
-                           ,returned-size))
-                  returned-sizes pointers lla-types sizes))
-             ;; allocate and call body again
-             (with-foreign-pointers
-                 ,(mapcar 
-                   (lambda (pointer foreign-size returned-size)
-                     `(,pointer (* ,foreign-size ,returned-size)))
-                   pointers foreign-sizes returned-sizes)
-               ,@body)))))))
+               ;; save sizes
+               ,@(mapcar (lambda (returned-size pointer type)
+                           `(setf ,returned-size
+                                  (as-integer (mem-aref* ,pointer ,type))))
+                         returned-sizes pointers type-names)
+               ;; also save first one into lwork
+               (setf (mem-aref ,lwork-pointer :int) ,(car returned-sizes))
+               ;; allocate and call body again
+               (with-foreign-pointers
+                   ,(mapcar 
+                     (lambda (pointer atom-size returned-size)
+                       `(,pointer (* ,atom-size ,returned-size)))
+                     pointers atom-sizes returned-sizes)
+                 ,@body))))))))
 
-(defmacro with-work-query ((size pointer lla-type) &body body)
-  "Single-variable version of WITH-WORK-QUERIES."
-  `(with-work-queries% ((,size ,pointer ,lla-type)) ,@body))
+;; (defmacro with-work-queries ((&rest specifications) &body body)
+;;   "Call body twice with the given work area specifications, querying
+;; the size for the workspace area.  NOTE: abstraction leaks a bit (body
+;; is there twice), but it should not be a problem in practice.  Body is
+;; most commonly a single function call.
+
+;; SPECIFICATIONS is a list of triplets (SIZE POINTER LLA-TYPE), where
+;; SIZE and POINTER have to be symbols.  Workspace size (an integer) and
+;; the allocated memory area (pointer) are assigned to these."
+;;   (unless specifications
+;;     (return-from with-work-queries (cons 'progn body)))
+;;   (bind ((sizes (mapcar #'first specifications))
+;;          (pointers (mapcar #'second specifications))
+;;          ((:flet prepend (prefix names))
+;;           (mapcar (lambda (name) (gensym* prefix name)) names))
+;;          (returned-sizes (prepend '#:returned-size-of- pointers))
+;;          (foreign-sizes (prepend '#:foreign-size-of- pointers))
+;;          (lla-types (prepend '#:lla-type-of- pointers)))
+;;     (assert (every #'symbolp* sizes) () "SIZEs have to be symbols")
+;;     (assert (every #'symbolp* pointers) ()
+;;             "POINTERs have to be symbols")
+;;     ;; evaluate lla-types, once only
+;;     `(let ,(mapcar (lambda (lla-type specification)
+;;                      `(,lla-type ,(third specification)))
+;;             lla-types specifications)
+;;        ;; calculate atomic foreign object sizes
+;;        (let ,(mapcar (lambda (foreign-size lla-type)
+;;                        `(,foreign-size (foreign-size* ,lla-type)))
+;;               foreign-sizes lla-types)
+;;          ;; placeholder variables for returned-sizes
+;;          (let ,returned-sizes
+;;            ;; allocate memory for sizes
+;;            (with-foreign-objects ,(mapcar (lambda (size)
+;;                                             `(,size :int 1)) sizes)
+;;              ;; query returned sizes
+;;              ,@(mapcar (lambda (size) `(setf (mem-ref ,size :int) -1))
+;;                        sizes)
+;;              (with-foreign-pointers
+;;                  ,(mapcar (lambda (pointer foreign-size)
+;;                             `(,pointer ,foreign-size))
+;;                           pointers foreign-sizes)
+;;                ,@body
+;;                ,@(mapcar 
+;;                   (lambda (returned-size pointer lla-type size)
+;;                     ;; POINTER can be complex, we have to use ABS
+;;                     `(setf ,returned-size 
+;;                            (as-integer (mem-aref* ,pointer ,lla-type))
+;;                            (mem-ref ,size :int) 
+;;                            ,returned-size))
+;;                   returned-sizes pointers lla-types sizes))
+;;              ;; allocate and call body again
+;;              (with-foreign-pointers
+;;                  ,(mapcar 
+;;                    (lambda (pointer foreign-size returned-size)
+;;                      `(,pointer (* ,foreign-size ,returned-size)))
+;;                    pointers foreign-sizes returned-sizes)
+;;                ,@body)))))))
+
+;; (defmacro with-work-query ((size pointer lla-type) &body body)
+;;   "Single-variable version of WITH-WORK-QUERIES."
+;;   `(with-work-queries% ((,size ,pointer ,lla-type)) ,@body))
 
 (defmacro with-work-area ((pointer lla-type size) &body body)
   "Allocate a work area of size lla-type elements during body,
 assigning the pointer to pointer."
-  (check-type pointer symbol)
+  (check-type pointer symbol*)
   `(with-foreign-pointer (,pointer 
 			  (* ,size (foreign-size* ,lla-type)))
      ,@body))
@@ -414,7 +482,8 @@ needed to interface to LAPACK routines like xGELS."
    (outputs :initform nil)
    (info :initform nil :documentation
          "When set, (info-pointer condition)")
-   (work-queries :initform nil)
+   (work-queries :initform nil
+                 :documentation "Will be passed to WITH-WORK-QUERIES.")
    (work-areas :initform nil)))
 
 (defun lb-process-binding (binding-form bindings)
@@ -474,7 +543,7 @@ needed to interface to LAPACK routines like xGELS."
   ;; syntax: ((:char pointer-name) value), expands to
   ;; (:atom pointer-name :char)
   (bind (((pointer-name) specification))
-    (check-type pointer-name symbol)
+    (check-type pointer-name symbol*)
     (lb-collect (bindings)
       process `((:atom ,pointer-name :char) ,@value-forms))))
 
@@ -483,7 +552,7 @@ needed to interface to LAPACK routines like xGELS."
   ;; syntax: ((:integer pointer-name) value), expands to 
   ;; (:atom pointer-name :integer)
   (bind (((pointer-name) specification))
-    (check-type pointer-name symbol)
+    (check-type pointer-name symbol*)
     (lb-collect (bindings)
       process `((:atom ,pointer-name :integer) ,@value-forms))))
 
@@ -494,14 +563,14 @@ needed to interface to LAPACK routines like xGELS."
                         output) specification)
          (lla-type-name (gensym* '#:lla-type- pointer-name))
          (value-name (gensym* '#:vector- pointer-name)))
-    (check-type pointer-name symbol)
-    (check-type output (or null (eql :copy) symbol))
+    (check-type pointer-name symbol*)
+    (check-type output (or null (eql :copy) symbol*))
     (lb-collect (bindings)
       bindings `(,value-name ,@value-forms)
       bindings `(,lla-type-name ,lla-type-value)
       vectors `(,value-name ,pointer-name ,lla-type-name ,output))
     (awhen (and (not (eq output :copy)) output)
-      (check-type it symbol)
+      (check-type it symbol*)
       (lb-collect (bindings) bindings it))))
 
 (defmethod lb-process-binding% ((keyword (eql :output))
@@ -511,8 +580,8 @@ needed to interface to LAPACK routines like xGELS."
           specification)
          (lla-type-name (gensym* '#:lla-type- pointer-name))
          (length-name (gensym* '#:length- pointer-name)))
-    (check-type pointer-name symbol)
-    (check-type output-name symbol)
+    (check-type pointer-name symbol*)
+    (check-type output-name symbol*)
     (lb-collect (bindings)
       bindings `(,length-name ,@value-forms)
       bindings `(,lla-type-name ,lla-type-value)
@@ -559,22 +628,22 @@ needed to interface to LAPACK routines like xGELS."
          ((info-pointer &optional (condition 'lapack-failure))
           specification))
     (assert (not info) () ":CHECK already specified.")
-    (check-type info-pointer symbol)
+    (check-type info-pointer symbol*)
     (check-type value-forms null)
     (lb-collect (bindings)
       info `(,info-pointer ,condition))))
 
-(defmethod lb-process-binding% ((keyword (eql :work-query))
+(defmethod lb-process-binding% ((keyword (eql :work-queries))
                                 specification value-forms bindings)
-  ;; syntax: ((:work-query lwork% work% type)), where lwork% is the
-  ;; pointer to the size of the work area, lwork% to the work area.
-  (bind (((lwork-name work-name lla-type-value) specification)
-         (lla-type-name (gensym* '#:lla-type- work-name)))
-    (check-type lwork-name symbol)
-    (check-type work-name symbol)
-    (lb-collect (bindings)
-      bindings `(,lla-type-name ,lla-type-value)
-      work-queries `(,lwork-name ,work-name ,lla-type-name))))
+  ;; syntax: ((:work-queries lwork% (work% type) ...)), where lwork% is the
+  ;; pointer to the size of the work area, work% to the work area, and type is
+  ;; their LLA type. !!! specifications is not expanded, just don't use any side
+  ;; effects or depend on the order.
+  (bind (((:slots work-queries) bindings))
+    (assert (not work-queries) () ":WORK-QUERIES already specified.")
+    (assert specification () ":WORK-QUERIES needs a non-empty specification.")
+    (assert (not value-forms) () ":WORK-QUERIES does not take value forms.")
+    (setf work-queries specification)))
 
 (defmethod lb-process-binding% ((keyword (eql :work))
                                 specification value-forms bindings)
@@ -582,7 +651,7 @@ needed to interface to LAPACK routines like xGELS."
   (bind (((pointer-name lla-type-value) specification)
          (lla-type-name (gensym* '#:lla-type- pointer-name))
          (size-name (gensym* '#:lla-type- pointer-name)))
-    (check-type pointer-name symbol)
+    (check-type pointer-name symbol*)
     (lb-collect (bindings)
       bindings `(,lla-type-name ,lla-type-value)
       bindings `(,size-name ,@value-forms)
@@ -607,7 +676,7 @@ method.
 
  ((:check info-pointer &optional (condition lapack-failure)))
 
- ((:work-query lwork% work% type))
+ ((:work-queries lwork% (work% type) ...))
 
  ((:work pointer type) size)
 
@@ -632,7 +701,8 @@ The following are meant for internal use:
                     `(with-fortran-atoms ,',(expand 'atoms)
                        (with-pinned-vectors ,',(expand 'vectors)
                          (with-vector-outputs ,',(expand 'outputs)
-                           (with-work-queries ,',(expand 'work-queries)
+                           (with-work-queries ,',(slot-value bindings
+                                                             'work-queries)
                              (with-work-areas ,',(expand 'work-areas)
                                ,,(bind (((:slots info) bindings))
                                    (if info

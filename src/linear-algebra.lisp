@@ -206,7 +206,7 @@ product converted back to a numeric-vector."
             ((:matrix a% type (n n%) nil :output factor
                       :set-restricted? set-restricted?) a)
             ((:char u-char%) u-char)
-            ((:work-query lwork% work% type))
+            ((:work-queries lwork% (work% type)))
             ((:output ipiv% :integer ipiv) n)
             ((:check info%)))
     (call procedure u-char% n% a% n% ipiv% work% lwork% info%)
@@ -322,7 +322,7 @@ result is multiplied by ALPHA."
             (procedure (lb-procedure-name common-type getri))
             ((:matrix lu% common-type (n n%) n2 :output inverse) lu-matrix)
             ((:vector ipiv% :integer) ipiv)
-            ((:work-query lwork% work% common-type))
+            ((:work-queries lwork% (work% common-type)))
             ((:check info%)))
     (assert (= n n2))
     (call procedure n% lu% n% ipiv% work% lwork% info%)
@@ -419,7 +419,7 @@ first."))
             ((:matrix a% real-type (n n%) n2 :output :copy) a)
             ((:output w% real-type w) (* 2 n))
             ((:output vr% real-type vr) (if vectors? (expt n 2) 0))
-            ((:work-query lwork% work% real-type))
+            ((:work-queries lwork% (work% real-type)))
             ((:char n-char%) #\N)
             ((:char v-char%) #\V)
             ((:check info%)))
@@ -439,7 +439,7 @@ first."))
             ((:char n-char%) #\N)
             ((:char v-char%) #\V)
             ((:output vr% complex-type vr) (if vectors? (expt n 2) 0))
-            ((:work-query lwork% work% complex-type))
+            ((:work-queries lwork% (work% complex-type)))
             ((:check info%)))
     (assert (= n n2))
     (call procedure n-char% v-char% n% a% n% w%
@@ -471,7 +471,7 @@ first."))
             ((:matrix a% common-type (n n%) n2 :output v :set-restricted? nil) a)
             ((:output w% real-type w) n) ; eigenvalues
             ((:work rwork% real-type) (if complex? (max 1 (- (* 3 n) 2)) 0))
-            ((:work-query lwork% work% real-type))
+            ((:work-queries lwork% (work% real-type)))
             ((:check info%)))
     (assert (= n n2))
     (if complex?
@@ -486,12 +486,13 @@ first."))
 ;;;;
 
 (defgeneric least-squares (y x &key method &allow-other-keys)
-  (:documentation "Return (values b ss nu ...), where beta = argmin_b L2norm(
-y-Xb ), solving a least squares problem, SS is the sum of squares for each
-column of Y, and NU is the degrees of freedom.  Y can have multiple columns, in
-which case X will have the same number of columns, each corresponding to a
-different column of Y.  METHOD selects the method to call, methods may accept
-other keyword arguments and return attitional values."))
+  (:documentation "Return (values b ss nu other-values), where beta = argmin_b
+L2norm( y-Xb ), solving a least squares problem, SS is the sum of squares for
+each column of Y, and NU is the degrees of freedom.  Y can have multiple
+columns, in which case X will have the same number of columns, each
+corresponding to a different column of Y.  METHOD selects the method to call,
+methods may accept other keyword arguments and return additional values as a
+list property list in OTHER-VALUES."))
 
 (define-condition not-enough-columns (error)
   ())
@@ -508,16 +509,14 @@ other keyword arguments and return attitional values."))
 ;; ;;; univariate versions of least squares: vector ~ vector, vector ~ matrix
 
 (defmethod least-squares ((y vector) (x dense-matrix-like) &rest named-pairs)
-  (bind (((b ss nu . rest)
-          (multiple-value-list 
-              (apply #'least-squares (as-column y) x named-pairs))))
-    (values-list `(,(elements b) ,(aref ss 0) ,nu ,.rest))))
+  (bind (((:values b ss nu other-values)
+          (apply #'least-squares (as-column y) x named-pairs)))
+    (values (elements b) (aref ss 0) nu other-values)))
 
 (defmethod least-squares ((y vector) (x vector) &rest named-pairs)
-  (bind (((b ss nu . rest) 
-          (multiple-value-list 
-              (apply #'least-squares (as-column y) (as-column x) named-pairs))))
-    (values-list `(,(aref (elements b) 0) ,(aref ss 0) ,nu ,.rest))))
+  (bind (((:values b ss nu other-values)
+          (apply #'least-squares (as-column y) (as-column x) named-pairs)))
+    (values (aref (elements b) 0) (aref ss 0) nu other-values)))
 
 (defun least-squares-qr (y x &key &allow-other-keys)
   "Least squares using QR decomposition.  Additional values returned: the QR
@@ -533,7 +532,7 @@ well-conditioned."
             ((:matrix x% common-type (m m%) (n n%) :output qr) x)
             ((:matrix y% common-type m2 (nrhs nrhs%) :output b) y)
             ((:char n-char%) #\N)
-            ((:work-query lwork% work% real-type))
+            ((:work-queries lwork% (work% real-type)))
             ((:check info%)))
     (assert (= m m2))
     (unless (<= n m)
@@ -541,30 +540,39 @@ well-conditioned."
     (call procedure n-char% m% n% nrhs% x% m% y% m% work% lwork% info%)
     (values 
       (matrix-from-first-rows b n nrhs m)
-      (make-instance 'qr :qr-matrix (make-matrix% m n qr))
       (sum-last-rows b m nrhs n)
-      (- m n))))
+      (- m n)
+      `(:qr ,(make-instance 'qr :qr-matrix (make-matrix% m n qr))))))
 
 (defun least-squares-svd-d (y x &key (rcond -1))
-  (lb-call ((common-type (lb-target-type x y))
-            (real-type (real-lla-type common-type))
-            (procedure (lb-procedure-name common-type gelsd))
-            ((:matrix x% common-type (m m%) (n n%) :output :copy) x)
-            ((:matrix y% common-type m2 (nrhs nrhs%) :output b) y)
-            ((:work-query lwork% work% real-type))
-            ((:check info%))
-            ((:output s% real-type ))
-            ((:atom rcond% real-type (coerce* rcond real-type))))
-    (assert (= m m2))
-    (unless (<= n m)
-      (error 'not-enough-columns))
-    (call procedure m% n% nrhs% x% m% y% m% s% rcond% rank% work% lwork%)
-    )
-  )
+  (bind ((common-type (lb-target-type x y))
+         (real-type (real-lla-type common-type))
+         (procedure (lb-procedure-name common-type gelsd)))
+    (lb-call (((:matrix x% common-type (m m%) (n n%) :output :copy) x)
+              ((:matrix y% common-type m2 (nrhs nrhs%) :output b) y)
+              ((:work-queries lwork% 
+                              (work% common-type)
+                              (rwork% real-type t)
+                              (iwork% :integer)))
+              ((:check info%))
+              ((:output s% real-type s) (min m n))
+              ((:output rank% :integer rank) 1)
+              ((:atom rcond% real-type) (coerce* rcond real-type)))
+      (assert (= m m2))
+      (unless (<= n m)
+        (error 'not-enough-columns))
+      (if (lla-complex? common-type)
+          (call procedure m% n% nrhs% x% m% y% m% s% rcond% rank% work% lwork% 
+                rwork% iwork% info%)
+          (call procedure m% n% nrhs% x% m% y% m% s% rcond% rank% work% lwork% 
+                iwork% info%))
+      (values 
+        (matrix-from-first-rows b n nrhs m)
+        (sum-last-rows b m nrhs n)
+        (- m n)
+        `(:s ,s :rank ,(aref rank 0))))))
 
-
-
-(defun least-squares-xx-inverse (qr)
+(defun qr-xx-inverse (qr)
   "Calculate (X^T X)-1 (which is used for calculating the variance of
 estimates) from the qr decomposition of X.  Return a CHOLESKY
 decomposition.  Note: the FACTOR of the cholesky decomposition can be
@@ -596,7 +604,7 @@ used to generate random draws, etc."
             ((:vector y% common-type :copy) y)
             ((:vector w% common-type :copy) w)
             ((:output b% common-type b) n)
-            ((:work-query lwork% work% common-type))
+            ((:work-queries lwork% (work% common-type)))
             ((:check info%)))
     ;; !! after call, x and z contain decompositions, currently not collected
     ;; !! after call, y contains sum of squares, currently not collected
@@ -665,7 +673,7 @@ transpose of right singular vectors, DENSE-MATRIX, or NIL)."))
             ((:output u% type u) (* m u-ncol))
             ((:output vt% type vt) (* vt-nrow n))
             ((:work rwork% real-type) (if complex? (* 5 min-mn) 0))
-            ((:work-query lwork% work% type))
+            ((:work-queries lwork% (work% type)))
             ((:check info%)))
     (with-lapack-traps-masked
       (if complex?
