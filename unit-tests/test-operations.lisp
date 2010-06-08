@@ -56,11 +56,13 @@
         (d (clo :diagonal 1 4))
         (*lift-equality-test* #'lla=))
     ;; compare objects that should be equal
+    (ensure (lla= 1 (1+ (epsilon* :double))))
     (ensure (lla= a1 a2))
     (ensure (lla= m1 m2))
     (ensure (lla= h (copy-matrix m1 :kind :hermitian)))
     (ensure (lla= d (as-diagonal m1)))
     ;; compare objects that should NOT be equal
+    (ensure (not (lla= 9 m1)))
     (ensure (not (lla= a1 m1)))
     (ensure (not (lla= m1 h)))
     (ensure (not (lla= m1 d)))
