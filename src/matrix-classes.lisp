@@ -119,8 +119,9 @@ diagonal are not necessarily initialized and not accessed.")
   ;; symmetric matrices are also Hermitian.  Complex symmetric
   ;; matrices are NOT implemented as a special matrix type, as they
   ;; don't have any special properties (eg real eigenvalues, etc).
-  "A dense Hermitian matrix, with elements stored in the upper
-  triangle.")
+  "A dense Hermitian matrix, with elements stored in the upper triangle.  Note
+  that hermitian matrices are real on the diagonal, so the imaginary part is
+  ignored.")
 
 ;;; element mask query functions
 
@@ -194,10 +195,12 @@ matrix."))
     (with-vector-type-declarations (elements)
       (dotimes (col ncol)
         (declare (fixnum col))
+        ;; ??? should we set the imaginary part of the diagonal to 0?
+        ;; LAPACK seems to ignore it.
         (iter
-          (for (the fixnum row) :from col :below nrow)
+          (for (the fixnum row) :from (1+ col) :below nrow)
           (for (the fixnum index)
-               :from (cm-index2 nrow col col)
+               :from (1+ (cm-index2 nrow col col))
                :below (cm-index2 nrow nrow col))
           (declare (iterate:declare-variables))
           (muffle-optimization-notes
@@ -265,9 +268,10 @@ matrix."))
   (bind (((:slots-r/o elements nrow ncol) matrix))
     (check-index row nrow)
     (check-index col ncol)
-    (if (<= row col)
-        (aref elements (cm-index2 nrow row col))
-        (conjugate (aref elements (cm-index2 nrow col row))))))
+    (cond
+      ((= row col) (realpart (aref elements (cm-index2 nrow row col))))
+      ((< row col) (aref elements (cm-index2 nrow row col)))
+      (t (conjugate (aref elements (cm-index2 nrow col row)))))))
 
 (defmethod (setf mref) (value (matrix hermitian-matrix) row col)
   (bind (((:slots-r/o elements nrow ncol) matrix))
