@@ -226,7 +226,8 @@ for :INTEGER."
 (defmacro with-vector-type-expansion ((vector &key
                                               other-vectors
                                               (simple-test t)
-                                              (vector? t))
+                                              (vector? t)
+                                              (lla-type (gensym "LLA-TYPE")))
                                       body-generator)
   "Expand based on the LLA type of vector, declaring the vector (and
 other vectors, if given) to be of this type.  Only expand w/ type
@@ -245,7 +246,7 @@ implements this behavior by default."
   (check-type vector symbol)
   (assert (every #'symbolp other-vectors))
   (setf body-generator (coerce body-generator 'function))
-  (with-unique-names (lla-type simple?)
+  (with-unique-names (simple?)
     (flet ((clause (case-lla-type)
              `((and ,simple? (eq ,lla-type ,case-lla-type))
                (locally 
@@ -254,12 +255,12 @@ implements this behavior by default."
                                    ,(if vector? '(*) '*))
                                   ,vector ,@other-vectors))
                  ,(funcall body-generator case-lla-type)))))
-      `(let ((,lla-type (array-lla-type ,vector))
-             (,simple? (and (simple-array? ,vector)
-                            ,(if (eq simple-test :other-vectors)
-                                 `(similar-simple-array? ,vector
-                                                         ,@other-vectors)
-                                 simple-test))))
+      `(let* ((,lla-type (array-lla-type ,vector))
+              (,simple? (and (simple-array? ,vector)
+                             ,(if (eq simple-test :other-vectors)
+                                  `(similar-simple-array? ,vector
+                                                          ,@other-vectors)
+                                  simple-test))))
          (cond
            #+lla-vector-integer
            ,(clause :integer)
@@ -278,14 +279,16 @@ implements this behavior by default."
 (defmacro with-vector-type-declarations ((vector &key
                                                  other-vectors
                                                  (simple-test t)
-                                                 (vector? t))
+                                                 (vector? t)
+                                                 (lla-type (gensym "LLA-TYPE")))
                                          &body body)
   "Like WITH-VECTOR-TYPE-EXPANSION, but constant body-generatoe taken
 from BODY."
   `(with-vector-type-expansion (,vector
                                 :other-vectors ,other-vectors
                                 :simple-test ,simple-test
-                                :vector? ,vector?)
+                                :vector? ,vector?
+                                :lla-type ,lla-type)
      (lambda (lla-type)
        (declare (ignore lla-type))
        `(progn ,',@body))))
