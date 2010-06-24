@@ -9,6 +9,29 @@
 ;;;; linear algebra
 
 (addtest (linear-algebra-tests)
+  vector-mm-dot
+  (let ((a (clo :double 2 3 5))
+        (b (clo :double 7 11))
+        (c (clo :complex-single #C(1 2) #C(3 5)))
+        (cc (clo :complex-single :hermitian
+                 5 #C(13 1) :/
+                 * 34)))
+    ;; mm
+    (ensure-same (mm a t 0.5) (clo :double :hermitian
+                                   2 3 5 :/
+                                   * 4.5 7.5
+                                   * * 12.5))
+    (ensure-same (mm a b 3) (clo :double
+                                 42 66 :/
+                                 63 99
+                                 105 165))
+    (ensure-same (mm c t) cc)
+    (ensure-same (mm t c) (conjugate-transpose cc))
+    ;; dot
+    (ensure-same (dot b b) 170d0 :test #'=)
+    (ensure-same (dot c c) 39d0 :test #'=)))
+
+(addtest (linear-algebra-tests)
   diagonal-mm
   (let ((a (clo 1 2 3 :/
                 4 5 6))
@@ -48,6 +71,53 @@
          (x-l (solve l b)))
     (ensure-same (mm u x-u) b)
     (ensure-same (mm l x-l) b)))
+
+(defmacro test-update-hermitian% (a x alpha)
+  (once-only (a x alpha)
+    `(ensure-same (update-hermitian ,a ,x ,alpha)
+                  (e+ ,a (mm ,x t ,alpha))
+                  :test #'==)))
+
+(addtest (linear-algebra-tests)
+  update-hermitian
+  (let ((ad (clo :double :hermitian
+                 1 2 :/
+                 * 4))
+        (bcd (clo :complex-double :hermitian
+                  1 #C(3 4) :/
+                  * -5))
+        (xs (clo :single 7 9)))
+    (test-update-hermitian% ad xs 17)
+    (test-update-hermitian% bcd xs 17)
+    (ensure-error (update-hermitian ad #(1 2 3) 17))
+    (ensure-error (update-hermitian ad xs #C(17 9)))))
+
+(defmacro test-update-hermitian2% (a x y alpha)
+  (once-only (a x y alpha)
+    (with-unique-names (x* y* r1 r2)
+      `(let* ((,x* (as-column ,x))
+              (,y* (as-column ,y))
+              (,r1 (update-hermitian2 ,a ,x ,y ,alpha))
+              (,r2 (copy-matrix 
+                       (e+ ,a 
+                           (mm ,x* (conjugate-transpose ,y*) ,alpha)
+                           (mm ,y* (conjugate-transpose ,x*) (conjugate ,alpha)))
+                       :kind :hermitian)))
+         (ensure-same ,r1 ,r2 :test #'==)))))
+
+(addtest (linear-algebra-tests)
+  update-hermitian2
+  (let ((ad (clo :double :hermitian
+                 1 2 :/
+                 * 4))
+        (bcd (clo :complex-double :hermitian
+                  1 #C(3 4) :/
+                  * -5))
+        (xs (clo :single 7 9))
+        (yd (clo :double 5 19)))
+    (test-update-hermitian2% ad xs yd 17)
+    (test-update-hermitian2% bcd xs yd 17)
+    (ensure-error (update-hermitian2 ad xs #(1 2 3) 17))))
 
 (addtest (linear-algebra-tests)
   invert

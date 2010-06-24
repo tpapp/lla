@@ -16,6 +16,28 @@
 ;;;; argument was a vector.  For example, (solve a b) should be a
 ;;;; vector iff b is a vector, otherwise it should be a matrix.
 
+
+;;;; dot product
+
+(defun dot (a b)
+  (declare (optimize speed (safety 0)))
+  (let ((n (length a)))
+    (assert (= n (length b)))
+    (with-vector-type-expansion (a :other-vectors (b)
+                                   :lla-type a-lla-type
+                                   :vector? t
+                                   :simple-test (and (simple-array1? b)
+                                                     (eq (array-lla-type b)
+                                                         a-lla-type)))
+      (lambda (lla-type)
+        `(let ((sum ,(zero* lla-type)))
+           (declare (type ,(lla->lisp-type lla-type) sum))
+           (dotimes (i n)
+             (incf sum (* ,(if (and lla-type (not (lla-complex? lla-type)))
+                               '(row-major-aref a i)
+                               '(conjugate (row-major-aref a i)))
+                          (row-major-aref b i))))
+           sum)))))
                                                     
 ;;;;  matrix multiplication
 ;;; 
@@ -40,33 +62,21 @@
 (defun mmm (&rest matrices)
   (reduce #'mm matrices))
 
-(defun mm-nv-row% (a b alpha)
+(defun mm-row% (a b alpha)
   "Matrix multiplication, with A converted to a row matrix, and the
 product converted back to a numeric-vector."
   (elements (mm (as-row a) b alpha)))
 
-(defun mm-nv-column% (a b alpha)
+(defun mm-column% (a b alpha)
   "Matrix multiplication, with B converted to a column matrix, and the
 product converted back to a numeric-vector."
   (elements (mm a (as-column b) alpha)))
 
 (defmethod mm ((a vector) (b dense-matrix-like) &optional (alpha 1))
-  (mm-nv-row% a b alpha))
+  (mm-row% a b alpha))
 
 (defmethod mm ((a dense-matrix-like) (b vector) &optional (alpha 1))
-  (mm-nv-column% a b alpha))
-
-;;; for numeric vectors, mm is the dot product; !!! need to do this
-;;; decently one day using BLAS
-
-(defmethod mm ((a vector) (b vector) &optional (alpha 1))
-  (as-scalar% (elements (mm (as-row a) (as-column b) alpha))))
-
-(defmethod mm ((a vector) (b (eql t)) &optional (alpha 1))
-  (mm a a alpha))
-
-(defmethod mm ((a (eql t)) (b vector) &optional (alpha 1))
-  (mm b b alpha))
+  (mm-column% a b alpha))
 
 (defmethod mm ((a dense-matrix-like) (b dense-matrix-like)
                &optional (alpha 1))
@@ -118,6 +128,19 @@ product converted back to a numeric-vector."
 (defmethod mm ((a (eql t)) (b dense-matrix-like) &optional (alpha 1))
   ;; A^T A
   (mm-hermitian% b t alpha))
+
+;;; for numeric vectors, mm is the cross product
+
+(defmethod mm ((a vector) (b vector) &optional (alpha 1))
+  (mm (as-column a) (as-row b) alpha))
+
+(defmethod mm ((a vector) (b (eql t)) &optional (alpha 1))
+  (mm (as-column a) t alpha))
+
+(defmethod mm ((a (eql t)) (b vector) &optional (alpha 1))
+  (mm t (as-row b) alpha))
+
+;;; mm for diagonal matrices
 
 (defmethod mm ((a diagonal) (b dense-matrix-like) &optional (alpha 1))
   (declare (optimize debug))
@@ -171,10 +194,45 @@ product converted back to a numeric-vector."
     result))
 
 (defmethod mm ((a vector) (b diagonal) &optional (alpha 1))
-  (mm-nv-row% a b alpha))
+  (mm-row% a b alpha))
 
 (defmethod mm ((a diagonal) (b vector) &optional (alpha 1))
-  (mm-nv-column% a b alpha))
+  (mm-column% a b alpha))
+
+;;; hermitian (symmetric) updates
+
+(defun update-hermitian (a x &optional (alpha 1))
+  "Return alpha x x^H + A.  A has to be a hermitian matrix, and ALPHA real."
+  (check-type a hermitian-matrix)
+  (check-type x vector)
+  (lb-call ((common-type (lb-target-type a x alpha))
+            (real-type (real-lla-type common-type))
+            (procedure (lb-procedure-name common-type syr her))
+            ((:matrix a% common-type (n n%) n2 :output c) a)
+            ((:vector x% common-type n3) x)
+            ((:atom alpha% real-type) (coerce* alpha real-type))
+            ((:char u%) #\U)
+            ((:integer one%) 1))
+    (assert (= n n2 n3))
+    (call procedure u% n% alpha% x% one% a% n%)
+    (make-matrix% n n c :kind :hermitian)))
+
+(defun update-hermitian2 (a x y &optional (alpha 1))
+  "Return alpha x y^H + y (alpha x)^H + A.  A has to be a hermitian matrix."
+  (check-type a hermitian-matrix)
+  (check-type x vector)
+  (check-type y vector)
+  (lb-call ((common-type (lb-target-type a x y alpha))
+            (procedure (lb-procedure-name common-type syr2 her2))
+            ((:matrix a% common-type (n n%) n2 :output c) a)
+            ((:vector x% common-type n3) x)
+            ((:vector y% common-type n4) y)
+            ((:atom alpha% common-type) (coerce* alpha common-type))
+            ((:char u%) #\U)
+            ((:integer one%) 1))
+    (assert (= n n2 n3 n4))
+    (call procedure u% n% alpha% x% one% y% one% a% n%)
+    (make-matrix% n n c :kind :hermitian)))
 
 
 ;;;; LU factorization
@@ -243,10 +301,10 @@ product converted back to a numeric-vector."
             (procedure (lb-procedure-name common-type getrs))
             ((:matrix lu% common-type (n n%) n2) lu-matrix)
             ((:matrix b% common-type n3 (nrhs nrhs%) :output x) b)
-            ((:vector ipiv% :integer) ipiv)
+            ((:vector ipiv% :integer n4) ipiv)
             ((:char trans%) #\N)
             ((:check info%)))
-    (assert (= n n2 n3))
+    (assert (= n n2 n3 n4))
     (call procedure trans% n% nrhs% lu% n% ipiv% b% n% info%)
     (make-matrix% n nrhs x)))
 
@@ -270,12 +328,12 @@ product converted back to a numeric-vector."
             (procedure (lb-procedure-name common-type sytrs hetrs))
             ((:matrix factor% common-type (n n%) n2) factor)
             ((:matrix b% common-type n3 (nrhs nrhs%) :output x) b)
-            ((:vector ipiv% :integer) ipiv)
+            ((:vector ipiv% :integer n4) ipiv)
             ((:char u-char%) (etypecase factor
                                (upper-matrix #\U)
                                (lower-matrix #\L)))
             ((:check info%)))
-    (assert (= n n2 n3))
+    (assert (= n n2 n3 n4))
     (call procedure u-char% n% nrhs% factor% n% ipiv% b% n% info%)
     (make-matrix% n n x)))
 
@@ -321,10 +379,10 @@ result is multiplied by ALPHA."
             (common-type (lb-target-type lu-matrix))
             (procedure (lb-procedure-name common-type getri))
             ((:matrix lu% common-type (n n%) n2 :output inverse) lu-matrix)
-            ((:vector ipiv% :integer) ipiv)
+            ((:vector ipiv% :integer n3) ipiv)
             ((:work-queries lwork% (work% common-type)))
             ((:check info%)))
-    (assert (= n n2))
+    (assert (= n n2 n3))
     (call procedure n% lu% n% ipiv% work% lwork% info%)
     (make-matrix% n n inverse)))
 
@@ -342,10 +400,10 @@ result is multiplied by ALPHA."
             (procedure (lb-procedure-name common-type sytri hetri))
             ((:matrix factor% common-type (n n%) n2 :output inverse) factor)
             ((:work work% common-type) n)
-            ((:vector ipiv% :integer) ipiv)
+            ((:vector ipiv% :integer n3) ipiv)
             ((:char u-char%) #\U)
             ((:check info%)))
-    (assert (= n n2))
+    (assert (= n n2 n3))
     (call procedure u-char% n% factor% n% ipiv% work% info%)
     (make-matrix% n n inverse :kind :hermitian)))
 
@@ -609,16 +667,16 @@ used to generate random draws, etc."
             (procedure (lb-procedure-name common-type gglse))
             ((:matrix x% common-type (m m%) (n n%) :output :copy) x)
             ((:matrix z% common-type (p p%) n2 :output :copy) z)
-            ((:vector y% common-type :copy) y)
-            ((:vector w% common-type :copy) w)
+            ((:vector y% common-type m2 :copy) y)
+            ((:vector w% common-type p2 :copy) w)
             ((:output b% common-type b) n)
             ((:work-queries lwork% (work% common-type)))
             ((:check info%)))
     ;; !! after call, x and z contain decompositions, currently not collected
     ;; !! after call, y contains sum of squares, currently not collected
     (assert (= n n2) () "Dimension mismatch between z and x")
-    (assert (= m (length y)) () "Dimension mismatch between x and y")
-    (assert (= p (length w)) () "Dimension mismatch between z and w")
+    (assert (= m m2) () "Dimension mismatch between x and y")
+    (assert (= p p2) () "Dimension mismatch between z and w")
     (call procedure m% n% p% x% m% z% p% y% w% b% work% lwork% info%)
     b))
 
