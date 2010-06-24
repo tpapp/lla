@@ -558,8 +558,9 @@ needed to interface to LAPACK routines like xGELS."
 
 (defmethod lb-process-binding% ((keyword (eql :vector))
                                 specification value-forms bindings)
-  ;; syntax: ((:vector pointer-name lla-type &optional copy-or-output) vector)
-  (bind (((pointer-name lla-type-value &optional
+  ;; syntax: ((:vector pointer-name lla-type length-spec 
+  ;;   &optional copy-or-output) vector)
+  (bind (((pointer-name lla-type-value length-spec &optional
                         output) specification)
          (lla-type-name (gensym* '#:lla-type- pointer-name))
          (value-name (gensym* '#:vector- pointer-name)))
@@ -568,7 +569,9 @@ needed to interface to LAPACK routines like xGELS."
     (lb-collect (bindings)
       bindings `(,value-name ,@value-forms)
       bindings `(,lla-type-name ,lla-type-value)
-      vectors `(,value-name ,pointer-name ,lla-type-name ,output))
+      vectors `(,value-name ,pointer-name ,lla-type-name ,output)
+      process `((:dimension ,@(mklist length-spec))
+                (length ,value-name)))
     (awhen (and (not (eq output :copy)) output)
       (check-type it symbol*)
       (lb-collect (bindings) bindings it))))
@@ -611,7 +614,7 @@ needed to interface to LAPACK routines like xGELS."
          (value-name (gensym* '#:value- pointer-name)))
     (lb-collect (bindings)
       bindings `(,value-name ,@value-forms)
-      process `((:vector ,pointer-name ,lla-type-value
+      process `((:vector ,pointer-name ,lla-type-value nil
                          ,output) (elements ,value-name))
       process `((:dimension ,@(mklist nrow-spec))
                 (nrow ,value-name))
@@ -667,7 +670,7 @@ method.
 
  ((:char pointer) value) [shorthand for ((:atom pointer :char) ...)]
 
- ((:vector pointer lla-type &optional copy-or-output) vector)
+ ((:vector pointer lla-type length-spec &optional copy-or-output) vector)
 
  ((:output pointer-name lla-type output) length)
 
