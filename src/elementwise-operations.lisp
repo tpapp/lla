@@ -206,6 +206,10 @@ EMAP-ELEMENTS%.  FORCE-DENSE? "
   "Elementwise LOG."
   (emap #'log arg))
 
+(define-elementwise-operation esqrt (arg)
+  "Elementwise SQRT."
+  (emap #'sqrt arg))
+
 ;;; !!! write optimized 2-argument versions
 
 ;;; ?? Theoretically, a lower triangular matrix multiplied by an upper
