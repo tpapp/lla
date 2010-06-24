@@ -54,7 +54,7 @@
 
    ;; elementwise-operations
 
-   emap e+ e- e* e/ eexpt eexp elog *lla=-difference* lla= lla==
+   emap e+ e- e* e/ eexpt eexp elog esqrt *lla=-difference* lla= lla==
 
    ;; transpose
 
@@ -89,7 +89,8 @@
 
    ;; linear-algebra
 
-   mm mmm lu hermitian solve invert eigen least-squares qr-xx-inverse
-   constrained-least-squares cholesky svd tr rank logdet det matrix-cond
+   dot mm mmm update-hermitian update-hermitian2 lu hermitian solve invert eigen
+   least-squares qr-xx-inverse constrained-least-squares cholesky svd tr rank
+   logdet det matrix-cond
    
    ))
