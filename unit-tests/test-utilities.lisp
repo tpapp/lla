@@ -19,8 +19,8 @@
 (addtest (utilities-tests)
   make-vector-or-matrix-test
   (let ((*lift-equality-test* #'==))
-    (ensure-same (make-vector-with-seq :single 3) (clo :single 0 1 2))
-    (ensure-same (make-matrix-with-seq :complex-double 2 2)
+    (ensure-same (make-vector-with-seq 3 :single) (clo :single 0 1 2))
+    (ensure-same (make-matrix-with-seq 2 2 :complex-double)
                  (clo :complex-double
                       0 2 :/
                       1 3))))

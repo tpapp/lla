@@ -37,14 +37,14 @@ floats can be upgraded to complex."
 
 (defun test-pinning-readonly (source-type destination-type &key
                               (report-p t) (length 50))
-  (let ((vector (make-random-vector source-type length 100)))
+  (let ((vector (make-random-vector length source-type 100)))
     (with-pinned-vector (vector pointer destination-type)
       (vector-at-pointer= vector pointer destination-type :report-p
                           report-p))))
 
 (defun test-pinning-copy (source-type destination-type &key
                           (report-p t) (length 50))
-  (let* ((vector (make-random-vector source-type length 100))
+  (let* ((vector (make-random-vector length source-type 100))
          (copy (copy-seq vector))
          (copy-inc (map 'vector #'1+ copy)))
     (with-pinned-vector (vector pointer destination-type :copy)
@@ -60,7 +60,7 @@ floats can be upgraded to complex."
 
 (defun test-pinning-output (source-type destination-type &key
                             (report-p t) (length 50))
-  (let* ((vector (make-random-vector source-type length 100))
+  (let* ((vector (make-random-vector length source-type 100))
          vector-inc
          (copy (copy-seq vector))
          (copy-inc (map 'vector #'1+ copy)))
@@ -79,7 +79,7 @@ floats can be upgraded to complex."
     (every #'= vector-inc copy-inc)))
 
 (defun test-vector-output (lla-type &key (length 50))
-  (let ((vector (make-random-vector lla-type length 100))
+  (let ((vector (make-random-vector length lla-type 100))
         output)
     (lla::with-vector-output (output pointer lla-type length)
       (dotimes (index length)

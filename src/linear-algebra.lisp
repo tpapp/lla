@@ -38,6 +38,19 @@
                                '(conjugate (row-major-aref a i)))
                           (row-major-aref b i))))
            sum)))))
+
+;;; norms
+
+(defun norm1 (a)
+  (reduce #'+ a :key #'abs))
+
+(defun norm2 (a)
+  "L2 norm."
+  ;; !!! optimize 
+  (sqrt (reduce #'+ a :key (lambda (x) (* x (conjugate x))))))
+
+(defun normsup (a)
+  (reduce #'max a :key #'abs))
                                                     
 ;;;;  matrix multiplication
 ;;; 
@@ -148,7 +161,7 @@ product converted back to a numeric-vector."
          ((:slots-read-only  nrow ncol (matrix-elements elements)) b)
          (common-type (lb-target-type diagonal-elements matrix-elements alpha))
          (alpha (coerce* alpha common-type))
-         (result (make-matrix common-type nrow ncol :kind (matrix-kind b)))
+         (result (make-matrix nrow ncol common-type :kind (matrix-kind b)))
          (result-elements (elements result))
          (i 0))
     (declare (fixnum i nrow ncol))
@@ -174,7 +187,7 @@ product converted back to a numeric-vector."
          (diagonal-elements (elements b))
          (common-type (lb-target-type diagonal-elements matrix-elements alpha))
          (alpha (coerce* alpha common-type))
-         (result (make-matrix common-type nrow ncol :kind (matrix-kind a)))
+         (result (make-matrix nrow ncol common-type :kind (matrix-kind a)))
          (result-elements (elements result))
          (i 0))
     (assert (= (length diagonal-elements) ncol) () "Dimension mismatch.")

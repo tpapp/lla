@@ -12,9 +12,9 @@
              (:print-object))
   "Object representing a diagonal of a matrix or a diagonal matrix.")
 
-(defun make-diagonal (lla-type length &optional (initial-element 0))
+(defun make-diagonal (length lla-type &optional (initial-element 0))
   "Make a diagonal."
-  (make-diagonal% (lla-vector lla-type length initial-element)))
+  (make-diagonal% (lla-vector length lla-type initial-element)))
 
 (defmethod pack ((diagonal diagonal))
   (make-diagonal% (pack (elements diagonal))))

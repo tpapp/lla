@@ -50,9 +50,9 @@
 
 (addtest (basic-tests)
   copy-elements
-  (let ((source (make-vector-with-seq :single 10))
-        (destination1 (lla-vector :single 5))
-        (destination2 (lla-vector :double 5))
+  (let ((source (make-vector-with-seq 10 :single))
+        (destination1 (lla-vector 5 :single))
+        (destination2 (lla-vector 5 :double))
         (*lift-equality-test* #'==))
     (copy-elements source 2 destination1 1 3)
     (copy-elements source 2 destination2 2 3)
@@ -61,7 +61,7 @@
 
 (addtest (basic-tests)
   copy-vector
-  (let ((source (make-vector-with-seq :single 3))
+  (let ((source (make-vector-with-seq 3 :single))
         (*lift-equality-test* #'==))
     (ensure-same (copy-vector source) (clo :single 0 1 2))
     (ensure-same (copy-vector source :double) (clo :double 0 1 2))
@@ -70,9 +70,9 @@
 
 (addtest (basic-tests)
   copy-columns
-  (let ((4x4-double (make-vector-with-seq :double 16))
-        (4x4-single (make-vector-with-seq :single 16))
-        (2x2 (make-vector-with-seq :single 4))
+  (let ((4x4-double (make-vector-with-seq 16 :double))
+        (4x4-single (make-vector-with-seq 16 :single))
+        (2x2 (make-vector-with-seq 4 :single))
         (expected-result (elements (clo :single
                                     0 4 8 12 :/
                                     1 0 2 13
@@ -96,7 +96,7 @@
 
 (addtest (basic-tests)
   matrix-classes
-  (let ((m (make-matrix :double 2 2)))
+  (let ((m (make-matrix 2 2 :double)))
    (setf (mref m 0 0) 6d0)
    (incf (mref m 0 1) 7d0)
    (decf (mref m 1 0) 6d0)
@@ -136,7 +136,7 @@
 
 (addtest (basic-tests)
   bind-lla-vector
-  (bind (((:lla-vector a :length length) (lla-vector :double 5)))
+  (bind (((:lla-vector a :length length) (lla-vector 5 :double)))
     (dotimes (i length)
       (setf (a i) (coerce* i :double)))
     (dotimes (i length)
@@ -145,7 +145,7 @@
 
 (addtest (basic-tests)
   bind-lla-matrix
-  (bind (((:lla-matrix a :nrow a-nrow :ncol a-ncol) (make-matrix :double 3 4)))
+  (bind (((:lla-matrix a :nrow a-nrow :ncol a-ncol) (make-matrix 3 4 :double)))
     (dotimes (row a-nrow)
       (dotimes (col a-ncol)
         (setf (a (a-index row col)) (+ (* 10d0 row) col))))

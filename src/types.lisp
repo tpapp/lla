@@ -180,7 +180,7 @@ otherwise NIL."
   "If the array element type corresponds to an LLA type, return that, otherwise NIL."
   (representable-lla-type (array-element-type array)))
 
-(defun lla-vector (lla-type length &optional (initial-element (zero* lla-type)))
+(defun lla-vector (length lla-type &optional (initial-element (zero* lla-type)))
   "Create a vector with given LLA type and length."
   (make-array length :element-type (lla->lisp-type lla-type)
               :initial-element initial-element))

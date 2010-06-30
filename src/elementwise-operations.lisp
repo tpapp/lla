@@ -101,7 +101,7 @@ in which case they are treated as a vector filled with that atom."
             ;; when first time, create array
             (when (zerop index)
               (setf lla-type (atom-representable-lla-type element)
-                    result (lla-vector lla-type length)))
+                    result (lla-vector length lla-type)))
             (locally
                 (declare (type (simple-array * (*)) result))
                 (handler-case (setf (row-major-aref result index)

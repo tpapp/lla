@@ -20,13 +20,13 @@ to *error-output*, before returning nil."
         (return-from vector-at-pointer= nil))))
   t)
 	
-(defun make-random-vector (lla-type length &optional
+(defun make-random-vector (length lla-type &optional
                            (random-arg 100))
   "Make a vector of the given LLA type, filled with random elements.
 Random is called with random-arg, the default is an integer int order
 to facilitate comparing with = in case of type conversions, or if you
 are using integer for LLA-type."
-  (aprog1 (lla-vector lla-type length)
+  (aprog1 (lla-vector length lla-type)
     (dotimes (i length)
       (setf (aref it i) (coerce* (random random-arg) lla-type)))))
 
@@ -69,13 +69,13 @@ are using integer for LLA-type."
               "the matrices don't have the same dimension"))
     (elements=)))
 
-(defun make-vector-with-seq (lla-type n)
+(defun make-vector-with-seq (n lla-type)
   "Return a numeric-vector of type LLA-TYPE, holding the integers 0...n-1."
-  (aprog1 (lla-vector lla-type n)
+  (aprog1 (lla-vector n lla-type)
     (dotimes (index n)
       (setf (aref it index) (coerce* index lla-type)))))
 
-(defun make-matrix-with-seq (lla-type nrow ncol)
+(defun make-matrix-with-seq (nrow ncol lla-type)
   "Return a dense matrix of type LLA-TYPE, holding the integers
 0...n-1 in column-major order."
-  (lla::make-matrix% nrow ncol (make-vector-with-seq lla-type (* nrow ncol))))
+  (lla::make-matrix% nrow ncol (make-vector-with-seq (* nrow ncol) lla-type)))

@@ -26,7 +26,7 @@ checking each element."
 
 (defun lb-target-type (&rest objects)
   "Find common LLA type objects can be coerced to.  Forces floats
-  (from all rational), for use with BLAS/LAPACK.  Not exported."
+  (from all rational), for use with BLAS/LAPACK."
   (reduce #'common-lla-type objects
           :key (lambda (object)
                  (typecase object
@@ -292,11 +292,11 @@ matrix of eigenvectors."
                  `(let* ((n (aif (divides? (length e-vec) 2) it
                                  (error "E-VEC has to contain an even number ~
                                          of elements")))
-                         (val-zipped (lla-vector ,complex-type n))
+                         (val-zipped (lla-vector n ,complex-type))
                          (vec-zipped (when e-vec
                                        (let ((n^2 (expt n 2)))
                                          (assert (= (length e-vec) n^2))
-                                         (lla-vector ,complex-type n^2)))))
+                                         (lla-vector n^2 ,complex-type)))))
                     (declare (fixnum n)
                              (type ,(lla-vector-type real-type) e-val e-vec)
                              (type ,(lla-vector-type complex-type) val-zipped))
@@ -377,14 +377,14 @@ separately, we have to assemble them. *NOT EXPORTED*."
                                                  (+ n i))))))))
     (if real-p
         ;; no complex eigenvalues
-        (let ((elements (lla-vector real-type n)))
+        (let ((elements (lla-vector n real-type)))
           (iter
             (for i :from 0 :below n)
             (setf (aref elements i) 
                   (mem-aref* val-pointer real-type i)))
           (values elements nil))
         ;; complex eigenvalues
-        (let ((elements (lla-vector complex-type n)))
+        (let ((elements (lla-vector n complex-type)))
           (iter
             (for i :from 0 :below n)
             (setf (aref elements i) 
@@ -396,7 +396,7 @@ separately, we have to assemble them. *NOT EXPORTED*."
                          real-type complex-type)
   "Collect complex eigenvectors from S/DGEEV.  Should only be called
 when the second value returned by ZIP-EIGENVALUES is non-nil."
-  (prog ((vec (lla-vector complex-type (* n n)))
+  (prog ((vec (lla-vector (* n n) complex-type))
          (i 0))
    top
      (let ((column-start-index (cm-index2 n 0 i)))
@@ -434,9 +434,7 @@ when the second value returned by ZIP-EIGENVALUES is non-nil."
   "Sum & return (as a NUMERIC-VECTOR) the last (- M N) rows of an M x
 NRHS matrix, given as a Lisp vector in column-major view.  NOTE:
 needed to interface to LAPACK routines like xGELS."
-  (bind ((row-sums (lla-vector (real-lla-type 
-                                (array-lla-type elements))
-                               nrhs)))
+  (bind ((row-sums (lla-vector nrhs (real-lla-type (array-lla-type elements)))))
     (dotimes (col nrhs)
       (setf (aref row-sums col)
             (sse-elements% elements

@@ -27,7 +27,7 @@ coercing elements if necessary."
 (defun copy-vector (vector &optional (lla-type (array-lla-type vector)))
   "Copy a vector, optionally converting to LLA-TYPE."
   (let* ((length (length vector))
-         (destination (lla-vector lla-type length)))
+         (destination (lla-vector length lla-type)))
     (copy-elements vector 0 destination 0 length)
     destination))
 

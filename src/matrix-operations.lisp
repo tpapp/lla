@@ -90,8 +90,7 @@ like xGELS."
                                          obj))))))
       (if horizontal?
           (bind ((nrow (first nrows))
-                 (result (make-matrix lla-type nrow 
-                                      (reduce #'+ ncols)))
+                 (result (make-matrix nrow (reduce #'+ ncols) lla-type))
                  ((:slots-r/o elements) result))
             (iter
               (for ncol% :in ncols)
@@ -102,7 +101,7 @@ like xGELS."
             result)
           (bind ((nrow (reduce #'+ nrows))
                  (ncol (first ncols))
-                 (result (make-matrix lla-type nrow ncol))
+                 (result (make-matrix nrow ncol lla-type))
                  ((:slots-r/o elements) result))
             (iter
               (for nrow% :in nrows)
@@ -129,8 +128,8 @@ like xGELS."
   "Return an identity matrix of the given KIND (can also be :diagonal)
 and LLA-TYPE.  INITIAL-ELEMENT will be used for the diagonal."
   (if (eq kind :diagonal)
-      (make-diagonal lla-type n initial-element)
-      (bind (((:lla-matrix eye) (make-matrix lla-type n n :kind kind))
+      (make-diagonal n lla-type initial-element)
+      (bind (((:lla-matrix eye) (make-matrix n n lla-type :kind kind))
              (initial-element (coerce* initial-element lla-type)))
         (dotimes (i n)
           (setf (eye (eye-index i i)) initial-element))

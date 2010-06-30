@@ -15,7 +15,7 @@
     (declare (ignore copy?))
     (bind (((:slots-read-only nrow ncol (matrix-elements elements)) matrix)
            (n (min nrow ncol))
-           (diagonal-elements (lla-vector (array-lla-type matrix-elements) n)))
+           (diagonal-elements (lla-vector n (array-lla-type matrix-elements))))
       (dotimes (i n)
         (setf (aref diagonal-elements i)
               (aref matrix-elements (cm-index2 n i i))))
