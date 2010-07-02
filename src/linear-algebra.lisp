@@ -812,20 +812,42 @@ value."
 ;;; determinants
 
 (defgeneric logdet (matrix)
-  (:documentation "Logarithm of the determinant of a matrix."))
+  (:documentation "Logarithm of the determinant of a matrix.  Return -1, 1 or
+  0 (or equivalent) to correct for the sign, as a second value."))
 
 (defun det (matrix)
   "Determinant of a matrix.  If you need the log of this, use LOGDET
   directly."
-  (exp (logdet matrix)))
+  (bind (((:values logdet sign) (logdet matrix)))
+    (if (zerop sign)
+        0
+        (* sign (exp logdet)))))
 
-(defun diagonal-log-sum% (matrix)
-  "Sum of the log of the elements in the diagonal."
+(defmacro log-with-sign% (value sign-changes block-name)
+  "Log of (ABS VALUE), increments SIGN-CHANGES when negative, return-from
+block-name (values nil 0) when zero."
+  (once-only (value)
+    `(log (cond
+            ((zerop ,value) (return-from ,block-name (values nil 0)))
+            ((minusp ,value) (incf ,sign-changes) (- ,value))
+            (t ,value)))))
+
+(defun diagonal-log-sum% (matrix &optional (sign-changes 0))
+  "Sum of the log of the elements in the diagonal.  Sign-changes counts the
+negative values, and may be started at something else than 0 (eg in case of
+pivoting).  Return (values NIL 0) in case of encountering a 0."
   (assert (square-matrix? matrix))
   (bind (((:lla-matrix matrix :nrow nrow) matrix))
-    (iter
-      (for i :from 0 :below nrow)
-      (summing (log (matrix (matrix-index i i)))))))
+    (values 
+      (iter
+        (for i :from 0 :below nrow)
+        (summing (log-with-sign% (matrix (matrix-index i i))
+                                 sign-changes diagonal-log-sum%)))
+      (if (evenp sign-changes) 1 -1))))
+
+(defmethod logdet ((matrix dense-matrix))
+  (let* ((lu (lu matrix)))
+    (diagonal-log-sum% (lu-matrix lu) (permutations lu))))
 
 (defmethod logdet ((matrix lower-matrix))
   (diagonal-log-sum% matrix))
@@ -834,7 +856,12 @@ value."
   (diagonal-log-sum% matrix))
 
 (defmethod logdet ((matrix hermitian-matrix))
-  (reduce #'+ (eigen matrix) :key #'log))
+  (let ((sign-changes 0))
+    (values 
+      (reduce #'+ (eigen matrix)
+              :key (lambda (e)
+                     (log-with-sign e sign-changes logdet)))
+      (if (evenp sign-changes) 1 -1))))
 
 (defun matrix-cond (matrix)
   "Calculate the condition number of a matrix (with respect to the Euclidean

@@ -347,14 +347,34 @@
   det
   (let ((*allowed-difference* 1e-4)
         (*lift-equality-test* #'approx=))
+    ;; dense
+    (ensure-same (det (clo :double
+                           1 2 :/
+                           3 4))
+                 -2)
+    ;; upper
     (ensure-same (det (clo :upper
                            1 2 :/
                            0 4))
                  4)
+    (ensure-same (det (clo :upper
+                           1 2 :/
+                           0 -4))
+                 -4)
+    (ensure-same (det (clo :upper
+                           1 2 :/
+                           0 0))
+                 0)
+    ;; lower
     (ensure-same (det (clo :lower
                            7 0 :/
                            8 12))
                  (* 7 12))
+    (ensure-same (det (clo :lower
+                           -7 0 :/
+                           8 12))
+                 (* -7 12))
+    ;; hermitian
     (ensure-same (det (mm t (clo 1 2 :/
                                  3 4)))
                  4)))
