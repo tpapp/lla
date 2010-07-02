@@ -50,17 +50,6 @@ return BODY.  Intended for use in macros."
 ;;; array utilities
 
 (declaim (inline zero-like))
-
-(defun make-similar-vector (vector &optional (length (array-total-size vector)))
-  "Make a simple-array1 with the given lengh and element-type similar
-to vector."
-  (make-array length :element-type (array-element-type vector)))
-
-(defun make-similar-array (array &optional (dimensions (array-dimensions array)))
-  "Make a simple-array with the given dimensions and element-type
-similar to array."
-  (make-array dimensions :element-type (array-element-type array)))
-
 (defun zero-like (array)
   "Return 0 coerced to the element type of ARRAY."
   (coerce 0 (array-element-type array)))
