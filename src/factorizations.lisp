@@ -20,6 +20,20 @@
 	 :documentation "pivot indices"))
   (:documentation "LU decomposition of a matrix with pivoting."))
 
+(defgeneric permutations (object)
+  (:documentation "Return the number of permutations in object (which is usually
+  a matrix factorization, or a pivot index."))
+
+(defun count-permutations% (ipiv)
+  "Count the permutations in a pivoting vector."
+  (iter
+      (for index :from 1)               ; lapack counts from 1
+      (for i :in-vector ipiv)
+      (counting (/= index i))))
+
+(defmethod permutations ((lu lu))
+  (count-permutations% (ipiv lu)))
+
 (defclass qr (matrix-factorization)
   ((qr-matrix :type dense-matrix :initarg :qr-matrix :reader qr-matrix
            :documentation "matrix storing the QR decomposition."))

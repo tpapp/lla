@@ -85,7 +85,7 @@
    ;; ;; factorizations
    
    matrix-factorization component reconstruct lu lu-matrix ipiv
-   qr qr-matrix cholesky factor hermitian
+   permutations qr qr-matrix cholesky factor hermitian
 
    ;; linear-algebra
 
