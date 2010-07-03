@@ -9,7 +9,7 @@
 ;;;; linear algebra
 
 (addtest (linear-algebra-tests)
-  vector-mm-dot
+  vector-mm-outer
   (let ((a (clo :double 2 3 5))
         (b (clo :double 7 11))
         (c (clo :complex-single #C(1 2) #C(3 5)))
@@ -17,16 +17,18 @@
                  5 #C(13 1) :/
                  * 34)))
     ;; mm
-    (ensure-same (mm a t 0.5) (clo :double :hermitian
-                                   2 3 5 :/
-                                   * 4.5 7.5
-                                   * * 12.5))
-    (ensure-same (mm a b 3) (clo :double
-                                 42 66 :/
-                                 63 99
-                                 105 165))
-    (ensure-same (mm c t) cc)
-    (ensure-same (mm t c) (conjugate-transpose cc))
+    (ensure-same (outer a t 0.5)
+                 (clo :double :hermitian
+                      2 3 5 :/
+                      * 4.5 7.5
+                      * * 12.5))
+    (ensure-same (outer a b 3)
+                 (clo :double
+                      42 66 :/
+                      63 99
+                      105 165))
+    (ensure-same (outer c t) cc)
+    (ensure-same (outer t c) (conjugate-transpose cc))
     ;; dot
     (ensure-same (dot b b) 170d0 :test #'=)
     (ensure-same (dot c c) 39d0 :test #'=)))
@@ -75,7 +77,7 @@
 (defmacro test-update-hermitian% (a x alpha)
   (once-only (a x alpha)
     `(ensure-same (update-hermitian ,a ,x ,alpha)
-                  (e+ ,a (mm ,x t ,alpha))
+                  (e+ ,a (outer ,x t ,alpha))
                   :test #'==)))
 
 (addtest (linear-algebra-tests)

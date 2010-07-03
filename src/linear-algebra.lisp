@@ -166,17 +166,6 @@ product converted back to a numeric-vector."
   ;; A^T A
   (mm-hermitian% b t alpha))
 
-;;; for numeric vectors, mm is the cross product
-
-(defmethod mm ((a vector) (b vector) &optional (alpha 1))
-  (mm (as-column a) (as-row b) alpha))
-
-(defmethod mm ((a vector) (b (eql t)) &optional (alpha 1))
-  (mm (as-column a) t alpha))
-
-(defmethod mm ((a (eql t)) (b vector) &optional (alpha 1))
-  (mm t (as-row b) alpha))
-
 ;;; mm for diagonal matrices
 
 (defmethod mm ((a diagonal) (b dense-matrix-like) &optional (alpha 1))
@@ -235,6 +224,21 @@ product converted back to a numeric-vector."
 
 (defmethod mm ((a diagonal) (b vector) &optional (alpha 1))
   (mm-column% a b alpha))
+
+;;; cross product
+
+(defgeneric outer (a b &optional alpha)
+  (:documentation "Outer product of two vectors, multiplied by alpha."))
+
+(defmethod outer ((a vector) (b vector) &optional (alpha 1))
+  (mm (as-column a) (as-row b) alpha))
+
+(defmethod outer ((a vector) (b (eql t)) &optional (alpha 1))
+  (mm (as-column a) t alpha))
+
+(defmethod outer ((a (eql t)) (b vector) &optional (alpha 1))
+  (mm t (as-row b) alpha))
+
 
 ;;; hermitian (symmetric) updates
 
@@ -884,7 +888,7 @@ pivoting).  Return (values NIL 0) in case of encountering a 0."
     (values 
       (reduce #'+ (eigen matrix)
               :key (lambda (e)
-                     (log-with-sign e sign-changes logdet)))
+                     (log-with-sign% e sign-changes logdet)))
       (if (evenp sign-changes) 1 -1))))
 
 (defun matrix-cond (matrix)
