@@ -19,7 +19,32 @@
 
 ;;;; dot product
 
-(defun dot (a b)
+(defgeneric dot (a b)
+  (:documentation "Dot product."))
+
+(defun sum-of-squares% (vector)
+  (declare (optimize speed (safety 0)))
+  (let ((n (length vector)))
+    (with-vector-type-expansion (vector :lla-type a-lla-type
+                                        :vector? t)
+      (lambda (lla-type)
+        `(let ((sum ,(zero* lla-type)))
+           (declare (type ,(lla->lisp-type lla-type) sum))
+           (dotimes (i n)
+             (let ((element (row-major-aref vector i)))
+               (incf sum (* ,(if (and lla-type (not (lla-complex? lla-type)))
+                                 'element
+                                 '(conjugate element))
+                            element))))
+           sum)))))
+
+(defmethod dot ((a vector) (b (eql t)))
+  (sum-of-squares% a))
+
+(defmethod dot ((a (eql t)) (b vector))
+  (sum-of-squares% b))
+
+(defmethod dot ((a vector) (b vector))
   (declare (optimize speed (safety 0)))
   (let ((n (length a)))
     (assert (= n (length b)))
@@ -46,8 +71,7 @@
 
 (defun norm2 (a)
   "L2 norm."
-  ;; !!! optimize 
-  (sqrt (reduce #'+ a :key (lambda (x) (* x (conjugate x))))))
+  (sqrt (sum-of-squares% a)))
 
 (defun normsup (a)
   (reduce #'max a :key #'abs))
