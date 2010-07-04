@@ -116,13 +116,28 @@
 
 (addtest (operations-tests)
   as-matrix-tests
+  ;; from diagonal
   (ensure-same (as-matrix (clo :diagonal :double 1 2 3))
                (clo :double
                     1 0 0 :/
                     0 2 0
                     0 0 3))
+  (let ((d (clo :diagonal 1 2)))
+    (ensure-same (as-matrix d) (clo 1 0 :/
+                                    0 2))
+    (ensure-same (as-matrix d :nrow 3) (clo 1 0 :/
+                                            0 2
+                                            0 0))
+    (ensure-same (as-matrix d :ncol 4 :nrow 3)
+                 (clo 1 0 0 0 :/
+                      0 2 0 0
+                      0 0 0 0))
+    (ensure-error (as-matrix d :ncol 1))
+    (ensure-error (as-matrix d :nrow 1)))
+  ;; from array
   (ensure-same (as-matrix #2A((1 2) (3 4)))
                (clo 1 2 :/ 3 4))
+  ;; from vector
   (ensure-same (as-matrix (clo :double 1 2 3 4) :nrow 2
                           :kind :hermitian)
                (clo :double :hermitian

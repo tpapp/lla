@@ -33,14 +33,17 @@
     (make-matrix% nrow ncol (transpose-elements% ncol nrow array)
                   :kind kind)))
 
-(defmethod as-matrix ((diagonal diagonal) &key copy? (kind :dense))
+(defmethod as-matrix ((diagonal diagonal) &key nrow ncol copy?
+                      (kind :dense))
   (declare (ignore copy?))
   (let* ((diagonal-elements (elements diagonal))
          (n (length diagonal-elements))
+         (nrow (aif nrow (progn (assert (<= n it) () "Too few rows.") it) n))
+         (ncol (aif ncol (progn (assert (<= n it) () "Too few columns.") it) n))
          (matrix-elements (make-similar-vector diagonal-elements
-                                               (expt n 2))))
-    (fill-matrix-elements-using% diagonal matrix-elements 0 n nil)
-    (make-matrix% n n matrix-elements :kind kind)))
+                                               (* nrow ncol))))
+    (fill-matrix-elements-using% diagonal matrix-elements 0 nrow nil)
+    (make-matrix% nrow ncol matrix-elements :kind kind)))
 
 (defmethod as-matrix ((vector vector) &key copy? (kind :dense) nrow ncol
                       (row-major? t))
