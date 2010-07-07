@@ -15,6 +15,7 @@ coercing elements if necessary."
                         ,source-element-form))))
     (let ((destination-type (array-element-type destination)))
       (if (equal destination-type (array-element-type source))
+          ;; !!! important: benchmark this agains replace.
           (with-vector-type-declarations (source 
                                           :other-vectors (destination)
                                           :simple-test (simple-array? destination))
@@ -24,12 +25,15 @@ coercing elements if necessary."
                                destination-type))))))    
   (values))
 
-(defun copy-vector (vector &optional (lla-type (array-lla-type vector)))
-  "Copy a vector, optionally converting to LLA-TYPE."
-  (let* ((length (length vector))
-         (destination (lla-vector length lla-type)))
-    (copy-elements vector 0 destination 0 length)
-    destination))
+(defun copy-vector (vector &optional lla-type)
+  "Copy a vector, optionally converting to LLA-TYPE when given."
+  (let ((vector-lla-type (array-lla-type vector)))
+    (if (or (not lla-type) (eq lla-type vector-lla-type))
+        (copy-seq vector)
+        (let* ((length (length vector))
+               (destination (lla-vector length lla-type)))
+          (copy-elements vector 0 destination 0 length)
+          destination))))
 
 (defun maybe-copy-vector (vector copy? &optional lla-type)
   "Shallow copying unless LLA-TYPE or COPY?.  The result is always a
