@@ -307,11 +307,12 @@ call.  For internal use, not exported."
        (assert (= nrow ncol) () "Hermitian matrix is not square.")
        (make-hermitian-matrix% nrow nrow elements))))
 
-(defun make-matrix (nrow ncol lla-type &key (kind :dense) (initial-element 0))
+(defun make-matrix (nrow ncol lla-type &key (kind :dense) initial-element)
   "Create a matrix with given parameters, optionally initialized with
-INITIAL-ELEMENTs."
+INITIAL-ELEMENTs (following the semantics of LLA-VECTOR; element traversal is
+column-major)."
   (make-matrix% nrow ncol
-                (lla-vector (* nrow ncol) lla-type (coerce* initial-element lla-type))
+                (lla-vector (* nrow ncol) lla-type initial-element)
                 :kind kind))
 
 (defun copy-matrix (matrix &key (kind (matrix-kind matrix))

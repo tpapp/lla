@@ -189,17 +189,30 @@ otherwise NIL."
     #+lla-vector-complex-single 
     ((subtypep type '(complex single-float)) :complex-single)
     #+lla-vector-complex-double 
-    ((subtypep type '(complex double-float))
-     :complex-double)))
+    ((subtypep type '(complex double-float)) :complex-double)))
 
 (defun array-lla-type (array)
-  "If the array element type corresponds to an LLA type, return that, otherwise NIL."
+  "If the array element type corresponds to an LLA type, return that, otherwise
+NIL."
   (representable-lla-type (array-element-type array)))
 
-(defun lla-vector (length lla-type &optional (initial-element (zero* lla-type)))
-  "Create a vector with given LLA type and length."
-  (make-array length :element-type (lla->lisp-type lla-type)
-              :initial-element initial-element))
+(defun lla-vector (length lla-type &optional initial-element)
+  "Create a vector with given LLA type and length.  Initial-element will be
+coerced to the appropriate type and used to fill the vector (the default is 0).
+It can also be a function, in which case it will be called to fill each element,
+traversing from index 0 to length-1."
+  (bind ((lisp-type (lla->lisp-type lla-type))
+         ((:flet make (&optional initial-element))
+          (if initial-element
+              (make-array length :element-type lisp-type
+                          :initial-element initial-element)
+              (make-array length :element-type lisp-type))))
+    (typecase initial-element
+      (null (make))
+      (function (aprog1 (make)
+                  (dotimes (index length)
+                    (setf (aref it index) (funcall initial-element)))))
+      (otherwise (make (coerce* initial-element lla-type))))))
 
 (defun atom-representable-lla-type (atom)
   "If the (upgraded) type of atom is supported by the implementation,
