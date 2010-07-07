@@ -52,6 +52,8 @@
 ;;;
 ;;;   b. When using matrices, use DENSE-MATRIX-LIKE objects.  LLA is
 ;;;   column-major, and 
+;;;
+;;; Also see *lla-warn-suboptimal*.
 
 ;;; Non-nil symbols.
 
@@ -72,6 +74,20 @@
   ;; ?? should this be a macro, could this signal more information
   (unless (within? 0 index dimension)
     (error "index ~a is outside [0,~a)" index dimension)))
+
+;;; warnings for suboptimal operations
+
+(defvar *lla-warn-suboptimal* nil
+  "When set to non-NIL, emit a warning when suboptimal operations are peformed.
+  These operations can usually be improved by using simple-arrays or rank 1 and
+  supported LLA element types.  Note: this is intended for debugging your
+  application on implementations that support the appropriate specialized
+  arrays.  On implementations that don't (eg CLISP), setting this will just emit
+  a lot of warning messages regardless of what you do.")
+
+(defun lla-warn-suboptimal (message)
+  (when *lla-warn-suboptimal*
+    (warn "Suboptimal LLA operation (~A)." message)))
 
 ;;; Element types
 ;;;
@@ -273,6 +289,7 @@ implements this behavior by default."
            #+lla-vector-complex-double
            ,(clause :complex-double)
            (t (muffle-optimization-notes
+                (lla-warn-suboptimal "non-specialized vector")
                 ,(funcall body-generator nil))))))))
 
 
@@ -282,7 +299,7 @@ implements this behavior by default."
                                                  (vector? t)
                                                  (lla-type (gensym "LLA-TYPE")))
                                          &body body)
-  "Like WITH-VECTOR-TYPE-EXPANSION, but constant body-generatoe taken
+  "Like WITH-VECTOR-TYPE-EXPANSION, but constant body-generator taken
 from BODY."
   `(with-vector-type-expansion (,vector
                                 :other-vectors ,other-vectors

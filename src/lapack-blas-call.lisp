@@ -22,7 +22,9 @@ otherwise.  For (complex) rationals, :(complex)-single is used."
 checking each element."
   (aif (array-lla-type vector)
        it
-       (reduce #'common-lla-type vector :key #'lb-atom-type%)))
+       (progn
+         (lla-warn-suboptimal "need to detect common element type")
+         (reduce #'common-lla-type vector :key #'lb-atom-type%))))
 
 (defun lb-target-type (&rest objects)
   "Find common LLA type objects can be coerced to.  Forces floats
