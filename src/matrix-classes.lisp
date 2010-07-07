@@ -139,7 +139,7 @@ diagonal are not necessarily initialized and not accessed.")
 
 ;;; Framework for dense matrices with restricted elements.
 
-(defgeneric set-restricted (matrix)
+(defgeneric set-restricted (object)
   (:method ((object elements%))
     ;; default: do nothing
     object)
@@ -147,6 +147,10 @@ diagonal are not necessarily initialized and not accessed.")
 appropriate value in the data vector of matrix.  Always return the
 matrix.  Useful when calling functions which expect a proper dense
 matrix."))
+
+(defun restricted-elements (object)
+  "Shorthand that returns the restricted elements."
+  (elements (set-restricted object)))
 
 (defmethod set-restricted ((matrix upper-matrix))
   ;; set the lower triangle (below diagonal) to 0
