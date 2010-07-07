@@ -169,7 +169,7 @@ product converted back to a numeric-vector."
 ;;; mm for diagonal matrices
 
 (defmethod mm ((a diagonal) (b dense-matrix-like) &optional (alpha 1))
-  (declare (optimize debug))
+  (declare (optimize speed))
   (bind ((diagonal-elements (elements a))
          ((:slots-read-only  nrow ncol (matrix-elements elements)) b)
          (common-type (lb-target-type diagonal-elements matrix-elements alpha))
