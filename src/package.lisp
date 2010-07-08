@@ -16,10 +16,11 @@
    
    ;; types
    
-   dimension lla-type lla-complex? lla-double? real-lla-type complex-lla-type 
-   not-within-lla-type invalid-lla-type lla->lisp-type lla-vector-type
-   representable-lla-type array-lla-type lla-vector atom-representable-lla-type
-   zero* coerce* epsilon* common-lla-type pack packf
+   dimension *lla-warn-suboptimal* lla-type lla-complex? lla-double?
+   real-lla-type complex-lla-type not-within-lla-type invalid-lla-type
+   lla->lisp-type lla-vector-type representable-lla-type array-lla-type
+   lla-vector atom-representable-lla-type zero* coerce* epsilon*
+   common-lla-type pack packf
    
    ;; fortran-atoms -- nothing is exported
 
