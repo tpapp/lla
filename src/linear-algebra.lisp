@@ -679,18 +679,18 @@ well-conditioned."
       (- m n)
       `(:s ,s :rank ,(aref rank 0)))))
 
-(defun qr-xx-inverse (qr)
-  "Calculate (X^T X)-1 (which is used for calculating the variance of
-estimates) from the qr decomposition of X.  Return a CHOLESKY
-decomposition.  Note: the FACTOR of the cholesky decomposition can be
-used to generate random draws, etc."
+(defun qr-xx-inverse-sqrt (qr &optional (right-sqrt? t))
+  "Calculate the left or right square root of (X^T X)-1 (which is used for
+calculating the variance of estimates) from the qr decomposition of X.  Note:
+this can be used to generate random draws, etc."
   ;; Notes: X = QR, thus X^T X = R^T Q^T Q R = R^T R because Q is
-  ;; orthogonal.  Then we do as if calculating the inverse of a matrix
-  ;; using its Cholesky factorization.
+  ;; orthogonal.
   (with-slots (nrow ncol) (qr-matrix qr)
     (assert (<= ncol nrow))
-    (invert (make-instance 'cholesky :factor (component qr :R)))))
-
+    (let ((R-inv (invert (component qr :R))))
+      (if right-sqrt?
+          (transpose R-inv)
+          R-inv))))
 
 ;;;; constrained-least-squares
 

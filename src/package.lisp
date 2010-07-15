@@ -91,7 +91,7 @@
    ;; linear-algebra
 
    dot norm1 norm2 normsup mm mmm outer update-hermitian update-hermitian2 lu
-   hermitian solve invert eigen least-squares qr-xx-inverse
+   hermitian solve invert eigen least-squares qr-xx-inverse-sqrt
    constrained-least-squares cholesky svd tr rank logdet det matrix-cond
    
    ))
