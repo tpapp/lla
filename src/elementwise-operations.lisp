@@ -138,7 +138,7 @@ in which case they are treated as a vector filled with that atom."
 of the result the narrowest common (extended) LLA type that can accommodate all
 results.  Some of the args can be atoms, in which case they are treated as an
 object filled with that atom.  All ARGs need to have the same type, see
-EMAP-ELEMENTS%.  FORCE-DENSE? "
+EMAP-ELEMENTS%."
   (let* (type
          dimensions
          scalars?
@@ -155,7 +155,6 @@ EMAP-ELEMENTS%.  FORCE-DENSE? "
                       (setf dimensions arg-dimensions))
                   (setf scalars? t))
               (setf type (emap-common-type% type arg-type))
-
               (collecting arg-elements))))
          (result (emap-vectors% function elements
                                 (cond 
@@ -164,7 +163,7 @@ EMAP-ELEMENTS%.  FORCE-DENSE? "
                                   ((listp dimensions)
                                    (reduce #'* dimensions))
                                   (t dimensions)))))
-    (when (subtypep type 'dense-matrix-like)
+    (when (and type (subtypep type 'dense-matrix-like))
       (setf type (emap-dense-type% function type scalars?)))
     (emap-result% type result dimensions)))
 
@@ -210,6 +209,24 @@ EMAP-ELEMENTS%.  FORCE-DENSE? "
   "Elementwise SQRT."
   (emap #'sqrt arg))
 
+;;; reductions
+
+(defun ereduce (function object)
+  "Elementwise reduce."
+  (reduce function (etypecase object
+                     (vector object)
+                     (dense-matrix-like (restricted-elements object)))))
+
+(defmacro define-elementwise-reduction (name function &optional 
+                                        (docstring 
+                                         (format nil "Elementwise ~A." function)))
+  `(defun ,name (object)
+     ,docstring
+     (ereduce #',function object)))
+
+(define-elementwise-reduction emax max)
+(define-elementwise-reduction emin min)
+
 ;;; !!! write optimized 2-argument versions
 
 ;;; ?? Theoretically, a lower triangular matrix multiplied by an upper
@@ -249,3 +266,4 @@ EMAP-ELEMENTS%.  FORCE-DENSE? "
 (defun lla== (&rest objects)
   "Compare multiple objects for equality with LLA=."
   (all-equal? #'lla= objects))
+

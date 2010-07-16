@@ -55,7 +55,8 @@
 
    ;; elementwise-operations
 
-   emap e+ e- e* e/ eexpt eexp elog esqrt *lla=-difference* lla= lla==
+   emap e+ e- e* e/ eexpt eexp elog esqrt ereduce emax emin 
+   *lla=-difference* lla= lla==
 
    ;; transpose
 
