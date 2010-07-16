@@ -4,7 +4,7 @@
 
 (deftestsuite linear-algebra-tests (lla-unit-tests)
   ()
-  (:equality-test #'==))
+  (:equality-test #'lla=))
 
 ;;;; linear algebra
 
@@ -34,15 +34,18 @@
     (ensure-same (dot c c) 39d0 :test #'=)))
 
 (addtest (linear-algebra-tests)
-  diagonal-mm
-  (let ((a (clo 1 2 3 :/
-                4 5 6))
-        (left-d (clo :diagonal 7 8))
-        (right-d (clo :diagonal 9 10 11)))
-    (ensure-same (mm (as-matrix left-d) a)
-                 (mm left-d a))
-    (ensure-same (mm a (as-matrix right-d))
-                 (mm a right-d))))
+  mm-solve-diagonal
+  (let* ((a (clo 1 2 3 :/
+                 4 5 6))
+         (b (clo :double 9 11))
+         (left-d (clo :diagonal 7 8))
+         (right-d (clo :diagonal 9 10 11))
+         (left-a (mm left-d a))
+         (a-right (mm a right-d)))
+    (ensure-same (mm (as-matrix left-d) a) left-a)
+    (ensure-same (mm a (as-matrix right-d)) a-right)
+    (ensure-same (solve left-d left-a) a)
+    (ensure-same (solve left-d (mm left-d b)) b)))
 
 (addtest (linear-algebra-tests)
   mm-solve-lu
@@ -53,7 +56,7 @@
          (a-lu (lu a))
          (x-solve (solve a b))
          (x-solve-lu (solve a-lu b))
-         )
+         (*lla=-difference* 1d-4))
     (ensure-same b (clo :double 17d0 39d0))
     (ensure-same x-solve x)
     (ensure-same x-solve-lu x)))

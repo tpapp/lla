@@ -321,6 +321,9 @@ product converted back to a numeric-vector."
 (defmethod solve (a (b vector))
   ;; Simply convert and call the method for a matrix.
   ;;
+  ;; The convention is that the second argument (B) is never a vector in the
+  ;; methods defined below, except this one.
+  ;;
   ;; ??? check if the overhead is expensive, my hunch is that it
   ;; should be trivial -- Tamas
   (elements (solve a (as-column b))))
@@ -404,6 +407,9 @@ result is multiplied by ALPHA."
 
 (defmethod solve ((a upper-matrix) (b dense-matrix-like))
   (trsm% a b :left nil))
+
+(defmethod solve ((a diagonal) (b dense-matrix-like))
+  (mm (e/ a) b))
 
 (defgeneric invert (a &key &allow-other-keys)
   (:documentation "Invert A.  Usage note: inverting matrices is
