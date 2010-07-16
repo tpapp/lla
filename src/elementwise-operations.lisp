@@ -241,7 +241,6 @@ EMAP-ELEMENTS%.  FORCE-DENSE? "
   (:method ((a vector) (b vector))
     (lla-vector=% a b *lla=-difference*))
   (:method ((a elements%) (b elements%))
-    
     (and (eq (class-of a) (class-of b))
          (lla-vector=% (elements (set-restricted a))
                        (elements (set-restricted b))
