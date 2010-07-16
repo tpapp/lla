@@ -67,7 +67,7 @@
 
    ;; matrix-operations
 
-   stack-horizontally stack-vertically eye
+   stack-horizontally stack-vertically eye concat
 
    ;; specialized-utilities -- nothing is exported, already done by CLNU
    

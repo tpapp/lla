@@ -134,3 +134,27 @@ and LLA-TYPE.  INITIAL-ELEMENT will be used for the diagonal."
         (dotimes (i n)
           (setf (eye (eye-index i i)) initial-element))
         eye)))
+
+;;; vector concatenation
+
+(defun concat (&rest vectors)
+  "Concatenate VECTORS in to a single vector, using the narrowest common element
+type supported by the implementation.  Lists are treated as SIMPLE-VECTORS,
+atoms that are not vectors wrapped in a vector."
+  (let* ((vectors (mapcar (lambda (v)
+                            (typecase v
+                              (vector v)
+                              (list (coerce v 'simple-vector))
+                              (t (vector v))))
+                          vectors))
+         (lla-types (mapcar #'array-lla-type vectors))
+         (lengths (mapcar #'length vectors))
+         (common-type (reduce #'common-lla-type lla-types))
+         (result (lla-vector (reduce #'+ lengths) common-type)))
+    (iter
+      (with offset := 0)
+      (for v :in vectors)
+      (for l :in lengths)
+      (copy-elements v 0 result offset l)
+      (incf offset l))
+    result))

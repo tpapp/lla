@@ -231,6 +231,11 @@
   (ensure-same (eye 3 :kind :diagonal :initial-element 5 :lla-type :integer)
                (clo :integer :diagonal 5 5 5)))
 
+(addtest (operations-tests)
+  concat-test
+  (ensure-same (concat #(1 2 3) #(4 5 6) 7 '(8 9 10))
+               (numseq 1 10 :type t) :test #'equalp))
+
 ;;; specialized-utilities
 
 (addtest (operations-tests)
