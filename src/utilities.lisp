@@ -4,22 +4,6 @@
 
 ;; #+sbcl (eval-when (:compile-toplevel :load-toplevel :execute)
 ;;          (pushnew :muffle-notes cl:*features*))
-
-(defun as-integer (number)
-  "If NUMBER represents an integer (as an integer, complex, or float,
-etc), return it as an integer, otherwise signal an error."
-  (declare (inline as-integer))
-  (etypecase number
-    (integer number)
-    (complex 
-       (assert (zerop (imagpart number)) ()
-               "~A has non-zero imaginary part." number)
-       (as-integer (realpart number)))
-    (t (bind (((:values int frac) (floor number)))
-         (assert (zerop frac) ()
-                 "~A has non-zero fractional part." number)
-         int))))
-
 (declaim (inline as-scalar%))
 (defun as-scalar% (vector)
   "Pick the first element from a vector.  No checking."
