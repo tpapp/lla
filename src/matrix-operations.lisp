@@ -69,8 +69,13 @@ like xGELS."
                                  offset
                                  leading-dimension horizontal?)))
 
-(defun stack% (objects horizontal?)
-  (bind (((:values nrows ncols)
+(defun stack (direction objects)
+  "Stack objects (a list) in the given direction (:horizontal/:h
+or :vertical/:v)."
+  (bind ((horizontal? (ecase direction
+                        ((:horizontal :h) t)
+                        ((:vertical :v) nil)))
+         ((:values nrows ncols)
           (iter
             (for object :in objects)
             (for (values nrow ncol) := 
@@ -114,12 +119,12 @@ like xGELS."
 (defun stack-horizontally (&rest objects)
   "Stack arguments horizontally, converting to a common type.  A
   vector is interpreted as a column matrix."
-  (stack% objects t))
+  (stack :h objects))
 
 (defun stack-vertically (&rest objects)
   "Stack arguments horizontally, converting to a common type.  A
   vector is interpreted as a column matrix."
-  (stack% objects nil))
+  (stack :v objects))
 
 ;;; identity
 
