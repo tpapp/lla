@@ -236,6 +236,29 @@
   (ensure-same (concat #(1 2 3) #(4 5 6) 7 '(8 9 10))
                (numseq 1 10 :type t) :test #'equalp))
 
+(addtest (operations-tests)
+  group-by-index-test
+  (let ((index (clo 0 1 0 2 1 1))
+        (v (clo 0 1 2 3 4 5))
+        (m (clo 0 1 :/
+                2 3
+                4 5
+                6 7
+                8 9
+                10 11)))
+    (ensure-same (group-by-index v index)
+                 (vector (clo 0 2)
+                         (clo 1 4 5)
+                         (clo 3))
+                 :test #'equalp)
+    (ensure-same (stack :v (coerce (group-by-index m index) 'list))
+                 (clo 0 1 :/
+                      4 5
+                      2 3
+                      8 9
+                      10 11
+                      6 7))))
+
 ;;; specialized-utilities
 
 (addtest (operations-tests)
