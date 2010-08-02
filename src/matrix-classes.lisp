@@ -1,12 +1,9 @@
 (in-package :lla)
 
-(defstruct (elements%
-             (:conc-name)
-             (:constructor nil)         ; no constructor
-             (:copier nil))
-  "Structure which wraps elements.  Not for direct use, to be included
-in other LLA classes."
-  (elements nil :type simple-array1 :read-only t))
+(define-abstract-class elements% ()
+  ((elements :reader elements :initarg :elements :type simple-array1))
+  (:documentation "Class which wraps elements.  Not for direct use, to be
+included in other LLA classes."))
 
 ;;;  Matrix classes --- abstract interface
 ;;;
@@ -15,13 +12,10 @@ in other LLA classes."
 ;;;  the resulting vector can be passed to LAPACK.  See SET-RESTRICTED
 ;;;  and RESTRICTED-ELEMENTS for nuances.
 
-(defstruct (dense-matrix-like 
-             (:conc-name)
-             (:constructor nil)
-             (:copier nil)
-             (:include elements%)
-             (:print-object))
-  "Superclass of all classes that resemble a matrix.
+(defclass dense-matrix-like (elements%)
+  ((nrow :reader nrow :initarg :nrow :type dimension)
+   (ncol :reader ncol :initarg :ncol :type dimension))
+  (:documentation "Superclass of all classes that resemble a matrix.
   Nevertheless, it is not implied that the elements should be
   interpreted as a matrix: they could be a matrix factorization packed
   into a matrix, etc.
@@ -36,9 +30,8 @@ in other LLA classes."
   for trianguar matrices), some may be inferred from other
   elements (eg for hermitian matrices).  When SET-RESTRICTED is
   called, it has to ensure that all values in ELEMENTS reflect the
-  constant and/or inferred cells in the matrix."
-  (nrow nil :type dimension :read-only t)
-  (ncol nil :type dimension :read-only t))
+  constant and/or inferred cells in the matrix."))
+
 
 ;;;  Generic functions for element access
 
@@ -86,15 +79,10 @@ in other LLA classes."
   (check-type kind symbol)
   (check-type documentation string)
   (let ((class (make-symbol% kind '#:-matrix))
-        (kind (make-keyword kind))
-        (constructor (make-symbol% '#:make- kind '#:-matrix%)))
+        (kind (make-keyword kind)))
     `(progn
-       (defstruct (,class
-             (:conc-name)
-             (:constructor ,constructor (nrow ncol elements))
-             (:copier nil)
-             (:include dense-matrix-like)))
-       ,documentation
+       (defclass ,class (dense-matrix-like) ()
+         (:documentation ,documentation))
        (defmethod matrix-kind ((matrix ,class)) ,kind)
        (defmethod valid-matrix-kind? ((kind (eql ,kind))) t)
        (defmethod matrix-type ((kind (eql ,kind))) ',class))))
@@ -299,13 +287,9 @@ Dimensions are checked agains length of ELEMENTS.  Note that elements
 are not copied: this is effectively shorthand for a make-*-matrix%
 call.  For internal use, not exported."
   (check-matrix-dimensions% nrow ncol (length elements))
-  (ecase kind
-    (:dense (make-dense-matrix% nrow ncol elements))
-    (:lower (make-lower-matrix% nrow ncol elements))
-    (:upper (make-upper-matrix% nrow ncol elements))
-    (:hermitian 
-       (assert (= nrow ncol) () "Hermitian matrix is not square.")
-       (make-hermitian-matrix% nrow nrow elements))))
+  (when (eq kind :hermitian)
+    (assert (= nrow ncol) () "Hermitian matrix is not square."))
+  (make-instance (matrix-type kind) :elements elements :nrow nrow :ncol ncol))
 
 (defun make-matrix (nrow ncol lla-type &key (kind :dense) initial-element)
   "Create a matrix with given parameters, optionally initialized with

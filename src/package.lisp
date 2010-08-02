@@ -32,7 +32,7 @@
 
    ;; matrix-classes
    
-   elements dense-matrix-like nrow ncol mref mref-setting-readonly
+   elements dense-matrix-like mref mref-setting-readonly
    square-matrix? square-matrix valid-matrix-kind? matrix-kind
    dense-matrix upper-matrix lower-matrix hermitian-matrix
    set-restricted restricted-elements make-matrix copy-matrix
