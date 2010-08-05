@@ -79,15 +79,29 @@
 
 (defvar *lla-warn-suboptimal* nil
   "When set to non-NIL, emit a warning when suboptimal operations are peformed.
-  These operations can usually be improved by using simple-arrays or rank 1 and
-  supported LLA element types.  Note: this is intended for debugging your
-  application on implementations that support the appropriate specialized
-  arrays.  On implementations that don't (eg CLISP), setting this will just emit
-  a lot of warning messages regardless of what you do.")
+If set to BREAK, break will be used to halt execution.  If NIL, no warning is
+generated.
+
+Note: these operations can usually be improved by using simple-arrays or rank 1
+and supported LLA element types.  Note: this is intended for debugging your
+application on implementations that support the appropriate specialized arrays.
+On implementations that don't (eg CLISP), setting this will just emit a lot of
+warning messages regardless of what you do.")
+
+(define-condition lla-suboptimal-warning (warning)
+  ((message :initarg :message)))
+
+(defmethod print-object ((warning lla-suboptimal-warning) stream)
+  (format stream "Suboptional LLA operation: ~A."
+          (slot-value warning 'message)))
 
 (defun lla-warn-suboptimal (message)
-  (when *lla-warn-suboptimal*
-    (warn "Suboptimal LLA operation (~A)." message)))
+  "Signal suboptimal LLA operations, according to *LLA-WARN-SUBOPTIMAL*."
+  (case *lla-warn-suboptimal*
+    ((nil))
+    (break (break "Suboptional LLA operation: ~A." message))
+    (otherwise (warn 'lla-suboptimal-warning :message message)))
+  (values))
 
 ;;; Element types
 ;;;
@@ -302,7 +316,7 @@ implements this behavior by default."
            #+lla-vector-complex-double
            ,(clause :complex-double)
            (t (muffle-optimization-notes
-                (lla-warn-suboptimal "non-specialized vector")
+                (lla-warn-suboptimal "non-specialized vector" ,vector)
                 ,(funcall body-generator nil))))))))
 
 
