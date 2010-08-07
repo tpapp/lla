@@ -316,7 +316,7 @@ implements this behavior by default."
            #+lla-vector-complex-double
            ,(clause :complex-double)
            (t (muffle-optimization-notes
-                (lla-warn-suboptimal "non-specialized vector" ,vector)
+                (lla-warn-suboptimal "non-specialized vector")
                 ,(funcall body-generator nil))))))))
 
 
