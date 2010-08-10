@@ -112,7 +112,7 @@ in which case they are treated as a vector filled with that atom."
                             (common-lla-type 
                              lla-type 
                              (atom-representable-lla-type element))
-                            result (lla-vector lla-type length))
+                            result (lla-vector length lla-type))
                       (dotimes (i index)
                         (setf (aref result i) 
                               (coerce* (aref old-result i) lla-type)))
