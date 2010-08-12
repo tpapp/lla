@@ -48,19 +48,20 @@
 
 (defmethod (setf sub) ((source number)
                        (destination dense-matrix-like) &rest ranges)
-  ;; behave like mref, but no error checking
-  (bind (((row col) ranges)
-         ((:slots elements nrow ncol) destination))
-    (unless (and (typep row 'fixnum)
-                 (typep col 'fixnum))
-      (error 'incompatible-dimensions))
-    (check-type col fixnum)
-    (setf (aref elements 
-                (cm-index2 nrow
-                           ;; transform-index does boundary checking
-                           (transform-index row nrow nil)
-                           (transform-index col ncol nil)))
-          source)))
+  (bind (((row-range col-range) ranges)
+         ((:slots-r/o (destination-elements elements) nrow ncol)
+          destination))
+    (with-range-indexing ((list col-range row-range) ; flip order
+                          (vector ncol nrow)
+                          matrix-index
+                          :range-dimensions
+                          destination-dimensions
+                          :end? end?)
+      (iter
+        (setf (aref destination-elements (matrix-index))
+              source)
+        (until end?))))
+  source)
 
 (defmethod (setf sub) ((source vector)
                        (destination dense-matrix-like) &rest ranges)
