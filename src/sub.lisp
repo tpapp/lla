@@ -5,16 +5,16 @@
 ;;; SUB and (SETF SUB)
 ;;;
 ;;; We traverse the matrix as if it was transposed and row-major,
-;;; using the WITH-RANGE-INDEXING macro.  (SETF SUB) will silently set
+;;; using the WITH-INDEXING macro.  (SETF SUB) will silently set
 ;;; restricted elements, without raising an error.
 
 (defmethod sub ((matrix dense-matrix-like) &rest ranges)
   (bind (((row-range col-range) ranges)
          ((:slots-r/o elements nrow ncol) matrix))
-    (with-range-indexing ((list col-range row-range)
+    (with-indexing ((list col-range row-range)
                           (vector ncol nrow)
                           matrix-index
-                          :range-dimensions result-dimensions)
+                          :effective-dimensions result-dimensions)
       (bind (((:values result-length result-elements
                        result)
               (ecase (length result-dimensions)
@@ -51,10 +51,10 @@
   (bind (((row-range col-range) ranges)
          ((:slots-r/o (destination-elements elements) nrow ncol)
           destination))
-    (with-range-indexing ((list col-range row-range) ; flip order
+    (with-indexing ((list col-range row-range) ; flip order
                           (vector ncol nrow)
                           matrix-index
-                          :range-dimensions
+                          :effective-dimensions
                           destination-dimensions
                           :end? end?)
       (iter
@@ -68,10 +68,10 @@
   (bind (((row-range col-range) ranges)
          ((:slots-r/o (destination-elements elements) nrow ncol)
           destination))
-    (with-range-indexing ((list col-range row-range)
+    (with-indexing ((list col-range row-range)
                           (vector ncol nrow)
                           matrix-index
-                          :range-dimensions
+                          :effective-dimensions
                           destination-dimensions)
       (bind ((#(length) destination-dimensions))
         (assert (= length (length source)) ()
@@ -91,10 +91,10 @@
   (bind (((row-range col-range) ranges)
          ((:slots-r/o (destination-elements elements) nrow ncol)
           destination))
-    (with-range-indexing ((list col-range row-range)
+    (with-indexing ((list col-range row-range)
                           (vector ncol nrow)
                           matrix-index
-                          :range-dimensions
+                          :effective-dimensions
                           destination-dimensions)
       (bind ((source-elements (elements source))
              (#(ncol nrow) destination-dimensions))
@@ -113,11 +113,11 @@
   (bind (((row-range col-range) ranges)
          ((:slots-r/o (destination-elements elements) nrow ncol)
           destination))
-    (with-range-indexing ((list col-range row-range)
+    (with-indexing ((list col-range row-range)
                           (vector ncol nrow)
                           matrix-index
                           :end? end?
-                          :range-dimensions
+                          :effective-dimensions
                           destination-dimensions
                           :counters destination-counters)
       (bind ((#(ncol nrow) destination-dimensions)

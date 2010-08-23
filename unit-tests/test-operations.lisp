@@ -294,9 +294,9 @@
                 12 13 14 15 16 17)))
     (sub m t 2)
     (ensure-same (sub m t 2) (clo 2 8 14))
-    (ensure-same (sub m t '(2 . 3)) (clo 2 :/ 8 14))
+    (ensure-same (sub m t (si 2 3)) (clo 2 :/ 8 14))
     (ensure-same (sub m 1 3) 9 :test #'=)
-    (ensure-same (sub m #(2 1 0) '(-1 . 0)) (clo 17 :/ 11 5)))
+    (ensure-same (sub m #(2 1 0) (si -1 0)) (clo 17 :/ 11 5)))
   ;; (setf sub) of matrix
   (let ((m (clo 0 1 2 3 :/
                 4 5 6 7
@@ -305,18 +305,18 @@
     (ensure-same m (clo 0 1 2 3 :/
                         4 5 6 14
                         8 9 10 11))
-    (setf (sub m '(0 . 2) 1)
+    (setf (sub m (si 0 2) 1)
           (clo 17 19))
     (ensure-same m (clo 0 17 2 3 :/
                         4 19 6 14
                         8 9 10 11))
-    (setf (sub m #(-1 -2) (cons 1 0))
+    (setf (sub m #(-1 -2) (si 1 0))
           (clo 20 21 22 :/
                23 24 25))
     (ensure-same m (clo 0 17 2 3 :/
                         4 23 24 25
                         8 20 21 22))
-    (setf (sub m '(0 . 2) #(0 2 3))
+    (setf (sub m (si 0 2) #(0 2 3))
           #2A((30 31 32)
               (33 34 35)))
     (ensure-same m (clo 30 17 31 32 :/
