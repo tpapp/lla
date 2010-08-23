@@ -7,18 +7,18 @@
   :components
   ((:module 
     "package-init"
-    :pathname #P"unit-tests/"
+    :pathname #P"tests/"
     :components
     ((:file "package")))
    (:module
     "utilities-and-setup"
-    :pathname #P"unit-tests/"
+    :pathname #P"tests/"
     :components
     ((:file "setup")
      (:file "utilities")))
    (:module 
     "tests"
-    :pathname #P"unit-tests/"
+    :pathname #P"tests/"
     :components
     ((:file "test-utilities")
      (:file "test-basics")
