@@ -19,7 +19,7 @@
    dimension *lla-warn-suboptimal* lla-suboptimal-warning lla-type lla-complex?
    lla-double? real-lla-type complex-lla-type not-within-lla-type
    invalid-lla-type lla->lisp-type lla-vector-type representable-lla-type
-   array-lla-type lla-vector atom-representable-lla-type zero* coerce* epsilon*
+   array-lla-type lla-array atom-representable-lla-type zero* coerce* epsilon*
    common-lla-type pack packf
    
    ;; fortran-atoms -- nothing is exported
@@ -68,7 +68,7 @@
 
    ;; matrix-operations
 
-   stack stack-horizontally stack-vertically eye concat group-by-index
+   stack eye group-by-index
 
    ;; specialized-utilities -- nothing is exported, already done by CLNU
    

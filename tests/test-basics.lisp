@@ -51,8 +51,8 @@
 (addtest (basic-tests)
   copy-elements
   (let ((source (make-vector-with-seq 10 :single))
-        (destination1 (lla-vector 5 :single))
-        (destination2 (lla-vector 5 :double))
+        (destination1 (lla-array 5 :single))
+        (destination2 (lla-array 5 :double))
         (*lift-equality-test* #'==))
     (copy-elements source 2 destination1 1 3)
     (copy-elements source 2 destination2 2 3)
@@ -136,7 +136,7 @@
 
 (addtest (basic-tests)
   bind-lla-vector
-  (bind (((:lla-vector a :length length) (lla-vector 5 :double)))
+  (bind (((:lla-vector a :length length) (lla-array 5 :double)))
     (dotimes (i length)
       (setf (a i) (coerce* i :double)))
     (dotimes (i length)

@@ -15,7 +15,7 @@
     (declare (ignore copy?))
     (bind (((:slots-read-only nrow ncol (matrix-elements elements)) matrix)
            (n (min nrow ncol))
-           (diagonal-elements (lla-vector n (array-lla-type matrix-elements))))
+           (diagonal-elements (lla-array n (array-lla-type matrix-elements))))
       (dotimes (i n)
         (setf (aref diagonal-elements i)
               (aref matrix-elements (cm-index2 n i i))))
@@ -33,17 +33,14 @@
     (make-matrix% nrow ncol (transpose-elements% ncol nrow array)
                   :kind kind)))
 
-(defmethod as-matrix ((diagonal diagonal) &key nrow ncol copy?
-                      (kind :dense))
+(defmethod as-matrix ((diagonal diagonal) &key (nrow (size diagonal))
+                      (ncol (size diagonal)) copy? (kind :dense))
   (declare (ignore copy?))
-  (let* ((diagonal-elements (elements diagonal))
-         (n (length diagonal-elements))
-         (nrow (aif nrow (progn (assert (<= n it) () "Too few rows.") it) n))
-         (ncol (aif ncol (progn (assert (<= n it) () "Too few columns.") it) n))
-         (matrix-elements (make-similar-vector diagonal-elements
-                                               (* nrow ncol))))
-    (fill-matrix-elements-using% diagonal matrix-elements 0 nrow nil)
-    (make-matrix% nrow ncol matrix-elements :kind kind)))
+  (let* ((diagonal-elements (elements diagonal)))
+    (assert (<= (size diagonal) (min nrow ncol)) () "Too few rows or columns.")
+    (aprog1 (make-matrix nrow ncol (array-lla-type diagonal-elements)
+                         :kind kind :initial-element 0)
+      (fill-elements-using-diagonal (elements it) diagonal-elements 0 nrow))))
 
 (defmethod as-matrix ((vector vector) &key copy? (kind :dense) nrow ncol
                       (row-major? t))
@@ -76,13 +73,12 @@
     (transpose-elements% nrow ncol elements array)
     array))
 
-(defmethod as-array ((diagonal diagonal) &key copy?)
+(defmethod as-array ((diagonal diagonal) &key (nrow (size diagonal))
+                     (ncol (size diagonal)) copy?)
   (declare (ignore copy?))
-  (let* ((diagonal-elements (elements diagonal))
-         (n (length diagonal-elements))
-         (array (make-similar-array diagonal-elements (list n n) )))
-    (fill-matrix-elements-using% diagonal array 0 n nil)
-    array))
+  (let ((diagonal-elements (elements diagonal)))
+    (aprog1 (lla-array (list nrow ncol) (array-lla-type (elements diagonal)) 0)
+      (fill-elements-using-diagonal it diagonal-elements 0 ncol))))
 
 ;;; row and col
 

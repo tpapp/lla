@@ -17,15 +17,19 @@ like xGELS."
 
 ;;;; stacking
 
-(defgeneric dimensions-as-matrix% (object horizontal?)
-  (:documentation "Return dimensions when used as a matrix for
-  stacking.  HORIZONTAL? determines the direction for stacking.
-  Return (values NROW NCOL)")
+(defgeneric stack-dimensions (object horizontal?)
+  (:documentation "Return dimensions when used as a matrix for stacking.
+HORIZONTAL? determines the direction for stacking.  Return (values NROW NCOL)")
   (:method ((object dense-matrix-like) horizontal?) 
     (values (nrow object) (ncol object)))
   (:method ((object diagonal) horizontal?)
     (let ((l (length (elements object))))
       (values l l)))
+  (:method ((object list) horizontal?)
+    (let ((l (length object)))
+      (if horizontal?
+          (values l 1)
+          (values 1 l))))
   (:method ((object vector) horizontal?)
     (let ((l (length object)))
       (if horizontal?
@@ -35,51 +39,91 @@ like xGELS."
     (bind (((nrow ncol) (array-dimensions object)))
       (values nrow ncol))))
 
-(defgeneric fill-matrix-elements-using% (object matrix-elements offset
-                                                leading-dimension
-                                                horizontal?)
-  (:documentation "Fill MATRIX-ELEMENTS (starting at OFFSET, with
-  LEADING-DIMENSION) using OBJECT.  HORIZONTAL? determines the
-  direction for stacking.  Return no values.")
-  (:method ((vector vector) matrix-elements offset leading-dimension
-            horizontal?)
-    (if horizontal?
-        (copy-elements vector 0 
-                       matrix-elements offset (length vector))
-        (copy-columns 1 (length vector)
-                      vector 0 1
-                      matrix-elements offset leading-dimension)))
-  (:method ((diagonal diagonal) matrix-elements offset
-            leading-dimension horizontal?)
-    (bind (((:slots-r/o elements) diagonal))
-      ;; dirty hack: we use 1+leading-dimension to "slide" the diagonal
-      (copy-columns 1 (length elements)
-                    elements 0 1
-                    matrix-elements offset (1+ leading-dimension))))
-  (:method ((matrix dense-matrix-like) matrix-elements offset
-            leading-dimension horizontal?)
-    (set-restricted matrix)
-    (bind (((:slots-r/o elements nrow ncol) matrix))
-      (copy-columns nrow ncol
-                    elements 0 nrow
-                    matrix-elements offset leading-dimension)))
-  (:method ((matrix array) matrix-elements offset leading-dimension
-            horizontal?)
-    (fill-matrix-elements-using% (as-matrix matrix) matrix-elements
-                                 offset
-                                 leading-dimension horizontal?)))
+(defun fill-elements-using-diagonal (elements diagonal-elements start leading-dimension)
+  "Copy elements from DIAGONAL to ELEMENTS, using row-major-aref, starting at
+START."
+  (iter
+    (for element :in-vector diagonal-elements)
+    (for index :from start :by (1+ leading-dimension))
+    (setf (row-major-aref elements index) element)))
 
-(defun stack (direction objects)
-  "Stack objects (a list) in the given direction (:horizontal/:h
-or :vertical/:v)."
-  (bind ((horizontal? (ecase direction
+(defgeneric fill-stacked-elements (target source horizontal? offset)
+  (:documentation "Fill elements of TARGET using SOURCE.  If HORIZONTAL?, OFFSET
+gives the starting column, otherwise the starting row.")
+  (:method (target (source vector) horizontal? offset)
+    (if horizontal?
+        (setf (sub target t offset) source)
+        (setf (sub target offset t) source)))
+  (:method (target (source list) horizontal? offset)
+    (if horizontal?
+        (setf (sub target t offset) source)
+        (setf (sub target offset t) source)))
+  (:method (target (source array) horizontal? offset)
+    (bind (((nrow ncol) (array-dimensions source)))
+      (if horizontal?
+          (setf (sub target t (si offset (+ offset ncol))) source)
+          (setf (sub target (si offset (+ offset nrow)) t) source))))
+  (:method (target (source dense-matrix-like) horizontal? offset)
+    (bind (((:slots-r/o nrow ncol) source))
+      (if horizontal?
+          (setf (sub target t (si offset (+ offset ncol))) source)
+          (setf (sub target (si offset (+ offset nrow)) t) source))))
+  (:method (target (source diagonal) horizontal? offset)
+    ;; !! could be made more efficient by using FILL-ELEMENTS-USING-DIAGONAL,
+    ;; !! that would also require that we initialize with 0's
+    (fill-stacked-elements target (as-array source) horizontal? offset)))
+
+;; (defgeneric fill-matrix-elements-using% (object matrix-elements offset
+;;                                                 leading-dimension
+;;                                                 horizontal?)
+;;   (:documentation "Fill MATRIX-ELEMENTS (starting at OFFSET, with
+;;   LEADING-DIMENSION) using OBJECT.  HORIZONTAL? determines the
+;;   direction for stacking.  Return no values.")
+;;   (:method ((vector vector) matrix-elements offset leading-dimension
+;;             horizontal?)
+;;     (if horizontal?
+;;         (copy-elements vector 0 
+;;                        matrix-elements offset (length vector))
+;;         (copy-columns 1 (length vector)
+;;                       vector 0 1
+;;                       matrix-elements offset leading-dimension)))
+;;   (:method ((diagonal diagonal) matrix-elements offset
+;;             leading-dimension horizontal?)
+;;     (bind (((:slots-r/o elements) diagonal))
+;;       ;; dirty hack: we use 1+leading-dimension to "slide" the diagonal
+;;       (copy-columns 1 (length elements)
+;;                     elements 0 1
+;;                     matrix-elements offset (1+ leading-dimension))))
+;;   (:method ((matrix dense-matrix-like) matrix-elements offset
+;;             leading-dimension horizontal?)
+;;     (set-restricted matrix)
+;;     (bind (((:slots-r/o elements nrow ncol) matrix))
+;;       (copy-columns nrow ncol
+;;                     elements 0 nrow
+;;                     matrix-elements offset leading-dimension)))
+;;   (:method ((matrix array) matrix-elements offset leading-dimension
+;;             horizontal?)
+;;     (fill-matrix-elements-using% (as-matrix matrix) matrix-elements
+;;                                  offset
+;;                                  leading-dimension horizontal?)))
+
+(defun stack (target-type direction &rest objects)
+  "Stack objects in the given direction (:HORIZONTAL/:H or :VERTICAL/:V).
+Return a matrix with the given target type (:DENSE-MATRIX/:MATRIX gives a dense
+matrix, :ARRAY a Common Lisp array).  Vectors are automatically treated as
+column or row vectors, depending on DIRECTION."
+  (declare (optimize debug))
+  (bind ((dense-matrix? (ecase target-type
+                          ((:matrix :dense-matrix) t)
+                          (:array nil)))
+         (horizontal? (ecase direction
                         ((:horizontal :h) t)
                         ((:vertical :v) nil)))
          ((:values nrows ncols)
           (iter
             (for object :in objects)
             (for (values nrow ncol) := 
-                 (dimensions-as-matrix% object horizontal?))
+                 (stack-dimensions object horizontal?))
             (collecting nrow :into nrows)
             (collecting ncol :into ncols)
             (finally
@@ -87,44 +131,33 @@ or :vertical/:v)."
     (assert (apply #'= (if horizontal? nrows ncols)) ()
             "Dimensions don't match.")
     (bind ((offset 0)
-           (lla-type (reduce #'common-lla-type objects
-                             :key (lambda (obj)
-                                    (array-lla-type 
-                                     (if (typep obj 'elements%)
-                                         (elements obj)
-                                         obj))))))
+           (type (reduce #'common-supertype objects
+                         :key (lambda (obj)
+                                (etypecase obj
+                                  (array (array-element-type obj))
+                                  (list t)
+                                  (elements% (array-element-type (elements obj)))))))
+           ((:flet make-result (nrow ncol))
+            (if dense-matrix?
+                (make-matrix nrow ncol (representable-lla-type type))
+                (make-array (list nrow ncol) :element-type type))))
       (if horizontal?
-          (bind ((nrow (first nrows))
-                 (result (make-matrix nrow (reduce #'+ ncols) lla-type))
-                 ((:slots-r/o elements) result))
+          (bind ((total-ncol (reduce #'+ ncols))
+                 (result (make-result (first nrows) total-ncol)))
             (iter
-              (for ncol% :in ncols)
+              (for ncol :in ncols)
               (for object :in objects)
-              (fill-matrix-elements-using% object elements
-                                           offset nrow t)
-              (incf offset (* ncol% nrow)))
+              (fill-stacked-elements result object horizontal? offset)
+              (incf offset ncol))
             result)
-          (bind ((nrow (reduce #'+ nrows))
-                 (ncol (first ncols))
-                 (result (make-matrix nrow ncol lla-type))
-                 ((:slots-r/o elements) result))
+          (bind ((total-nrow (reduce #'+ nrows))
+                 (result (make-result total-nrow (first ncols))))
             (iter
-              (for nrow% :in nrows)
+              (for nrow :in nrows)
               (for object :in objects)
-              (fill-matrix-elements-using% object elements 
-                                           offset nrow nil)
-              (incf offset nrow%))
+              (fill-stacked-elements result object horizontal? offset)
+              (incf offset nrow))
             result)))))
-
-(defun stack-horizontally (&rest objects)
-  "Stack arguments horizontally, converting to a common type.  A
-  vector is interpreted as a column matrix."
-  (stack :h objects))
-
-(defun stack-vertically (&rest objects)
-  "Stack arguments horizontally, converting to a common type.  A
-  vector is interpreted as a column matrix."
-  (stack :v objects))
 
 ;;; identity
 
@@ -139,30 +172,6 @@ and LLA-TYPE.  INITIAL-ELEMENT will be used for the diagonal."
         (dotimes (i n)
           (setf (eye (eye-index i i)) initial-element))
         eye)))
-
-;;; vector concatenation
-
-(defun concat (&rest vectors)
-  "Concatenate VECTORS in to a single vector, using the narrowest common element
-type supported by the implementation.  Lists are treated as SIMPLE-VECTORS,
-atoms that are not vectors wrapped in a vector."
-  (let* ((vectors (mapcar (lambda (v)
-                            (typecase v
-                              (vector v)
-                              (list (coerce v 'simple-vector))
-                              (t (vector v))))
-                          vectors))
-         (lla-types (mapcar #'array-lla-type vectors))
-         (lengths (mapcar #'length vectors))
-         (common-type (reduce #'common-lla-type lla-types))
-         (result (lla-vector (reduce #'+ lengths) common-type)))
-    (iter
-      (with offset := 0)
-      (for v :in vectors)
-      (for l :in lengths)
-      (copy-elements v 0 result offset l)
-      (incf offset l))
-    result))
 
 ;;; grouping
 
@@ -179,7 +188,7 @@ atoms that are not vectors wrapped in a vector."
       (let* ((row (sub matrix row-index t)))
         (push row (aref submatrices (aref index row-index)))))
     (map 'vector (lambda (sm)
-                   (stack :v (nreverse sm)))
+                   (apply #'stack :matrix :v (nreverse sm)))
          submatrices)))
 
 (defmethod group-by-index ((vector vector) index &optional

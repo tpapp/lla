@@ -189,7 +189,7 @@
 
 (addtest (operations-tests)
   stack-test
-  (ensure-same (stack-vertically 
+  (ensure-same (stack :matrix :v
                 (clo 1 2 3)
                 (clo 4d0 5 6 :/
                      7 8 9)
@@ -200,14 +200,14 @@
                     -1 0 0
                     0 -2 0
                     0 0 -3))
-  (ensure-same (stack-horizontally
+  (ensure-same (stack :matrix :h
                 (clo 1 2)
                 (clo 3 4 :/
                      5 6)
                 (clo :diagonal 7 8))
                (clo 1 3 4 7 0 :/
                     2 5 6 0 8))
-  (ensure-same (stack-vertically
+  (ensure-same (stack :matrix :v
                 (clo 1 2)
                 (clo 3 4 :/
                      5 6)
@@ -232,11 +232,6 @@
                (clo :integer :diagonal 5 5 5)))
 
 (addtest (operations-tests)
-  concat-test
-  (ensure-same (concat #(1 2 3) #(4 5 6) 7 '(8 9 10))
-               (numseq 1 10 :type t) :test #'equalp))
-
-(addtest (operations-tests)
   group-by-index-test
   (let ((index (clo 0 1 0 2 1 1))
         (v (clo 0 1 2 3 4 5))
@@ -251,7 +246,7 @@
                          (clo 1 4 5)
                          (clo 3))
                  :test #'equalp)
-    (ensure-same (stack :v (coerce (group-by-index m index) 'list))
+    (ensure-same (apply #'stack :matrix :v (coerce (group-by-index m index) 'list))
                  (clo 0 1 :/
                       4 5
                       2 3

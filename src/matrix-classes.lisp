@@ -293,10 +293,10 @@ call.  For internal use, not exported."
 
 (defun make-matrix (nrow ncol lla-type &key (kind :dense) initial-element)
   "Create a matrix with given parameters, optionally initialized with
-INITIAL-ELEMENTs (following the semantics of LLA-VECTOR; element traversal is
+INITIAL-ELEMENTs (following the semantics of LLA-ARRAY; element traversal is
 column-major)."
   (make-matrix% nrow ncol
-                (lla-vector (* nrow ncol) lla-type initial-element)
+                (lla-array (* nrow ncol) lla-type initial-element)
                 :kind kind))
 
 (defun copy-matrix (matrix &key (kind (matrix-kind matrix))

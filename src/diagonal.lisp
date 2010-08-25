@@ -13,8 +13,8 @@
 
 (defun make-diagonal (length lla-type &optional initial-element)
   "Make a diagonal (usage of INITIAL-ELEMENT follows the semantics of
-LLA-VECTOR)."
-  (make-diagonal% (lla-vector length lla-type initial-element)))
+LLA-ARRAY)."
+  (make-diagonal% (lla-array length lla-type initial-element)))
 
 (defmethod pack ((diagonal diagonal))
   (make-diagonal% (pack (elements diagonal))))

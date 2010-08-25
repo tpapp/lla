@@ -31,7 +31,7 @@ coercing elements if necessary."
     (if (or (not lla-type) (eq lla-type vector-lla-type))
         (copy-seq vector)
         (let* ((length (length vector))
-               (destination (lla-vector length lla-type)))
+               (destination (lla-array length lla-type)))
           (copy-elements vector 0 destination 0 length)
           destination))))
 

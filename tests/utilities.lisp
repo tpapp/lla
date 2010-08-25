@@ -26,7 +26,7 @@ to *error-output*, before returning nil."
 Random is called with random-arg, the default is an integer int order
 to facilitate comparing with = in case of type conversions, or if you
 are using integer for LLA-type."
-  (aprog1 (lla-vector length lla-type)
+  (aprog1 (lla-array length lla-type)
     (dotimes (i length)
       (setf (aref it i) (coerce* (random random-arg) lla-type)))))
 
@@ -71,7 +71,7 @@ are using integer for LLA-type."
 
 (defun make-vector-with-seq (n lla-type)
   "Return a numeric-vector of type LLA-TYPE, holding the integers 0...n-1."
-  (aprog1 (lla-vector n lla-type)
+  (aprog1 (lla-array n lla-type)
     (dotimes (index n)
       (setf (aref it index) (coerce* index lla-type)))))
 

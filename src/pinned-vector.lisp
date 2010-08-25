@@ -73,7 +73,7 @@
 
 (defun copy-elements-from-memory% (pointer lla-type length)
   ;; !! this could be speeded up by conditioning on lla-type
-  (let ((vector (lla-vector length lla-type)))
+  (let ((vector (lla-array length lla-type)))
     (dotimes (index length)
       (setf (aref vector index)
             (mem-aref* pointer lla-type index)))
@@ -146,7 +146,7 @@ used directly in other files, ie it is not part of the interface."
   (check-type pointer symbol)
   (once-only (lla-type length)
     (let ((vector (gensym* pointer)))
-      `(let ((,vector (lla-vector ,length ,lla-type)))
+      `(let ((,vector (lla-array ,length ,lla-type)))
          (check-type ,lla-type lla-type)
          (multiple-value-prog1
              (pinned-vector-wrapper-sbcl% (,vector ,pointer)
