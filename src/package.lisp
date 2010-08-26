@@ -64,7 +64,7 @@
 
    ;; conversions
 
-   as-diagonal as-matrix as-array as-row as-column reshape
+   as-diagonal as-matrix as-array as-row as-column
 
    ;; matrix-operations
 

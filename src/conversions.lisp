@@ -92,15 +92,28 @@
   (check-type vector vector)
   (make-matrix% (length vector) 1 (maybe-copy-vector vector copy?)))
 
-(defun reshape (object nrow ncol &key (kind :dense) (copy? nil copy??))
-  "Reshape vector or DENSE-MATRIX-LIKE object or VECTOR (taken to be
-column-major) to a matrix."
-  (etypecase object
-    (vector (make-matrix% nrow ncol 
-                          (maybe-copy-vector object copy?)
-                          :kind kind))
-    (dense-matrix-like
-       (apply #'copy-matrix object :kind kind
-              :nrow nrow :ncol ncol
-              (when copy??
-                `(:copy? ,copy?))))))
+(defmethod reshape ((object dense-matrix) dimensions (order (eql :column-major))
+                    &key (kind :dense) (copy? nil copy??))
+  (bind (((nrow ncol) dimensions))
+    (apply #'copy-matrix object :kind kind
+           :nrow nrow :ncol ncol
+           (when copy??
+             `(:copy? ,copy?)))))
+
+(defmethod reshape ((matrix dense-matrix) dimensions (order (eql :row-major))
+                    &key copy? (kind :dense))
+  (declare (ignore copy?))
+  (bind (((nrow ncol) dimensions)
+         (elements (elements matrix))
+         (size (length elements))
+         (result-elements (make-similar-array elements)))
+    (assert (= size (* nrow ncol)))
+    (set-restricted matrix)
+    (with-indexing* ((vector (nrow matrix) (ncol matrix)) matrix-index
+                     :column-major? t)
+      (with-indexing* ((vector nrow ncol) result-index :column-major? t)
+        (loop 
+          repeat size
+          do (setf (row-major-aref result-elements (result-index))
+                   (row-major-aref elements (matrix-index))))))
+    (make-matrix% nrow ncol result-elements :kind kind)))
