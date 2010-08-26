@@ -92,10 +92,11 @@
   (check-type vector vector)
   (make-matrix% (length vector) 1 (maybe-copy-vector vector copy?)))
 
-(defmethod reshape ((object dense-matrix) dimensions (order (eql :column-major))
+(defmethod reshape ((matrix dense-matrix) dimensions (order (eql :column-major))
                     &key (kind :dense) (copy? nil copy??))
-  (bind (((nrow ncol) dimensions))
-    (apply #'copy-matrix object :kind kind
+  (bind ((#(nrow ncol) (reshape-calculate-dimensions dimensions
+                                                     (length (elements matrix)))))
+    (apply #'copy-matrix matrix :kind kind
            :nrow nrow :ncol ncol
            (when copy??
              `(:copy? ,copy?)))))
@@ -103,16 +104,16 @@
 (defmethod reshape ((matrix dense-matrix) dimensions (order (eql :row-major))
                     &key copy? (kind :dense))
   (declare (ignore copy?))
-  (bind (((nrow ncol) dimensions)
-         (elements (elements matrix))
+  (bind ((elements (elements matrix))
          (size (length elements))
+         (#(nrow ncol) (reshape-calculate-dimensions dimensions size))
          (result-elements (make-similar-array elements)))
     (assert (= size (* nrow ncol)))
     (set-restricted matrix)
     (with-indexing* ((vector (nrow matrix) (ncol matrix)) matrix-index
                      :column-major? t)
       (with-indexing* ((vector nrow ncol) result-index :column-major? t)
-        (loop 
+        (loop
           repeat size
           do (setf (row-major-aref result-elements (result-index))
                    (row-major-aref elements (matrix-index))))))
