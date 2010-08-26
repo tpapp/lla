@@ -11,8 +11,7 @@
    
    ;; utilities
 
-   zero-like simple-array1 simple-array? simple-array1? displace-array
-   as-simple-array1
+   zero-like simple-array1 simple-array? simple-array1? as-simple-array1
    
    ;; types
    

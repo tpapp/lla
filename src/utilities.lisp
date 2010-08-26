@@ -49,11 +49,6 @@ return BODY.  Intended for use in macros."
 (defun simple-array1? (object)
   (typep object 'simple-array1))
 
-(defun displace-array (array dimensions &optional (offset 0))
-  "Return displaced array with given dimensions and offset."
-  (make-array dimensions :element-type (array-element-type array)
-              :displaced-to array :displaced-index-offset offset))
-
 (defun as-simple-array1 (array)
   "Return elements of ARRAY as a SIMPLE-ARRAY1.  Array is not
 necessarily copied if it is already of the correct type."
