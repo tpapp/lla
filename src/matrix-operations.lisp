@@ -159,6 +159,10 @@ column or row vectors, depending on DIRECTION."
               (incf offset nrow))
             result)))))
 
+(defun stack* (target-type direction objects)
+  "Same as STACK, but OBJECTS can be a sequence."
+  (apply #'stack target-type direction (coerce objects 'list)))
+
 ;;; identity
 
 (defun eye (n &key (kind :dense) (initial-element 1)
