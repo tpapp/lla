@@ -172,32 +172,3 @@ and LLA-TYPE.  INITIAL-ELEMENT will be used for the diagonal."
         (dotimes (i n)
           (setf (eye (eye-index i i)) initial-element))
         eye)))
-
-;;; grouping
-
-(defgeneric group-by-index (object index &optional m)
-  (:documentation "Group elements of object by index.  Return groups a
-  simple-vector of similar objects.  M is the number of indices, which start at
-  0.  Order is preserved within groups."))
-
-(defmethod group-by-index ((matrix dense-matrix-like) index &optional
-                              (m (1+ (emax index))))
-  "Separate the rows of a matrix into submatrices, based on index."
-  (let ((submatrices (make-array m :initial-element nil)))
-    (dotimes (row-index (nrow matrix))
-      (let* ((row (sub matrix row-index t)))
-        (push row (aref submatrices (aref index row-index)))))
-    (map 'vector (lambda (sm)
-                   (apply #'stack :matrix :v (nreverse sm)))
-         submatrices)))
-
-(defmethod group-by-index ((vector vector) index &optional
-                           (m (1+ (emax index))))
-  (let ((subvectors (make-array m :initial-element nil))
-        (result-type `(simple-array ,(array-element-type vector) (*))))
-    (map nil (lambda (element i)
-               (push element (aref subvectors i)))
-         vector index)
-    (map 'vector (lambda (subvector)
-                   (coerce (nreverse subvector) result-type))
-         subvectors)))
