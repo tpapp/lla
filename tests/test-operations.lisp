@@ -320,3 +320,14 @@
     (ensure-same m (clo 30 17 31 32 :/
                         33 23 34 35
                         8 20 21 22))))
+
+(addtest (operations-tests)
+  pref-test
+  (let* ((dense (clo 0 1 :/
+                     2 3
+                     4 5))
+         (lower (copy-matrix dense :kind :lower)))
+    (ensure-same (pref dense #(0 2 1) #(1 0 1)) #(1 4 3))
+    (ensure-same (pref lower #(0 2 1) #(1 0 1)) #(0 4 3))
+    (ensure-error (pref dense #(1)))
+    (ensure-error (pref dense #(1 0) #(0)))))
