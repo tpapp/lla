@@ -129,6 +129,9 @@ product converted back to a numeric-vector."
     (call procedure trans% trans% m% n% k% alpha% a% m% b% k% z% c% m%)
     (make-matrix% m n c)))
 
+(defmethod mm ((a dense-matrix-like) (b array) &optional (alpha 1))
+  (mm a (as-matrix b) alpha))
+
 (defun mm-hermitian% (a op-left? &optional (alpha 1))
   "Calculate alpha*A*op(A) if OP-LEFT? is NIL, and alpha*op(A)*A
   otherwise.  ALPHA defaults to 1.  op() is always conjugate
