@@ -27,6 +27,9 @@
   (:documentation "Convert object to matrix.  Copying is enforced only
   when COPY?, KIND determines the resulting matrix kind."))
 
+(defmethod as-matrix ((matrix dense-matrix-like) &key copy? (kind :dense))
+  (copy-matrix matrix :kind kind :copy? copy?))
+
 (defmethod as-matrix ((array array) &key copy? (kind :dense))
   (declare (ignore copy?))
   (bind (((nrow ncol) (array-dimensions array)))
