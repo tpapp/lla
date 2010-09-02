@@ -173,7 +173,7 @@ type and direction specifications."
   "Same as STACK, but OBJECTS can be a sequence."
   (apply #'stack target-type direction (coerce objects 'list)))
 
-(defun repeat-vector (target-type direction n vector)
+(defun repeat-vector (target-type direction vector n)
   "Return VECTOR repeated N times, as rows or columns of a matrix.  See
 TARGET-TYPE-MATRIX? and DIRECTION-HORIZONTAL? for valid direction and
 target-type specifications."

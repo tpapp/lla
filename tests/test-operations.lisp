@@ -333,18 +333,18 @@
     (ensure-error (pref dense #(1 0) #(0)))))
 
 (addtest (operations-tests)
-  repeat-test
+  repeat-vector-test
   (let ((v (clo :integer 1 2 3))
         (rows-matrix (clo :integer
                       1 2 3 :/
                       1 2 3
                       1 2 3
                       1 2 3)))
-    (ensure-same (repeat-vector :matrix :h 4 v)
+    (ensure-same (repeat-vector :matrix :v v 4)
                  rows-matrix)
-    (ensure-same (repeat-vector :array :h 4 v)
+    (ensure-same (repeat-vector :array :v v 4)
                  (as-array rows-matrix) :test #'equalp)
-    (ensure-same (repeat-vector :matrix :v 4 v)
+    (ensure-same (repeat-vector :matrix :h v 4)
                  (transpose rows-matrix))
-    (ensure-same (repeat-vector :array :v 4 v)
+    (ensure-same (repeat-vector :array :h v 4)
                  (as-array (transpose rows-matrix)) :test #'equalp)))
