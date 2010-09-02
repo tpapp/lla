@@ -331,3 +331,20 @@
     (ensure-same (pref lower #(0 2 1) #(1 0 1)) #(0 4 3))
     (ensure-error (pref dense #(1)))
     (ensure-error (pref dense #(1 0) #(0)))))
+
+(addtest (operations-tests)
+  repeat-test
+  (let ((v (clo :integer 1 2 3))
+        (rows-matrix (clo :integer
+                      1 2 3 :/
+                      1 2 3
+                      1 2 3
+                      1 2 3)))
+    (ensure-same (repeat-vector :matrix :h 4 v)
+                 rows-matrix)
+    (ensure-same (repeat-vector :array :h 4 v)
+                 (as-array rows-matrix) :test #'equalp)
+    (ensure-same (repeat-vector :matrix :v 4 v)
+                 (transpose rows-matrix))
+    (ensure-same (repeat-vector :array :v 4 v)
+                 (as-array (transpose rows-matrix)) :test #'equalp)))

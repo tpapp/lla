@@ -107,18 +107,28 @@ gives the starting column, otherwise the starting row.")
 ;;                                  offset
 ;;                                  leading-dimension horizontal?)))
 
+(defun target-type-matrix? (target-type)
+  "Return a boolean indicating whether TARGET-TYPE refers to a matrix.  Valid
+target types indicating a matrix: :MATRIX, :DENSE-MATRIX and DENSE-MATRIX.
+Valid target types indicating a Common Lisp array: :ARRAY and ARRAY."
+  (ecase target-type
+    ((:matrix :dense-matrix dense-matrix) t)
+    ((:array array) nil)))
+
+(defun direction-horizontal? (direction)
+  "Return a boolean indicating "
+  (ecase direction
+    ((:horizontal :horizontally :h) t)
+    ((:vertical :vertically :v) nil)))
+
 (defun stack (target-type direction &rest objects)
-  "Stack objects in the given direction (:HORIZONTAL/:H or :VERTICAL/:V).
-Return a matrix with the given target type (:DENSE-MATRIX/:MATRIX gives a dense
-matrix, :ARRAY a Common Lisp array).  Vectors are automatically treated as
-column or row vectors, depending on DIRECTION."
+  "Stack objects in the given direction, return a matrix with the given target
+type.Vectors are automatically treated as column or row vectors, depending on
+DIRECTION.  See TARGET-TYPE-MATRIX? and DIRECTION-HORIZONTAL? for valid target
+type and direction specifications."
   (declare (optimize debug))
-  (bind ((dense-matrix? (ecase target-type
-                          ((:matrix :dense-matrix) t)
-                          (:array nil)))
-         (horizontal? (ecase direction
-                        ((:horizontal :h) t)
-                        ((:vertical :v) nil)))
+  (bind ((matrix? (target-type-matrix? target-type))
+         (horizontal? (direction-horizontal? direction))
          ((:values nrows ncols)
           (iter
             (for object :in objects)
@@ -138,7 +148,7 @@ column or row vectors, depending on DIRECTION."
                                   (list t)
                                   (elements% (array-element-type (elements obj)))))))
            ((:flet make-result (nrow ncol))
-            (if dense-matrix?
+            (if matrix?
                 (make-matrix nrow ncol (representable-lla-type type))
                 (make-array (list nrow ncol) :element-type type))))
       (if horizontal?
@@ -162,6 +172,24 @@ column or row vectors, depending on DIRECTION."
 (defun stack* (target-type direction objects)
   "Same as STACK, but OBJECTS can be a sequence."
   (apply #'stack target-type direction (coerce objects 'list)))
+
+(defun repeat-vector (target-type direction n vector)
+  "Return VECTOR repeated N times, as rows or columns of a matrix.  See
+TARGET-TYPE-MATRIX? and DIRECTION-HORIZONTAL? for valid direction and
+target-type specifications."
+  (bind ((horizontal? (direction-horizontal? direction))
+         (length (length vector))
+         ((:values nrow ncol) (if horizontal?
+                                  (values length n)
+                                  (values n length)))
+         (result (if (target-type-matrix? target-type)
+                     (make-matrix nrow ncol (array-lla-type vector))
+                     (make-array (list nrow ncol)
+                                 :element-type (array-element-type vector)))))
+    (if horizontal?
+        (dotimes (col ncol) (setf (sub result t col) vector))
+        (dotimes (row nrow) (setf (sub result row t) vector)))
+    result))
 
 ;;; identity
 

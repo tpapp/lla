@@ -67,7 +67,7 @@
 
    ;; matrix-operations
 
-   stack stack* eye
+   stack stack* repeat-vector eye
 
    ;; specialized-utilities -- nothing is exported, already done by CLNU
    
