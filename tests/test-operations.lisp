@@ -40,6 +40,8 @@
                               0 1 :/
                               2 3))
                :test #'equalp)
+  (ensure-same (e- #2A((1 2) (3 4)) (clo 1 2 :/ 3 4))
+               #2A((0 0) (0 0)) :test #'equalp)
   ;; test errors
   (ensure-error (emap #'+ (clo 1 2 :/ 3 4) (clo :diagonal 1 2 3)))
   (ensure-error (emap #'+ (clo :diagonal 1 2) (clo :diagonal 1 2 3))))
@@ -233,29 +235,6 @@
                (clo :upper 3 0 :/ 0 3))
   (ensure-same (eye 3 :kind :diagonal :initial-element 5 :lla-type :integer)
                (clo :integer :diagonal 5 5 5)))
-
-(addtest (operations-tests)
-  group-by-index-test
-  (let ((index (clo 0 1 0 2 1 1))
-        (v (clo 0 1 2 3 4 5))
-        (m (clo 0 1 :/
-                2 3
-                4 5
-                6 7
-                8 9
-                10 11)))
-    (ensure-same (group-by-index v index)
-                 (vector (clo 0 2)
-                         (clo 1 4 5)
-                         (clo 3))
-                 :test #'equalp)
-    (ensure-same (apply #'stack :matrix :v (coerce (group-by-index m index) 'list))
-                 (clo 0 1 :/
-                      4 5
-                      2 3
-                      8 9
-                      10 11
-                      6 7))))
 
 ;;; specialized-utilities
 
