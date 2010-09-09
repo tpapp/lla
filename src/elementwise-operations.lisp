@@ -2,6 +2,10 @@
 
 (in-package #:lla)
 
+;;; !! Currently this is a big mess, and not very optimized.  Matrices are
+;;; !! needlessly transposed when all arguments are matrices, etc.  Uni- and
+;;; !! bivariate methods should be optimized, maybe also on element types etc.
+
 (defgeneric emap-elements% (object)
   (:documentation "Return (values TYPE ELEMENTS DIMENSIONS) for
   objects which are analogous to vectors, or (values nil ELEMENTS nil)
@@ -26,9 +30,9 @@
               (length elements))))
   (:method ((matrix dense-matrix-like))
     (set-restricted matrix)
-    (bind (((:accessors-r/o elements nrow ncol) matrix))
+    (bind (((:accessors-r/o nrow ncol) matrix))
       (values (type-of matrix)
-              elements
+              (elements (transpose matrix))
               (list nrow ncol)))))
 
 (defgeneric emap-dense-type% (function type scalars?)
@@ -61,7 +65,6 @@
     elements)
   (:method ((type (eql 'array)) elements dimensions)
     (displace-array elements dimensions))
-
   (:method ((type (eql 'diagonal)) elements dimensions)
     (make-diagonal% elements))
   (:method ((type (eql nil)) elements dimensions)
@@ -71,7 +74,7 @@
   `(defmethod emap-result% ((type (eql ',(matrix-type kind)))
                             elements dimensions)
      (bind (((nrow ncol) dimensions))
-       (make-matrix% nrow ncol elements :kind ,kind))))
+       (transpose (make-matrix% ncol nrow elements :kind ,kind)))))
 
 (define-dense-emap-result% :dense)
 (define-dense-emap-result% :hermitian)
