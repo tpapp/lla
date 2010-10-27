@@ -79,7 +79,7 @@ included in other LLA classes."))
   (check-type kind symbol)
   (check-type documentation string)
   (let ((class (make-symbol% kind '#:-matrix))
-        (kind (make-keyword kind)))
+        (kind (make-keyword* kind)))
     `(progn
        (defclass ,class (dense-matrix-like) ()
          (:documentation ,documentation))
