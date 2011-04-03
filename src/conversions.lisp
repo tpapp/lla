@@ -63,9 +63,6 @@
 
 ;; conversions to (Lisp) array
 
-(defgeneric as-array (object &key copy?)
-  (:documentation "Convert object to a Lisp array."))
-
 (defmethod as-array ((matrix dense-matrix-like) &key copy?)
   (declare (ignore copy?))
   (bind (((:slots-r/o elements nrow ncol) matrix)
@@ -114,10 +111,12 @@
     (assert (= size (* nrow ncol)))
     (set-restricted matrix)
     (with-indexing* ((vector (nrow matrix) (ncol matrix)) matrix-index
-                     :column-major? t)
-      (with-indexing* ((vector nrow ncol) result-index :column-major? t)
+                     matrix-next :column-major? t)
+      (with-indexing* ((vector nrow ncol) result-index result-next
+                       :column-major? t)
         (loop
           repeat size
-          do (setf (row-major-aref result-elements (result-index))
-                   (row-major-aref elements (matrix-index))))))
+          do (setf (row-major-aref result-elements result-index)
+                   (row-major-aref elements matrix-index))
+          until (matrix-next))))
     (make-matrix% nrow ncol result-elements :kind kind)))
