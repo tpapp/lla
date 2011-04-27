@@ -1,0 +1,53 @@
+* Lisp Linear Algebra --- a linear algebra library for Common Lisp
+
+The library is currently undergoind a reorganizaton.  Documentation
+will appear here when the reorganization is finished and I have time.
+
+** Things to do (roughly in order of priority)
+   [ ] decide whether hermitian matrices use upper or lower triangle
+   (look at functions that use hermitian matrices, in principle this
+   should not matter much)
+
+   [ ] clean up linear algebra operations, finish missing methods
+
+   [ ] write SBCL and ECL pinning interfaces
+
+   [ ] write notes on how to compile LAPACK(E) for those who don't
+   want to use the Intel MKL
+   
+   [ ] write documentation
+
+   [ ] write more tests
+
+** Wishlist
+   [ ] foreign-atoms is no longer needed now that we are using a C
+   interface: move it into array/vector copying code (see point below)
+   
+   [ ] make array copying code faster, specializing on array element
+   types, profile and benchmark
+   
+   [ ] maybe LLA types are not needed at all?  CL types could work
+   just as well, then all functions could use CL types (not a high
+   priority at the moment)
+   
+* Compiling LAPACKE
+
+
+apt-get install libblas3gf liblapack3gf
+update-alternatives --config libblas.so.3gf
+update-alternatives --config liblapack.so.3gf
+http://wiki.debian.org/DebianScience/LinearAlgebraLibraries
+
+
+## as root (Debian) or with sudo (Ubuntu)
+apt-get install devscripts
+apt-get build-dep liblapack3gf
+## as normal user
+mkdir lapack-build              # or any directory you prefer, you will build here
+cd lapack-build
+apt-get source liblapack3gf
+cd lapack-3.3.0                 # or whatever version/directory you ended up with after apt-get
+uupdate ~/src/lapack-3.3.1.tgz  # downloaded from Netlib
+ln -s INSTALL install
+ln -s TESTING testing
+dpkg-buildpackage -us -uc -nc

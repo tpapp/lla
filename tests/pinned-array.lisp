@@ -1,16 +1,15 @@
 ;;; -*- Mode:Lisp; Syntax:ANSI-Common-Lisp; Coding:utf-8 -*-
 
-(in-package #:lla-unit-tests)
+(in-package #:lla-tests)
 
-(deftestsuite pinned-vector-tests (lla-unit-tests)
+(deftestsuite pinned-array-tests (lla-tests)
   ())
 
-(defun coercible-p (lla-source-type lla-target-type)
-  "Permitted coercions for LLA types.  It is guaranteed that
-CL:COERCE can perform these coercions on the corresponding lisp
-types. Basic summary: (1) integers can be coerced to anything, \(2)
-single<->double precision coercions are possible both ways, (3) real
-floats can be upgraded to complex."
+(defun coercible? (lla-source-type lla-target-type)
+  "Permitted coercions for LLA types.  It is guaranteed that CL:COERCE can perform
+these coercions on the corresponding lisp types. Basic summary: (1) integers can be
+coerced to anything, (2) single<->double precision coercions are possible both
+ways, (3) real floats can be upgraded to complex."
   (cond
     ;; always valid
     ((eq lla-source-type :integer) t)
@@ -25,71 +24,69 @@ floats can be upgraded to complex."
 
 (defun coercible-pairs-list ()
   ;;   "Generate the list of all LLA (source target) pairs for which
-  ;; coercible-p holds.  For internal use only, NOT EXPORTED."
-  (let ((lla-types '(:integer :single :double :complex-single :complex-double))
-        coercible)
-    (dolist (source lla-types)
-      (dolist (target lla-types)
-        (when (coercible-p source target)
+  ;; coercible? holds.  For internal use only, NOT EXPORTED."
+  (let (coercible)
+    (dolist (source (lla-types))
+      (dolist (target (lla-types))
+        (when (coercible? source target)
           (push (list source target) coercible))))
-    ;; reverse only for cosmetic purposes
+    ;; reverse only for cosmetic purposes (debugging)
     (nreverse coercible)))
 
 (defun test-pinning-readonly (source-type destination-type &key
-                              (report-p t) (length 50))
-  (let ((vector (make-random-vector length source-type 100)))
-    (with-pinned-vector (vector pointer destination-type)
-      (vector-at-pointer= vector pointer destination-type :report-p
-                          report-p))))
+                              (report? t) (length 50))
+  (let ((vector (make-random-array length source-type 100)))
+    (lla::with-pinned-array (vector pointer destination-type)
+      (array-at-pointer= vector pointer destination-type :report? report?))))
 
 (defun test-pinning-copy (source-type destination-type &key
-                          (report-p t) (length 50))
-  (let* ((vector (make-random-vector length source-type 100))
+                          (report? t) (length 50))
+  (let* ((vector (make-random-array length source-type 100))
          (copy (copy-seq vector))
          (copy-inc (map 'vector #'1+ copy)))
-    (with-pinned-vector (vector pointer destination-type :copy)
+    (lla::with-pinned-array (vector pointer destination-type :output :copy)
       ;; check equality
-      (unless (vector-at-pointer= copy pointer destination-type :report-p report-p)
+      (unless (array-at-pointer= copy pointer destination-type :report? report?)
         (return-from test-pinning-copy nil))
       ;; increment memory area, check equality, and that original is intact
       (dotimes (i length)
-        (incf (mem-aref* pointer destination-type i) 1))
-      (and (vector-at-pointer= copy-inc pointer destination-type
-                               :report-p report-p)
+        (incf (lla::mem-aref* pointer destination-type i) 1))
+      (and (array-at-pointer= copy-inc pointer destination-type
+                              :report? report?)
            (equalp vector copy)))))
 
 (defun test-pinning-output (source-type destination-type &key
-                            (report-p t) (length 50))
-  (let* ((vector (make-random-vector length source-type 100))
+                            (report? t) (length 50))
+  (let* ((vector (make-random-array length source-type 100))
          vector-inc
          (copy (copy-seq vector))
          (copy-inc (map 'vector #'1+ copy)))
-    (with-pinned-vector (vector pointer destination-type vector-inc)
+    (lla::with-pinned-array (vector pointer destination-type :output vector-inc)
       ;; check equality
-      (unless (vector-at-pointer= copy pointer destination-type :report-p report-p)
+      (unless (array-at-pointer= copy pointer destination-type :report? report?)
         (return-from test-pinning-output nil))
       ;; increment memory area, check equality, and that original is intact
       (dotimes (i length)
-        (incf (mem-aref* pointer destination-type i) 1))
-      (unless (and (vector-at-pointer= copy-inc pointer destination-type
-                                       :report-p report-p)
+        (incf (lla::mem-aref* pointer destination-type i) 1))
+      (unless (and (array-at-pointer= copy-inc pointer destination-type
+                                      :report? report?)
                    (equalp vector copy))
         (return-from test-pinning-output nil)))
     ;; check output
     (every #'= vector-inc copy-inc)))
 
 (defun test-vector-output (lla-type &key (length 50))
-  (let ((vector (make-random-vector length lla-type 100))
+  (let ((vector (make-random-array length lla-type 100))
         output)
-    (lla::with-vector-output (output pointer lla-type length)
+    (lla::with-array-output (output pointer lla-type length)
       (dotimes (index length)
-        (setf (mem-aref* pointer lla-type index) (aref vector index))))
+        (setf (lla::mem-aref* pointer lla-type index) (aref vector index))))
     (equalp vector output)))
 
 
 ;; pinning, input only
 
-(addtest (pinned-vector-tests)
+(addtest (pinned-array-tests)
   pinning-input
   (iter 
     (for (source destination) :in (coercible-pairs-list))
@@ -98,7 +95,7 @@ floats can be upgraded to complex."
 
 ;; pinning, copy
 
-(addtest (pinned-vector-tests)
+(addtest (pinned-array-tests)
   pinning-copy
   (iter 
     (for (source destination) :in (coercible-pairs-list))
@@ -107,7 +104,7 @@ floats can be upgraded to complex."
 
 ;; pinning, output
 
-(addtest (pinned-vector-tests)
+(addtest (pinned-array-tests)
   pinning-output
   (iter 
     (for (source destination) :in (coercible-pairs-list))
@@ -116,7 +113,7 @@ floats can be upgraded to complex."
 
 ;; vector-output
 
-(addtest (pinned-vector-tests)
+(addtest (pinned-array-tests)
   vector-output
   (ensure (test-vector-output :integer))
   (ensure (test-vector-output :single))

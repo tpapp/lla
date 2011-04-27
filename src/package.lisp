@@ -1,97 +1,52 @@
-(in-package #:lla-asd)
-
 (defpackage #:lla
-  (:use :common-lisp :cl-utilities :iterate :bind :cffi
-        :anaphora :tpapp-utils :cl-num-utils)
-  (:shadowing-import-from :iterate :collecting :collect)
+  (:use common-lisp iterate bind cffi anaphora alexandria cl-num-utils)
+  (:shadowing-import-from cl-num-utils mean variance)
   (:export 
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; basics
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-   
-   ;; utilities
 
-   zero-like simple-array1 simple-array? simple-array1? as-simple-array1
+   ;; utilities
    
    ;; types
+
+   lla-types lla-to-lisp-type atom-lla-type lla-complex? lla-double?
+   real-lla-type complex-lla-type zero* coerce* epsilon* lla-array-element-type
+   array-manifest-lla-type make-array* convert-lla-array common-lla-type
+   pack packf
    
-   dimension *lla-warn-suboptimal* lla-suboptimal-warning lla-type lla-complex?
-   lla-double? real-lla-type complex-lla-type not-within-lla-type
-   invalid-lla-type lla->lisp-type lla-vector-type representable-lla-type
-   array-lla-type lla-array atom-representable-lla-type zero* coerce* epsilon*
-   common-lla-type pack packf
+   ;; printing -- nothing is exported
+
+   ;; special-matrices
+   
+   make-matrix mref lower-triangular-matrix upper-triangular-matrix hermitian-matrix
    
    ;; fortran-atoms -- nothing is exported
-
-   ;; copy-elements
-
-   copy-elements copy-vector cm-index2 copy-columns
    
-   ;; pinned-vectors -- nothing is exported
-
-   ;; matrix-classes
-   
-   elements dense-matrix-like mref mref-setting-readonly
-   square-matrix? square-matrix valid-matrix-kind? matrix-kind
-   dense-matrix upper-matrix lower-matrix hermitian-matrix
-   set-restricted restricted-elements make-matrix copy-matrix
-
-   ;; diagonal
-   
-   diagonal make-diagonal
-
    ;; printing
-
+   
    *print-lla-precision* *pring-matrix-aligned* *print-matrix-padding*
-
+   
    ;; clo
-
+   
    clo
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; operations
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+   ;; pinned-vector -- nothing is exported
 
-   ;; elementwise-operations
+   ;; factorizations
 
-   emap e+ e- e* e/ eexpt eexp elog esqrt ereduce emax emin 
-   *lla=-difference* lla= lla==
-
-   ;; transpose
-
-   conjugate-transpose
-
-   ;; conversions
-
-   as-diagonal as-matrix as-array as-row as-column
-
-   ;; matrix-operations
-
-   stack stack* repeat-vector eye
-
-   ;; specialized-utilities -- nothing is exported, already done by CLNU
+   reconstruct lu ipiv qr r square-root cholesky root
    
-   ;; sub -- nothing is exported, already done by CLNU
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; pinned-vector
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-   ;; nothing is exported
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; linear-algebra
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-   
-   ;; ;; factorizations
-   
-   matrix-factorization component reconstruct lu lu-matrix ipiv
-   permutations qr qr-matrix cholesky factor hermitian
+   ;;    matrix-factorization component reconstruct lu lu-matrix ipiv
+   ;;    permutations qr qr-matrix cholesky factor hermitian
 
    ;; linear-algebra
+   
+   mm mmm lu solve least-squares invert-xx
 
-   dot norm1 norm2 normsup mm mmm outer update-hermitian update-hermitian2 lu
-   hermitian solve invert eigen least-squares qr-xx-inverse-sqrt
-   constrained-least-squares cholesky svd tr rank logdet det matrix-cond
+   ;;    dot norm1 norm2 normsup mm mmm outer update-hermitian update-hermitian2 lu
+   ;;    hermitian solve invert eigen least-squares qr-xx-inverse-sqrt
+   ;;    constrained-least-squares cholesky svd tr rank logdet det matrix-cond
    
    ))

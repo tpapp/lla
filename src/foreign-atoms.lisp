@@ -23,7 +23,6 @@
     (:complex-double (load-time-value (* 2 (foreign-type-size :double))))))
 
 (defun mem-aref* (ptr lla-type &optional (index 0))
-;;  (check-type index fixnum)
   "Accessing 1d arrays in memory.  TYPE is LLA-TYPE or :CHAR."
   (ecase lla-type
     (:char (code-char (mem-aref ptr :char index)))
@@ -38,7 +37,6 @@
 		(mem-aref ptr :double (1+ (* 2 index)))))))
 
 (defun (setf mem-aref*) (value ptr type &optional (index 0))
-;;  (check-type index fixnum)
   "Setf expander for accessing 1d arrays in memory.  TYPE is LLA-TYPE
 or :CHAR"
   (ecase type
@@ -54,23 +52,17 @@ or :CHAR"
        (setf (mem-aref ptr :double (* 2 index)) (realpart value)
 	     (mem-aref ptr :double (1+ (* 2 index))) (imagpart value)))))
 
+;; (defmacro with-foreign-atom ((pointer type value) &body body)
+;;   "Allocate memory for TYPE (types handled by FOREIGN-SIZE* etc) and
+;; set it to VALUE for body, which can use POINTER to access it. VALUE
+;; and POINTER can be the same symbol, this is the default if VALUE is
+;; omitted."
+;;   (check-type pointer symbol)
+;;   (once-only (type)
+;;     (with-unique-names (value-saved)
+;;       `(let ((,value-saved ,value)) ; value can be the same as pointer
+;;          (with-foreign-pointer (,pointer (foreign-size* ,type))
+;;            (setf (mem-aref* ,pointer ,type) ,value-saved)
+;;            ,@body)))))
 
-;;;;  interfacing with Fortran
-;;;;
-;;;;
-
-(defmacro with-fortran-atom ((pointer type value)
-                             &body body)
-  "Allocate memory for TYPE (types handled by FOREIGN-SIZE* etc) and
-set it to VALUE for body, which can use POINTER to access it. VALUE
-and POINTER can be the same symbol, this is the default if VALUE is
-omitted."
-  (check-type pointer symbol)
-  (once-only (type)
-    (with-unique-names (value-saved)
-      `(let ((,value-saved ,value)) ; value can be the same as pointer
-         (with-foreign-pointer (,pointer (foreign-size* ,type))
-           (setf (mem-aref* ,pointer ,type) ,value-saved)
-           ,@body)))))
-
-(define-with-multiple-bindings with-fortran-atom)
+;; (define-with-multiple-bindings with-foreign-atom)

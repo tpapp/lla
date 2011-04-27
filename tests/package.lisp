@@ -1,7 +1,6 @@
-(defpackage #:lla-unit-tests
-    (:use #:cl #:cl-utilities #:iterate #:metabang-bind #:cffi
-          #:anaphora #:lift #:lla #:cl-num-utils)
-  (:shadowing-import-from :iterate :collecting :collect)
-  (:import-from lla lla-complex? coerce* mem-aref* with-fortran-atoms
-                with-pinned-vector)
+(defpackage lla-tests
+  (:use cl iterate metabang-bind anaphora cl-num-utils cffi lift lla)
+  ;; (:import-from lla lla-complex? coerce* 
+  ;;               ;; mem-aref* with-fortran-atoms with-pinned-vector
+  ;;               )
   (:export run-lla-tests))

@@ -1,4 +1,4 @@
-(defsystem :lla-unit-tests
+(defsystem :lla-tests
   :description "Unit tests for LLA."
   :version "alpha"
   :author "Tamas K Papp <tkpapp@gmail.com"
@@ -13,6 +13,7 @@
    (:module
     "utilities-and-setup"
     :pathname #P"tests/"
+    :serial t
     :components
     ((:file "setup")
      (:file "utilities")))
@@ -20,11 +21,8 @@
     "tests"
     :pathname #P"tests/"
     :components
-    ((:file "test-utilities")
-     (:file "test-basics")
-     (:file "test-pinned-vector")
-     (:file "test-operations")
-     (:file "test-linear-algebra"))))
+    ((:file "basics")
+     (:file "pinned-array")
+     (:file "linear-algebra"))))
   :depends-on
-  (:cl-utilities :iterate :metabang-bind :anaphora 
-                 :lla :lift :cl-num-utils))
+  (:iterate :metabang-bind :anaphora :alexandria :cl-num-utils :cffi :lla :lift))
