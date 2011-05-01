@@ -1,5 +1,14 @@
 (in-package :lla)
 
+;;; Some character constants as integers.  In theory, could be defined using
+;;; CHAR-CODE on ASCII systems.
+
+(defconstant +c+ 67 "Numerical code for character C (ASCII), for use in LAPACK.")
+(defconstant +l+ 76 "Numerical code for character L (ASCII), for use in LAPACK.")
+(defconstant +n+ 78 "Numerical code for character N (ASCII), for use in LAPACK.")
+(defconstant +t+ 84 "Numerical code for character T (ASCII), for use in LAPACK.")
+(defconstant +u+ 85 "Numerical code for character U (ASCII), for use in LAPACK.")
+
 ;;;; ** direct memory access
 ;;;;
 ;;;; mem-aref* is similar to cffi:mem-aref, except for two things: (1)
