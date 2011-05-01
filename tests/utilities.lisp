@@ -51,7 +51,12 @@ etc.")
          (iter
            (for index :below (array-total-size a))
            (always (approx= (row-major-aref a index)
-                            (row-major-aref b index)))))))
+                            (row-major-aref b index))))))
+  (:method ((a wrapped-matrix) (b wrapped-matrix))
+    (and (equal (type-of a) (type-of b))
+         (== (as-array a) (as-array b))))
+  (:method ((a diagonal-matrix) (b diagonal-matrix))
+    (== (elements a) (elements b))))
 
 ;; (defun make-vector-with-seq (n lla-type)
 ;;   "Return a numeric-vector of type LLA-TYPE, holding the integers 0...n-1."
