@@ -13,6 +13,22 @@
 	 :documentation "pivot indices"))
   (:documentation "LU decomposition of a matrix with pivoting."))
 
+(define-ondemand-slot ((lu lu) u)
+  (make-matrix :upper nil :initial-contents (lu lu)))
+
+(define-ondemand-slot ((lu lu) l)
+  (aprog1 (make-matrix :lower nil :initial-contents (lu lu) :copy? t)
+    (bind (((:slots-r/o elements) it)
+           ((nrow ncol) (array-dimensions elements))
+           (one (one* elements)))
+      (dotimes (index (min nrow ncol))
+        (setf (aref elements index index) one)))))
+
+(defmethod print-object ((lu lu) stream)
+  (print-unreadable-object (lu stream :type t)
+    (with-slots (l u ipiv) lu
+      (format stream "~2& L=~A~2& U=~A~2&  pivot indices=~A" l u ipiv))))
+
 (defclass qr ()
   ((qr :type matrix :initarg :qr :reader qr
        :documentation "matrix storing the QR decomposition."))
@@ -26,35 +42,39 @@
 
 ;;; generic interface for square root-like decompositions
 
-(defgeneric square-root (matrix-factorization left-or-right)
-  (:documentation "Return the :LEFT or :RIGHT square root."))
+(defclass square-root ()
+  ((left-square-root :reader left-square-root :initarg :left-square-root
+                     :documentation "Matrix L such that LL^* is equal to the
+                     original (decomposed) matrix.  This method should be defined for
+                     other classes that can yield something similar."))
+  (:documentation "General class for representing all kinds of square roots,
+  regardless of how they were computed.  The convention is to store the left square
+  root."))
+
+(defmethod print-object ((square-root square-root) stream)
+  (print-unreadable-object (square-root stream :type t)
+    (format stream " LL^* with L=~A" (left-square-root square-root))))
+
+(defgeneric right-square-root (object)
+  (:documentation "Matrix L such that LL^* is equal to the original (decomposed)
+   matrix.  Efficiency note: may be calculated on demand.")
+  (:method (object)
+    (transpose* (left-square-root object))))
+
+(defmethod reconstruct ((square-root square-root))
+  (mm (left-square-root square-root) t))
 
 ;;; Cholesky decomposition
 
-(defclass cholesky ()
-  ((root :type (or lower-triangular-matrix upper-triangular-matrix)
-         :initarg :root :reader root
-         :documentation "Upper (lower) triangular matrix U (L) such that U^*U (LL^*)
-                         is equal to the original matrix."))
+(defclass cholesky (square-root)
+  ()
   (:documentation "Cholesky decomposition a matrix."))
 
 (defmethod initialize-instance :after ((instance cholesky) &key &allow-other-keys)
-  (assert (typep (root instance) '(and triangular-matrix (satisfies square?)))))
+  (assert (typep (left-square-root instance) 
+                 '(and lower-triangular-matrix (satisfies square?)))))
 
-(defmethod square-root ((cholesky cholesky) (left-or-right (eql :left)))
-  (aetypecase (root cholesky)
-    (lower-triangular-matrix it)
-    (upper-triangular-matrix (transpose it))))
 
-(defmethod square-root ((cholesky cholesky) (left-or-right (eql :right)))
-  (aetypecase (root cholesky)
-    (lower-triangular-matrix (transpose it))
-    (upper-triangular-matrix it)))
-
-(defmethod reconstruct ((cholesky cholesky))
-  (aetypecase (root cholesky)
-    (lower-triangular-matrix (mm it t))
-    (upper-triangular-matrix (mm t it))))
 
 ;; (defgeneric permutations (object)
 ;;   (:documentation "Return the number of permutations in object (which is usually
