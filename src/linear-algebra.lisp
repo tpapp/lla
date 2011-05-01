@@ -16,12 +16,6 @@
 
 ;;; Helper functions
 
-(defconstant +c+ 67 "Numerical code for character C (ASCII), for use in LAPACK.")
-(defconstant +l+ 76 "Numerical code for character L (ASCII), for use in LAPACK.")
-(defconstant +n+ 78 "Numerical code for character N (ASCII), for use in LAPACK.")
-(defconstant +t+ 84 "Numerical code for character T (ASCII), for use in LAPACK.")
-(defconstant +u+ 85 "Numerical code for character U (ASCII), for use in LAPACK.")
-
 ;;;;  matrix multiplication
 ;;; 
 ;;; The general matrix multiplication function is MMM.  It can be
@@ -89,10 +83,10 @@
                  (values ncol nrow)
                  (values nrow ncol)))
             ((:output c% common-type c) (list dim-c dim-c)))
-    (call :CBLASUPPER (if op-left? :CBLASCONJTRANS :CBLASNOTRANS)
+    (call (hermitian-orientation :blas) (lb-transpose (if op-left? '* nil) :blas)
           dim-c other-dim-a (coerce* alpha real-type) a% ncol
           (zero* real-type) c% dim-c)
-    c))
+    (make-instance 'hermitian-matrix :elements c)))
 
 (defmethod mm ((a array) (b (eql t)) &optional (alpha 1))
   ;; A A^T
@@ -336,22 +330,17 @@
   numerically unstable.  If you are solving many Ax=b equations with the same A, use
   a matrix factorization like LU."))
 
-;; (defmethod invert ((a array) &key) (invert (lu a)))
+(defmethod invert ((a array) &key) (invert (lu a)))
 
-;; (defmethod invert ((lu lu) &key)
-;;   (lb-call (((:slots-r/o lu-matrix ipiv) lu)
-;;             (common-type (common-float-type lu-matrix))
-;;             (procedure (lb-procedure-name common-type getri))
-;;             ((:matrix lu% common-type (n n%) n2 :output inverse) lu-matrix)
-;;             ((:vector ipiv% :integer n3) ipiv)
-;;             ((:work-queries lwork% (work% common-type)))
-;;             ((:check info%)))
-;;     (assert (= n n2 n3))
-;;     (call procedure n% lu% n% ipiv% work% lwork% info%)
-;;     (make-matrix% n n inverse)))
-
-;; (defmethod invert ((a hermitian-matrix) &key)
-;;    (invert (hermitian a)))
+(defmethod invert ((lu lu) &key)
+  (lb-call (((:slots-r/o lu ipiv) lu)
+            (common-type (common-float-type lu))
+            ((:lapack getri common-type))
+            ((:array lu% common-type :dimensions (n n2) :output inverse) lu)
+            ((:array ipiv% :integer :dimensions n3) ipiv))
+    (assert (= n n2 n3))
+    (call n lu% n ipiv%)
+    inverse))
 
 ;; (defmethod invert ((hf hermitian) &key)
 ;;   ;; If the FACTOR is lower triangular, we need to transpose it, as
@@ -370,6 +359,9 @@
 ;;     (assert (= n n2 n3))
 ;;     (call procedure u-char% n% factor% n% ipiv% work% info%)
 ;;     (make-matrix% n n inverse :kind :hermitian)))
+
+;; (defmethod invert ((a hermitian-matrix) &key)
+;;    (invert (hermitian a)))
 
 (defun invert-triangular% (a upper? unit-diag? kind)
   "Invert a dense (triangular) matrix using the LAPACK routine *TRTRI.
@@ -602,11 +594,11 @@ QR returned by least squares.  Note: this can be used to generate random draws,
 etc."))
 
 (defmethod invert-xx ((qr qr))
-  ;; Notes: X = QR, thus X^T X = R^T Q^T Q R = R^T R because Q is
-  ;; orthogonal.
+  ;; Notes: X = QR, and thus X^T X = R^T Q^T Q R = R^T R because Q is orthogonal,
+  ;; also (X^T X)^-1 = R^-1 (R^T)-1
   (bind (((:slots r) qr))
     (assert (<= (ncol r) (nrow r)))
-    (make-instance 'cholesky :root (invert r))))
+    (make-instance 'square-root :left-square-root (invert r))))
 
 ;;;; constrained-least-squares
 

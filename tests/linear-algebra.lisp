@@ -263,19 +263,29 @@
     (ensure-same ss2 ss)
     ;; (ensure-same nu1 3 :test #'=)
     (ensure-same nu2 3 :test #'=)
-    ;; (ensure-same variance (clo :double :hermitian
-    ;;                            0.04035491 * :/
-    ;;                            -0.03885797 0.03810950))
-    (getf other2 :qr)
-    ))
+    (ensure-same variance (clo :double :hermitian
+                               0.04035491 * :/
+                               -0.03885797 0.03810950))))
 
-(lla::least-squares-qr (clo :double 67 63 65 94 84)
-                       (clo :double 
-                            23 23 :/
-                            22 21
-                            25 20
-                            29 32
-                            24 29))
+
+
+
+;; (mm t (lla::invert (slot-value *qr* 'r)))
+;; #<UPPER-TRIANGULAR-MATRIX 
+;;   -0.01809 -0.13295
+;;          .  0.13039>
+;; (reconstruct (invert-xx *qr*))
+;; #<CHOLESKY  with root=#<UPPER-TRIANGULAR-MATRIX 
+;;   -0.01809 -0.13295
+;;          .  0.13039>>
+
+;; (lla::least-squares-qr (clo :double 67 63 65 94 84)
+;;                        (clo :double 
+;;                             23 23 :/
+;;                             22 21
+;;                             25 20
+;;                             29 32
+;;                             24 29))
 
 ;; (addtest (linear-algebra-tests)
 ;;   constrained-least-squares

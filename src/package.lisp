@@ -20,7 +20,8 @@
 
    ;; special-matrices
    
-   make-matrix mref lower-triangular-matrix upper-triangular-matrix hermitian-matrix
+   wrapped-matrix elements make-matrix mref lower-triangular-matrix
+   upper-triangular-matrix hermitian-matrix diagonal-matrix
    
    ;; fortran-atoms -- nothing is exported
    
@@ -36,14 +37,15 @@
 
    ;; factorizations
 
-   reconstruct lu ipiv qr r square-root cholesky root
+   reconstruct lu ipiv qr r square-root left-square-root right-square-root cholesky
+   root
    
    ;;    matrix-factorization component reconstruct lu lu-matrix ipiv
    ;;    permutations qr qr-matrix cholesky factor hermitian
 
    ;; linear-algebra
    
-   mm mmm lu solve least-squares invert-xx
+   mm mmm lu solve invert least-squares invert-xx
 
    ;;    dot norm1 norm2 normsup mm mmm outer update-hermitian update-hermitian2 lu
    ;;    hermitian solve invert eigen least-squares qr-xx-inverse-sqrt
