@@ -1,5 +1,73 @@
 (in-package :lla)
 
+(defun lb-transpose (transpose library)
+  "Return an integer (enum) that denotes the desired transpose operation (NIL: no
+transpose, T: transpose, *: conjugate transpose which is usually equivalent to T for
+real-valued matrices."
+  (ecase library
+    (:lapack
+       (ecase transpose
+         ((nil) +n+)
+         ((t) +t+)
+         ((*) +c+)))
+    (:blas
+       (ecase transpose
+         ((nil) :CblasNoTrans)
+         ((t) :CblasTrans)
+         ((*) :CblasConjTrans)))))
+
+(defun transposed-dimensions (m n transpose &optional (library :blas))
+  "Process dimensions of a matrix, which may be transposed.  Third value is the enum
+expected by the library."
+  (ecase transpose
+    ((nil) (values m n (ecase library (:blas ) (:lapack (char-code #\N)))))
+    ((t) (values n m (ecase library (:blas) (:lapack #\T))))
+    ((*) (values n m (ecase library (:blas ) (:lapack #\C))))))
+
+(defun maybe-vector-as-matrix (vector-or-matrix orientation &optional 
+                               transpose (library :blas))
+  "Process dimensions of vectors which are meant to be reoriented as matrices.
+Orientation is :ROW or :COLUMN, and TRANSPOSE indicates transposition (see TRANS).
+Return (values DIMENSION0 DIMENSION1 ORIENTATION LEADING-DIMENSION TRANSPOSE-ENUM).
+ORIENTATION is NIL or the ORIENTATION argument to the function, depending on whether
+the argument was a vector."
+  (bind (((d1 &optional d2 d-rest) (array-dimensions vector-or-matrix))
+         ((:flet error% ()) (error "~A is not a vector or a matrix." vector-or-matrix))
+         ((:values m n orientation)
+          (cond
+            (d-rest (error%))
+            (d2 (values d1 d2))
+            (d1 (ecase orientation
+                  (:row (values 1 d1 :row))
+                  (:column (values d1 1 :column))))
+            (t (error%))))
+         ((:values m-trans n-trans) (if transpose
+                                        (values n m)
+                                        (values m n))))
+    (values m-trans n-trans orientation n (lb-transpose transpose library))))
+
+(defun vector-or-matrix-dimensions (m n orientation)
+  "Return dimensions for matrices that can potentially be vectors, depending on
+ orientation."
+  (ecase orientation
+    (:row (assert (= m 1)) n)
+    (:column (assert (= n 1)) m)
+    ((nil) (list m n))))
+
+(defun maybe-pick-first-element (array pick?)
+  "When PICK?, return first element of array, otherwise the whole array."
+  (if pick?
+      (progn (assert (= (array-total-size array) 1) ()
+                     "~A is supposed to have only one element." array)
+             (row-major-aref array 0))
+      array))
+
+(defun matrix-from-first-rows (matrix nrow orientation)
+  "Create a matrix (or vector, depending on ORIENTATION) from the first rows NRHS of
+MATRIX.  Used for interfacing with xGELS, extracting R from QR decompositions, etc."
+  (bind (((nil n) (array-dimensions matrix)))
+    (copy-array (displace-array matrix 
+                                (vector-or-matrix-dimensions nrow n orientation)))))
 (defparameter *lla-double?* t
   "Determines whether rational->float conversions result in double or single
    floats.")
