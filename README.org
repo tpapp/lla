@@ -6,7 +6,8 @@ will appear here when the reorganization is finished and I have time.
 ** Things to do (roughly in order of priority)
    [ ] decide whether hermitian matrices use upper or lower triangle
    (look at functions that use hermitian matrices, in principle this
-   should not matter much)
+   should not matter much) NOTE: currently it is lower, but not
+   hardcoded, I wrote some query functions
 
    [ ] clean up linear algebra operations, finish missing methods
 
@@ -14,6 +15,8 @@ will appear here when the reorganization is finished and I have time.
 
    [ ] write notes on how to compile LAPACK(E) for those who don't
    want to use the Intel MKL
+
+   [ ] write hermitian factorization methods, inverse
    
    [ ] write documentation
 
