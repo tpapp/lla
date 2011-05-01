@@ -62,9 +62,7 @@ otherwise NIL."
       (:single :single)
       (:double :double)
       (:complex-single :single)
-      (:complex-double :double)
-      ;; ((nil) nil)
-))
+      (:complex-double :double)))
 
 (defun complex-lla-type (lla-type)
   "Return the complex type corresponding to LLA-TYPE."
@@ -72,16 +70,33 @@ otherwise NIL."
     ((:integer :single :complex-single) :complex-single)
     ((:double :complex-double) :complex-double)))
 
-(declaim (inline zero* coerce* epsilon*))
-(defun zero* (type)
-  "Return 0, coerced to the desired TYPE (extended with LLA types)."
-  (case type
-    (:single 0.0)
-    (:double 0d0)
-    (:complex-single #C(0.0 0.0))
-    (:complex-double #C(0.0d0 0.0d0))
-    ((:integer nil) 0)
-    (otherwise (coerce 0 type))))
+(declaim (inline coerce*))
+
+(defgeneric zero* (object)
+  (:documentation "Return 0 converted to the type denoted by or inferred from object.")
+  (:method (type)
+    (case type
+      (:single 0.0)
+      (:double 0d0)
+      (:complex-single #C(0.0 0.0))
+      (:complex-double #C(0.0d0 0.0d0))
+      (:integer 0)
+      (otherwise (coerce 0 type))))
+  (:method ((array array))
+    (coerce 0 (array-element-type array))))
+
+(defgeneric one* (object)
+  (:documentation "Return 1 converted to the type denoted by or inferred from object.")
+  (:method (type)
+    (case type
+      (:single 1.0)
+      (:double 1d0)
+      (:complex-single #C(1.0 0.0))
+      (:complex-double #C(1.0d0 0.0d0))
+      (:integer 1)
+      (otherwise (coerce 1 type))))
+  (:method ((array array))
+    (coerce 1 (array-element-type array))))
 
 (defun coerce* (value lla-type)
   "Coerce VALUE to type given by LLA-TYPE, NIL implies no coercion."
