@@ -1,11 +1,11 @@
 (in-package :lla)
 
 (defclass wrapped-matrix ()
-  ((elements :accessor elements :initarg :elements :type elements
-           :documentation "The representation depends on the class, use as-array to
+  ((elements :accessor elements :initarg :elements :type matrix
+             :documentation "The representation depends on the class, use as-array to
            convert to a regular matrix."))
   (:documentation "A matrix that has some special structure (eg triangular,
-  symmetric/hermitian)."))
+  symmetric/hermitian).  Elements are always a matrix."))
 
 (defmethod initialize-instance :after ((wrapped-matrix wrapped-matrix) 
                                        &key &allow-other-keys)
@@ -113,7 +113,7 @@ contain the string used for printing non-represented elements."
   (>= row col)
   zero
   "."
-  :bindings ((zero (zero* (array-element-type elements)))))
+  :bindings ((zero (zero* elements))))
 
 (define-special-matrix upper-triangular-matrix
     "Upper triangular matrix.  Elements in the upper triangle are zero."
@@ -121,7 +121,7 @@ contain the string used for printing non-represented elements."
   (<= row col)
   zero
   "."
-  :bindings ((zero (zero* (array-element-type elements)))))
+  :bindings ((zero (zero* elements))))
 
 (deftype triangular-matrix ()
   '(or lower-triangular-matrix upper-triangular-matrix))
@@ -140,6 +140,13 @@ contain the string used for printing non-represented elements."
   (conjugate (aref elements col row))
   "*")
 
+(declaim (inline hermitian-orientation))
+(defun hermitian-orientation (library)
+  "Return a constant that denotes the orientation of hermitian matrices."
+  (ecase library
+    (:blas :CBLASLOWER)
+    (:lapack +l+)))
+
 (defmethod initialize-instance :after ((hermitian-matrix hermitian-matrix)
                                        &key &allow-other-keys)
   (check-type (elements hermitian-matrix) (and matrix (satisfies square?))))
@@ -147,9 +154,11 @@ contain the string used for printing non-represented elements."
 ;;; Diagonal matrices
 
 (defclass diagonal-matrix ()
-  ((elements :accessor elements :initarg :elements))
-  (:documentation "Diagonal matrix.  The elements in the diagonal are stored in a
-  vector."))
+  ((elements :accessor elements :initarg :elements :type vector
+             :documentation "The representation depends on the class, use as-array to
+           convert to a regular matrix."))
+  (:documentation
+   "Diagonal matrix.  The elements in the diagonal are stored in a vector."))
 
 (defmethod initialize-instance :after ((diagonal-matrix diagonal-matrix)
                                        &key &allow-other-keys)
@@ -187,5 +196,68 @@ contain the string used for printing non-represented elements."
   (bind (((:slots-r/o elements) diagonal-matrix)
          (n (length elements)))
     (aprog1 (make-similar-array elements :dimensions (list n n)
-                                :initial-element (zero* (array-element-type elements)))
+                                :initial-element (zero* elements))
       (dotimes (i n) (setf (aref it i i) (aref elements i))))))
+
+;;; elementwise operations
+
+(defmacro define-elementwise-with-constant (class &optional (functions '(e2* e2/)))
+  "Define elementwise operations for FUNCTION for all subclasses of
+wrapped-elements.  "
+  `(progn
+     ,@(loop :for function :in functions
+             :collect
+             `(defmethod ,function ((a ,class) (b number))
+                (make-instance ',class :elements (,function (elements a) b)))
+             :collect
+             `(defmethod ,function ((a number) (b ,class))
+                (make-instance ',class :elements (,function a (elements b)))))))
+  
+(defmacro define-elementwise-same-class (class &optional (functions '(e2+ e2- e2*)))
+  `(progn
+     ,@(loop for function in functions collect
+             `(defmethod ,function ((a ,class) (b ,class))
+                (make-instance ',class
+                               :elements (,function (elements a) (elements b)))))))
+
+(define-elementwise-with-constant lower-triangular-matrix)
+(define-elementwise-with-constant upper-triangular-matrix)
+(define-elementwise-with-constant hermitian-matrix)
+(define-elementwise-with-constant diagonal-matrix)
+
+(define-elementwise-same-class lower-triangular-matrix)
+(define-elementwise-same-class upper-triangular-matrix)
+(define-elementwise-same-class hermitian-matrix)
+(define-elementwise-same-class diagonal-matrix)
+
+;;; transpose
+
+(defmethod transpose ((matrix lower-triangular-matrix) &key copy?)
+  (make-instance 'upper-triangular-matrix
+                 :elements (transpose (elements matrix) :copy? copy?)))
+(defmethod transpose* ((matrix lower-triangular-matrix) &key copy?)
+  (make-instance 'upper-triangular-matrix
+                 :elements (transpose* (elements matrix) :copy? copy?)))
+
+(defmethod transpose ((matrix upper-triangular-matrix) &key copy?)
+  (make-instance 'lower-triangular-matrix
+                 :elements (transpose (elements matrix) :copy? copy?)))
+(defmethod transpose* ((matrix upper-triangular-matrix) &key copy?)
+  (make-instance 'lower-triangular-matrix
+                 :elements (transpose* (elements matrix) :copy? copy?)))
+
+(defmethod transpose ((matrix hermitian-matrix) &key copy?)
+  (make-instance 'hermitian-matrix
+                 :elements (transpose (as-array matrix) :copy? copy?)))
+(defmethod transpose* ((matrix hermitian-matrix) &key copy?)
+  (if copy?
+      (make-instance 'hermitian-matrix :elements (copy-array (elements matrix)))
+      matrix))
+
+(defmethod transpose ((diagonal diagonal-matrix) &key copy?)
+  (if copy?
+      (make-instance 'diagonal-matrix :elements (copy-array (elements diagonal)))
+      diagonal))
+(defmethod transpose* ((diagonal diagonal-matrix) &key copy?)
+  (declare (ignore copy?))
+  (make-instance 'diagonal-matrix :elements (econjugate (elements diagonal))))
