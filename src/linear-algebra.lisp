@@ -632,29 +632,21 @@ etc."))
 
 ;; ;;;; Cholesky factorization
 
-;; (defgeneric cholesky (a &optional component)
-;;   (:documentation "Cholesky factorization.  Component is :L or :U (default)."))
+(defgeneric cholesky (a)
+  (:documentation "Cholesky factorization."))
 
-;; (defmethod cholesky ((a hermitian-matrix) &optional (component :U))
-;;   (lb-call ((common-type (common-float-type a))
-;;             (procedure (lb-procedure-name common-type potrf))
-;;             ((:values u-char kind) (ecase component
-;;                                      (:U (values #\U :upper))
-;;                                      (:L (values #\L :lower))))
-;;             ((:matrix a% common-type (n n%) n2 :output cholesky) a)
-;;             ((:char u-char%) u-char)
-;;             ((:check info%)))
-;;     (assert (= n n2))
-;;     (call procedure u-char% n% a% n% info%)
-;;     (make-instance 'cholesky 
-;;                    :factor (make-matrix% n n cholesky :kind kind))))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (assert (eql (load-time-value (hermitian-orientation :lapack)) +l+)
+          () 
+          "Cholesky implementation below assumes that hermitian orientation is L."))
 
-;; (defmethod reconstruct ((mf cholesky))
-;;   (bind (((:slots-read-only factor) mf))
-;;     (etypecase factor
-;;       (upper-matrix (mm t factor))
-;;       (lower-matrix (mm factor t)))))
-
+(defmethod cholesky ((a hermitian-matrix))
+  (lb-call ((common-type (common-float-type a))
+            ((:lapack potrf common-type))
+            ((:array a% common-type :dimensions (n n2) :output cholesky) a))
+    (assert (= n n2))
+    (call +l+ n a% n)
+    (make-instance 'cholesky :left-square-root cholesky)))
 
 ;; ;;; SVD
 
@@ -747,49 +739,49 @@ etc."))
 
 ;;; determinants
 
-;; (defgeneric logdet (matrix)
-;;   (:documentation "Logarithm of the determinant of a matrix.  Return -1, 1 or
-;;   0 (or equivalent) to correct for the sign, as a second value."))
+(defgeneric logdet (matrix)
+  (:documentation "Logarithm of the determinant of a matrix.  Return -1, 1 or
+  0 (or equivalent) to correct for the sign, as a second value."))
 
-;; (defun det (matrix)
-;;   "Determinant of a matrix.  If you need the log of this, use LOGDET
-;;   directly."
-;;   (bind (((:values logdet sign) (logdet matrix)))
-;;     (if (zerop sign)
-;;         0
-;;         (* sign (exp logdet)))))
+(defun det (matrix)
+  "Determinant of a matrix.  If you need the log of this, use LOGDET
+  directly."
+  (bind (((:values logdet sign) (logdet matrix)))
+    (if (zerop sign)
+        0
+        (* sign (exp logdet)))))
 
-;; (defmacro log-with-sign% (value sign-changes block-name)
-;;   "Log of (ABS VALUE), increments SIGN-CHANGES when negative, return-from
-;; block-name (values nil 0) when zero."
-;;   (once-only (value)
-;;     `(log (cond
-;;             ((zerop ,value) (return-from ,block-name (values nil 0)))
-;;             ((minusp ,value) (incf ,sign-changes) (- ,value))
-;;             (t ,value)))))
+(defmacro log-with-sign% (value sign-changes block-name)
+  "Log of (ABS VALUE), increments SIGN-CHANGES when negative, return-from
+block-name (values nil 0) when zero."
+  (once-only (value)
+    `(log (cond
+            ((zerop ,value) (return-from ,block-name (values nil 0)))
+            ((minusp ,value) (incf ,sign-changes) (- ,value))
+            (t ,value)))))
 
-;; (defun diagonal-log-sum% (matrix &optional (sign-changes 0))
-;;   "Sum of the log of the elements in the diagonal.  Sign-changes counts the
-;; negative values, and may be started at something else than 0 (eg in case of
-;; pivoting).  Return (values NIL 0) in case of encountering a 0."
-;;   (assert (square-matrix? matrix))
-;;   (bind (((:lla-matrix matrix :nrow nrow) matrix))
-;;     (values 
-;;       (iter
-;;         (for i :from 0 :below nrow)
-;;         (summing (log-with-sign% (matrix (matrix-index i i))
-;;                                  sign-changes diagonal-log-sum%)))
-;;       (if (evenp sign-changes) 1 -1))))
+(defun diagonal-log-sum% (matrix &optional (sign-changes 0))
+  "Sum of the log of the elements in the diagonal.  Sign-changes counts the
+negative values, and may be started at something else than 0 (eg in case of
+pivoting).  Return (values NIL 0) in case of encountering a 0."
+  (bind (((nrow ncol) (array-dimensions matrix)))
+    (assert (= nrow ncol))
+    (values 
+      (iter
+        (for i :from 0 :below nrow)
+        (summing (log-with-sign% (aref matrix i i)
+                                 sign-changes diagonal-log-sum%)))
+      (if (evenp sign-changes) 1 -1))))
 
-;; (defmethod logdet ((matrix dense-matrix))
-;;   (let* ((lu (lu matrix)))
-;;     (diagonal-log-sum% (lu-matrix lu) (permutations lu))))
+(defmethod logdet ((matrix array))
+  (let* ((lu (lu matrix)))
+    (diagonal-log-sum% (lu lu) (permutations lu))))
 
-;; (defmethod logdet ((matrix lower-matrix))
-;;   (diagonal-log-sum% matrix))
+(defmethod logdet ((matrix lower-triangular-matrix))
+  (diagonal-log-sum% (elements matrix)))
 
-;; (defmethod logdet ((matrix upper-matrix))
-;;   (diagonal-log-sum% matrix))
+(defmethod logdet ((matrix upper-triangular-matrix))
+  (diagonal-log-sum% (elements matrix)))
 
 ;; (defmethod logdet ((matrix hermitian-matrix))
 ;;   (let ((sign-changes 0))

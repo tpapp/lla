@@ -45,10 +45,10 @@
 
    ;; linear-algebra
    
-   mm mmm lu solve invert least-squares invert-xx
+   mm mmm lu solve invert least-squares invert-xx logdet det
 
-   ;;    dot norm1 norm2 normsup mm mmm outer update-hermitian update-hermitian2 lu
-   ;;    hermitian solve invert eigen least-squares qr-xx-inverse-sqrt
-   ;;    constrained-least-squares cholesky svd tr rank logdet det matrix-cond
+   ;;    dot norm1 norm2 normsup outer update-hermitian update-hermitian2
+   ;;    hermitian eigen 
+   ;;    constrained-least-squares svd tr rank matrix-cond
    
    ))
