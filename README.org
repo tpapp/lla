@@ -9,7 +9,8 @@ will appear here when the reorganization is finished and I have time.
    should not matter much) NOTE: currently it is lower, but not
    hardcoded, I wrote some query functions
 
-   [ ] clean up linear algebra operations, finish missing methods
+   [ ] clean up linear algebra operations, finish missing methods; in
+   particular: svd, eigen, trace, rank
 
    [ ] write SBCL and ECL pinning interfaces
 
