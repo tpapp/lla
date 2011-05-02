@@ -267,26 +267,6 @@
                                0.04035491 * :/
                                -0.03885797 0.03810950))))
 
-
-
-
-;; (mm t (lla::invert (slot-value *qr* 'r)))
-;; #<UPPER-TRIANGULAR-MATRIX 
-;;   -0.01809 -0.13295
-;;          .  0.13039>
-;; (reconstruct (invert-xx *qr*))
-;; #<CHOLESKY  with root=#<UPPER-TRIANGULAR-MATRIX 
-;;   -0.01809 -0.13295
-;;          .  0.13039>>
-
-;; (lla::least-squares-qr (clo :double 67 63 65 94 84)
-;;                        (clo :double 
-;;                             23 23 :/
-;;                             22 21
-;;                             25 20
-;;                             29 32
-;;                             24 29))
-
 ;; (addtest (linear-algebra-tests)
 ;;   constrained-least-squares
 ;;   ;;  Taken from the LAPACK documentation
@@ -395,38 +375,39 @@
 ;;                             0 0 2 2
 ;;                             3 6 2 5)) 2)))
 
-;; (addtest (linear-algebra-tests)
-;;   det
-;;   (let ((*allowed-difference* 1e-4)
-;;         (*lift-equality-test* #'approx=))
-;;     ;; dense
-;;     (ensure-same (det (clo :double
-;;                            1 2 :/
-;;                            3 4))
-;;                  -2)
-;;     ;; upper
-;;     (ensure-same (det (clo :upper
-;;                            1 2 :/
-;;                            0 4))
-;;                  4)
-;;     (ensure-same (det (clo :upper
-;;                            1 2 :/
-;;                            0 -4))
-;;                  -4)
-;;     (ensure-same (det (clo :upper
-;;                            1 2 :/
-;;                            0 0))
-;;                  0)
-;;     ;; lower
-;;     (ensure-same (det (clo :lower
-;;                            7 0 :/
-;;                            8 12))
-;;                  (* 7 12))
-;;     (ensure-same (det (clo :lower
-;;                            -7 0 :/
-;;                            8 12))
-;;                  (* -7 12))
-;;     ;; hermitian
-;;     (ensure-same (det (mm t (clo 1 2 :/
-;;                                  3 4)))
-;;                  4)))
+(addtest (linear-algebra-tests)
+  det
+  (let ((*allowed-difference* 1e-4)
+        (*lift-equality-test* #'approx=))
+    ;; dense
+    (ensure-same (det (clo :double
+                           1 2 :/
+                           3 4))
+                 -2)
+    ;; upper
+    (ensure-same (det (clo :upper
+                           1 2 :/
+                           0 4))
+                 4)
+    (ensure-same (det (clo :upper
+                           1 2 :/
+                           0 -4))
+                 -4)
+    (ensure-same (det (clo :upper
+                           1 2 :/
+                           0 0))
+                 0)
+    ;; lower
+    (ensure-same (det (clo :lower
+                           7 0 :/
+                           8 12))
+                 (* 7 12))
+    (ensure-same (det (clo :lower
+                           -7 0 :/
+                           8 12))
+                 (* -7 12))
+    ;; hermitian
+    ;; (ensure-same (det (mm t (clo 1 2 :/
+    ;;                              3 4)))
+    ;;              4))
+    )
