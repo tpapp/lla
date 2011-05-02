@@ -74,22 +74,21 @@
   (assert (typep (left-square-root instance) 
                  '(and lower-triangular-matrix (satisfies square?)))))
 
+;;; permutations (pivoting)
 
+(defgeneric permutations (object)
+  (:documentation "Return the number of permutations in object (which is usually
+  a matrix factorization, or a pivot index."))
 
-;; (defgeneric permutations (object)
-;;   (:documentation "Return the number of permutations in object (which is usually
-;;   a matrix factorization, or a pivot index."))
+(defun count-permutations% (ipiv)
+  "Count the permutations in a pivoting vector."
+  (iter
+      (for index :from 1)               ; lapack counts from 1
+      (for i :in-vector ipiv)
+      (counting (/= index i))))
 
-;; (defun count-permutations% (ipiv)
-;;   "Count the permutations in a pivoting vector."
-;;   (iter
-;;       (for index :from 1)               ; lapack counts from 1
-;;       (for i :in-vector ipiv)
-;;       (counting (/= index i))))
-
-;; (defmethod permutations ((lu lu))
-;;   (count-permutations% (ipiv lu)))
-
+(defmethod permutations ((lu lu))
+  (count-permutations% (ipiv lu)))
 
 
 ;; (defclass hermitian (matrix-factorization)
