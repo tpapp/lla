@@ -5,18 +5,6 @@
 (deftype symbol* () '(and symbol (not null)))
 (defun symbolp* (object) (typep object 'symbol*))
 
-(deftype matrix (&optional (m '*) (n '*))
-  `(array * (,m ,n)))
-
-(deftype matrix? (object)
-  "Return a boolean indicating whether OBJECT is a MATRIX."
-  (typep object 'matrix))
-
-(defun square? (matrix)
-  "Test if a matrix (in the generalized sense, ie an object that has nrow and ncol)
-is square."
-  (= (nrow matrix) (ncol matrix)))
-
 (defmacro row-major-loop ((matrix index row col &key
                                  (nrow (gensym* '#:nrow)) (ncol (gensym* '#:ncol)))
                           &body body)
