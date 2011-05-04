@@ -1,9 +1,11 @@
 (in-package :lla)
 
-(defun lb-transpose (transpose library)
+(defun lb-transpose (transpose library &optional complex?)
   "Return an integer (enum) that denotes the desired transpose operation (NIL: no
 transpose, T: transpose, *: conjugate transpose which is usually equivalent to T for
-real-valued matrices."
+real-valued matrices.  When complex?, T is replaced by *."
+  (when (and transpose complex?)
+    (setf transpose '*))
   (ecase library
     (:lapack
        (ecase transpose
