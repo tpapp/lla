@@ -261,3 +261,17 @@ wrapped-elements.  "
 (defmethod transpose* ((diagonal diagonal-matrix) &key copy?)
   (declare (ignore copy?))
   (make-instance 'diagonal-matrix :elements (econjugate (elements diagonal))))
+
+;;; sub
+;;; 
+;;; (sub wrapped-matrix index-specification nil) returns a matrix of the same class
+;;; (or a scalar), using index-specification along both dimensions
+
+(defmethod sub ((matrix wrapped-matrix) &rest index-specifications)
+  (destructuring-bind (is0 &optional is1) index-specifications
+    (if is1
+        (sub (as-array matrix) is0 is1)
+        (let ((submatrix (sub (elements matrix) is0 is0)))
+          (if (arrayp submatrix)
+              (make-instance (class-of matrix) :elements submatrix)
+              submatrix)))))
