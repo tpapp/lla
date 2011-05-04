@@ -83,7 +83,7 @@
                  (values ncol nrow)
                  (values nrow ncol)))
             ((:output c% common-type c) (list dim-c dim-c)))
-    (call (hermitian-orientation :blas) (lb-transpose (if op-left? '* nil) :blas)
+    (call (hermitian-orientation :blas) (lb-transpose op-left? :blas t)
           dim-c other-dim-a (coerce* alpha real-type) a% ncol
           (zero* real-type) c% dim-c)
     (make-instance 'hermitian-matrix :elements c)))
@@ -239,6 +239,9 @@
 (defgeneric solve (a b)
   (:documentation "Return X that solves AX=B.  When B is a vector, so is X."))
 
+(defmethod solve (a (b wrapped-matrix))
+  (solve a (as-array b)))
+
 (defmethod solve ((lu lu) (b array))
   (lb-call (((:values b0 b1 b-orientation ldb) (maybe-vector-as-matrix b :column))
             ((:slots-r/o lu ipiv) lu)
@@ -293,32 +296,31 @@
 ;;     (call procedure u-char% n% nrhs% factor% n% ipiv% b% n% info%)
 ;;     (make-matrix% n n x)))
 
-;; (defun trsm% (a b side transpose-a? &optional (alpha 1))
-;;   "Wrapper for BLAS routine xTRSM.  Calculates op(A^-1) B (if SIDE
-;; is :LEFT) or B op(A^-1) (if SIDE is :RIGHT).  A has to be a triangular
-;; matrix.  transpose-a? determines whether op(A) is A^T or A.  The
-;; result is multiplied by ALPHA."
-;;   (lb-call ((common-type (common-float-type a b))
-;;             (procedure (lb-procedure-name common-type trsm))
-;;             ((:matrix a% common-type (a-n lda%) a-m) a)
-;;             ((:matrix b% common-type (m m%) (n n%) :output result) b)
-;;             ((:char side%) (ecase side
-;;                              (:left (assert (= a-m m)) #\L)
-;;                              (:right (assert (= a-n n)) #\R)))
-;;             ((:char uplo%) (ecase (matrix-kind a)
-;;                              (:lower #\L)
-;;                              (:upper #\U)))
-;;             ((:char transa%) (if transpose-a? #\C #\N))
-;;             ((:char diag%) #\N)
-;;             ((:atom alpha% common-type) (coerce* alpha common-type)))
-;;     (call procedure side% uplo% transa% diag% m% n% alpha% a% lda% b% m%)
-;;     (make-matrix% m n result)))
+(defun trsm% (a a-uplo b side transpose-a? &optional (alpha 1))
+  "Wrapper for BLAS routine xTRSM.  Calculates op(A^-1) B (if SIDE
+is :LEFT) or B op(A^-1) (if SIDE is :RIGHT).  A has to be a triangular
+matrix.  transpose-a? determines whether op(A) is A^T or A.  The
+result is multiplied by ALPHA."
+  (lb-call ((common-type (common-float-type a b))
+            ((:blas trsm common-type))
+            ((:values b0 b1 b-orientation ldb) (maybe-vector-as-matrix b :column))
+            ((:array a% common-type :dimensions (a0 a1)) a)
+            ((:array b% common-type :output result :output-dimensions
+                     (vector-or-matrix-dimensions b0 b1 b-orientation)) b)
+            (side (ecase side
+                    (:left (assert (= a0 b0)) :CBLASLEFT)
+                    (:right (assert (= a0 b1)) :CBLASRIGHT)))
+            (trans (lb-transpose transpose-a? :blas t))
+            (alpha (coerce* alpha common-type)))
+    (assert (= a0 a1))
+    (call side a-uplo trans :CBLASNONUNIT b0 b1 alpha a% a0 b% ldb)
+    result))
 
-;; (defmethod solve ((a lower-matrix) (b dense-matrix-like))
-;;   (trsm% a b :left nil))
+(defmethod solve ((a lower-triangular-matrix) b)
+  (trsm% (elements a) :CBLASLOWER b :left nil))
 
-;; (defmethod solve ((a upper-matrix) (b dense-matrix-like))
-;;   (trsm% a b :left nil))
+(defmethod solve ((a upper-triangular-matrix) b)
+  (trsm% (elements a) :CBLASUPPER b :left nil))
 
 ;; (defmethod solve ((a diagonal) (b dense-matrix-like))
 ;;   (mm (e/ a) b))
@@ -641,12 +643,14 @@ etc."))
           "Cholesky implementation below assumes that hermitian orientation is L."))
 
 (defmethod cholesky ((a hermitian-matrix))
-  (lb-call ((common-type (common-float-type a))
+  (lb-call ((a (elements a))
+            (common-type (common-float-type a))
             ((:lapack potrf common-type))
-            ((:array a% common-type :dimensions (n n2) :output cholesky) a))
+            ((:array a% common-type :dimensions (n n2) :output l) a))
     (assert (= n n2))
     (call +l+ n a% n)
-    (make-instance 'cholesky :left-square-root cholesky)))
+    (make-instance 'cholesky :left-square-root 
+                   (make-matrix :lower nil :initial-contents l))))
 
 ;; ;;; SVD
 
