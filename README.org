@@ -22,6 +22,9 @@ will appear here when the reorganization is finished and I have time.
    [ ] write documentation
 
    [ ] write more tests
+   
+   [ ] maybe move == from tests to CLNU, it is quite handy, could be
+   rewritten with explicit optional argument
 
 ** Wishlist
    [ ] foreign-atoms is no longer needed now that we are using a C
