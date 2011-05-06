@@ -275,3 +275,14 @@ wrapped-elements.  "
           (if (arrayp submatrix)
               (make-instance (class-of matrix) :elements submatrix)
               submatrix)))))
+
+;;; ==
+
+(defmethod == ((a wrapped-matrix) (b wrapped-matrix)
+               &optional (tolerance *==-tolerance*))
+    (and (equal (type-of a) (type-of b))
+         (== (as-array a) (as-array b) tolerance)))
+
+(defmethod == ((a diagonal-matrix) (b diagonal-matrix)
+               &optional (tolerance *==-tolerance*))
+    (== (elements a) (elements b) tolerance))

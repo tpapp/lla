@@ -34,30 +34,6 @@ are using integer for lla-type."
   ;; default is for catching major mistakes, use smaller value for fine points
   "Maximum allowed difference used by approx=.")
 
-(defun approx= (a b)
-  "Approximately equal, by *allowed-difference*."
-  (< (abs (- a b)) *allowed-difference*))
-
-(defgeneric == (a b)
-  (:documentation "Compare A and B for approximate equality at the level of
-elements (using approx=), checking that they have the same class, same dimensions,
-etc.")
-  (:method (a b)
-    nil)
-  (:method ((a number) (b number))
-    (approx= a b))
-  (:method ((a array) (b array))
-    (and (equal (array-dimensions a) (array-dimensions b))
-         (iter
-           (for index :below (array-total-size a))
-           (always (approx= (row-major-aref a index)
-                            (row-major-aref b index))))))
-  (:method ((a wrapped-matrix) (b wrapped-matrix))
-    (and (equal (type-of a) (type-of b))
-         (== (as-array a) (as-array b))))
-  (:method ((a diagonal-matrix) (b diagonal-matrix))
-    (== (elements a) (elements b))))
-
 ;; (defun make-vector-with-seq (n lla-type)
 ;;   "Return a numeric-vector of type LLA-TYPE, holding the integers 0...n-1."
 ;;   (aprog1 (lla-array n lla-type)
@@ -74,9 +50,9 @@ etc.")
 
 (addtest (utilities-tests)
   approx=-test
-  (let ((*allowed-difference* 9))
-    (ensure (approx= 1 9))
-    (ensure (not (approx= 1 11)))))
+  (let ((*==-tolerance* 1))
+    (ensure (== 0 10))
+    (ensure (not (== -1 10)))))
 
 (addtest (utilities-tests)
   ==-test

@@ -253,13 +253,13 @@
          (beta (clo :double 0.7633278 2.2350028))
          (ss 6.724986d0)
          ;; ((:values beta1 ss1 nu1 other1) (least-squares y x :method :svd-d))
-         ((:values beta2 ss2 nu2 other2) (lla::least-squares y x :method :qr))
-         (raw-var (reconstruct (invert-xx (getf other2 :qr))))
+         ((:values beta2 ss2 nu2 qr) (lla::least-squares y x :method :qr))
+         (raw-var (reconstruct (invert-xx qr)))
          (variance (e* raw-var (/ ss2 nu2)))
-         (*allowed-difference* 1e-5))
+         (*==-tolerance* 1e-5))
     ;; (ensure-same beta1 beta)
     (ensure-same beta2 beta)
-    ;; (ensure-same ss1 ss :test #'approx=)
+    ;; (ensure-same ss1 ss :test #'==)
     (ensure-same ss2 ss)
     ;; (ensure-same nu1 3 :test #'=)
     (ensure-same nu2 3 :test #'=)
@@ -280,7 +280,7 @@
 ;;                  1 -1 1 1
 ;;                  1 1 -1 1))
 ;;          (w (clo 1 3 -1))
-;;          (*allowed-difference* 1e-5))
+;;          (*==-tolerance* 1e-5))
 ;;     (ensure-same (constrained-least-squares y x z w)
 ;;                  (clo :single 0.5 -0.5 1.5 0.5))))
 
@@ -377,8 +377,8 @@
 
 (addtest (linear-algebra-tests)
   det
-  (let ((*allowed-difference* 1e-4)
-        (*lift-equality-test* #'approx=))
+  (let ((*==-tolerance* 1e-4)
+        (*lift-equality-test* #'==))
     ;; dense
     (ensure-same (det (clo :double
                            1 2 :/
