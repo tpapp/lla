@@ -21,7 +21,7 @@
    ;; special-matrices
    
    wrapped-matrix elements make-matrix mref lower-triangular-matrix
-   upper-triangular-matrix hermitian-matrix diagonal-matrix
+   upper-triangulsar-matrix hermitian-matrix diagonal-matrix
    
    ;; fortran-atoms -- nothing is exported
    
@@ -37,8 +37,8 @@
 
    ;; factorizations
 
-   reconstruct lu ipiv qr r square-root left-square-root right-square-root cholesky
-   root
+   reconstruct lu ipiv qr r matrix-square-root left-square-root right-square-root
+   cholesky
    
    ;;    matrix-factorization component reconstruct lu lu-matrix ipiv
    ;;    permutations qr qr-matrix cholesky factor hermitian

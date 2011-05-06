@@ -498,7 +498,7 @@ use, not exported."
 ;;;;
 ;;;; least squares calculations
 ;;;;
-;;;; All least squares functions return (values b ss nu other-values), where beta =
+;;;; All least squares functions return (values b ss nu ...), where beta =
 ;;;; argmin_b L2norm( y-Xb ), solving a least squares problem, SS is the sum of
 ;;;; squares for each column of Y, and NU is the degrees of freedom.  Y can have
 ;;;; multiple columns, in which case X will have the same number of columns, each
@@ -548,7 +548,7 @@ SVD-based methods are recommended over this one, unless X is well-conditioned."
       (maybe-pick-first-element (last-rows-ss b n common-type)
                                 y-orientation)
       (- m n)
-      `(:qr ,(make-instance 'qr :qr qr)))))
+      (make-instance 'qr :qr qr))))
 
 ;; (defun least-squares-svd-d (y x &key (rcond -1))
 ;;   (lb-call ((common-type (common-float-type x y))
@@ -600,7 +600,7 @@ etc."))
   ;; also (X^T X)^-1 = R^-1 (R^T)-1
   (bind (((:slots r) qr))
     (assert (<= (ncol r) (nrow r)))
-    (make-instance 'square-root :left-square-root (invert r))))
+    (make-instance 'matrix-square-root :left-square-root (invert r))))
 
 ;;;; constrained-least-squares
 

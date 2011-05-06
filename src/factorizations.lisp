@@ -42,18 +42,18 @@
 
 ;;; generic interface for square root-like decompositions
 
-(defclass square-root ()
+(defclass matrix-square-root ()
   ((left-square-root :reader left-square-root :initarg :left-square-root
                      :documentation "Matrix L such that LL^* is equal to the
                      original (decomposed) matrix.  This method should be defined for
                      other classes that can yield something similar."))
-  (:documentation "General class for representing all kinds of square roots,
+  (:documentation "General class for representing all kinds of matrix square roots,
   regardless of how they were computed.  The convention is to store the left square
   root."))
 
-(defmethod print-object ((square-root square-root) stream)
-  (print-unreadable-object (square-root stream :type t)
-    (format stream " LL^* with L=~A" (left-square-root square-root))))
+(defmethod print-object ((matrix-square-root matrix-square-root) stream)
+  (print-unreadable-object (matrix-square-root stream :type t)
+    (format stream " LL^* with L=~A" (left-square-root matrix-square-root))))
 
 (defgeneric right-square-root (object)
   (:documentation "Matrix L such that LL^* is equal to the original (decomposed)
@@ -61,12 +61,18 @@
   (:method (object)
     (transpose* (left-square-root object))))
 
-(defmethod reconstruct ((square-root square-root))
-  (mm (left-square-root square-root) t))
+(defmethod reconstruct ((matrix-square-root matrix-square-root))
+  (mm (left-square-root matrix-square-root) t))
+
+(defmethod e2* ((a matrix-square-root) (b number))
+  (make-instance (class-of a)
+                 :left-square-root (e* (left-square-root a) (sqrt b))))
+(defmethod e2* ((a number) (b matrix-square-root))
+  (e2* b a))
 
 ;;; Cholesky decomposition
 
-(defclass cholesky (square-root)
+(defclass cholesky (matrix-square-root)
   ()
   (:documentation "Cholesky decomposition a matrix."))
 
