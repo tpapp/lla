@@ -215,24 +215,18 @@
 
 ;;;; Hermitian factorization
 
-;; (defun hermitian (a &key (component :U))
-;;   (check-type a hermitian-matrix)
-;;   (lb-call ((type (lb-target-type a))
-;;             (procedure (lb-procedure-name type sytrf hetrf))
-;;             ((:values u-char kind set-restricted?)
-;;              (ecase component
-;;                (:U (values #\U :upper nil))
-;;                (:D (values #\L :lower t))))
-;;             ((:matrix a% type (n n%) nil :output factor
-;;                       :set-restricted? set-restricted?) a)
-;;             ((:char u-char%) u-char)
-;;             ((:work-queries lwork% (work% type)))
-;;             ((:output ipiv% :integer ipiv) n)
-;;             ((:check info%)))
-;;     (call procedure u-char% n% a% n% ipiv% work% lwork% info%)
-;;     (make-instance 'hermitian
-;;                    :factor (make-matrix% n n factor :kind kind)
-;;                    :ipiv ipiv)))
+(defgeneric hermitian-factorization (a)
+  (:documentation "Compute the hermitian factorization."))
+
+(defmethod hermitian-factorization ((a hermitian-matrix))
+  (lb-call ((a (elements a))
+            (type (common-float-type a))
+            ((:lapack (sytrf hetrf) type))
+            ((:array a% type :dimensions (n n2) :output factor) a)
+            ((:output ipiv% :integer ipiv) n))
+    (assert (= n n2))
+    (call (hermitian-orientation :lapack) n a% n ipiv%)
+    (make-instance 'hermitian-factorization :factor factor :ipiv ipiv)))
 
 ;;;; solving linear equations
 
@@ -281,20 +275,21 @@
 ;;     (call procedure u-char% n% nrhs% factor% n% b% n% info%)
 ;;     (make-matrix% n nrhs x)))
 
-;; (defmethod solve ((hermitian hermitian) (b dense-matrix-like))
-;;   (lb-call (((:slots-r/o factor ipiv) hermitian)
-;;             (common-type (common-float-type factor b))
-;;             (procedure (lb-procedure-name common-type sytrs hetrs))
-;;             ((:matrix factor% common-type (n n%) n2) factor)
-;;             ((:matrix b% common-type n3 (nrhs nrhs%) :output x) b)
-;;             ((:vector ipiv% :integer n4) ipiv)
-;;             ((:char u-char%) (etypecase factor
-;;                                (upper-matrix #\U)
-;;                                (lower-matrix #\L)))
-;;             ((:check info%)))
-;;     (assert (= n n2 n3 n4))
-;;     (call procedure u-char% n% nrhs% factor% n% ipiv% b% n% info%)
-;;     (make-matrix% n n x)))
+(defmethod solve ((hermitian-factorization hermitian-factorization) (b array))
+  (lb-call (((:slots-r/o factor ipiv) hermitian-factorization)
+            (common-type (common-float-type factor b))
+            ((:lapack (sytrs hetrs) common-type))
+            ((:array factor% common-type :dimensions (n n2)) factor)
+            ((:values n3 nrhs b-orientation ldb) (maybe-vector-as-matrix b :column))
+            ((:array b% common-type :output x :output-dimensions
+                      (vector-or-matrix-dimensions n nrhs b-orientation)) b)
+            ((:array ipiv% :integer :dimensions n4) ipiv))
+    (assert (= n n2 n3 n4))
+    (call (hermitian-orientation :lapack) n nrhs factor% n ipiv% b% ldb)
+    x))
+
+(defmethod solve ((hermitian-matrix hermitian-matrix) (b array))
+  (solve (hermitian-factorization hermitian-matrix) b))
 
 (defun trsm% (a a-uplo b side transpose-a? &optional (alpha 1))
   "Wrapper for BLAS routine xTRSM.  Calculates op(A^-1) B (if SIDE
@@ -344,26 +339,18 @@ result is multiplied by ALPHA."
     (call n lu% n ipiv%)
     inverse))
 
-;; (defmethod invert ((hf hermitian) &key)
-;;   ;; If the FACTOR is lower triangular, we need to transpose it, as
-;;   ;; hermitian matrices always store the upper triangle.
-;;   (lb-call (((:slots-r/o factor ipiv) hf)
-;;             (factor (aetypecase factor
-;;                       (lower-matrix (transpose it))
-;;                       (upper-matrix it)))
-;;             (common-type (common-float-type factor))
-;;             (procedure (lb-procedure-name common-type sytri hetri))
-;;             ((:matrix factor% common-type (n n%) n2 :output inverse) factor)
-;;             ((:work work% common-type) n)
-;;             ((:vector ipiv% :integer n3) ipiv)
-;;             ((:char u-char%) #\U)
-;;             ((:check info%)))
-;;     (assert (= n n2 n3))
-;;     (call procedure u-char% n% factor% n% ipiv% work% info%)
-;;     (make-matrix% n n inverse :kind :hermitian)))
+(defmethod invert ((hermitian-factorization hermitian-factorization) &key)
+  (lb-call (((:slots-r/o factor ipiv) hermitian-factorization)
+            (common-type (common-float-type factor))
+            ((:lapack (sytri hetri) common-type))
+            ((:array factor% common-type :dimensions (n n2) :output inverse) factor)
+            ((:array ipiv% :integer :dimensions n3) ipiv))
+    (assert (= n n2 n3))
+    (call (hermitian-orientation :lapack) n factor% n ipiv%)
+    (make-instance 'hermitian-matrix :elements inverse)))
 
-;; (defmethod invert ((a hermitian-matrix) &key)
-;;    (invert (hermitian a)))
+(defmethod invert ((a hermitian-matrix) &key)
+  (invert (hermitian-factorization a)))
 
 (defun invert-triangular% (a upper? unit-diag? kind)
   "Invert a dense (triangular) matrix using the LAPACK routine *TRTRI.
