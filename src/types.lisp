@@ -149,10 +149,14 @@ otherwise NIL."
   "Create an array with given LLA or lisp type and dimensions.  INITIAL-ELEMENT is
 used to fill the array when given."
   (let ((lisp-type (lla-array-element-type* element-type)))
-    (if initial-element
-        (make-array dimensions :element-type lisp-type
-                    :initial-element (coerce* initial-element element-type))
-        (make-array dimensions :element-type lisp-type))))
+    (typecase initial-element
+      (null (make-array dimensions :element-type lisp-type))
+      (function (aprog1 (make-array dimensions :element-type lisp-type)
+                  (dotimes (index (array-total-size it))
+                    (setf (row-major-aref it index)
+                          (coerce (funcall initial-element) lisp-type)))))
+      (t (make-array dimensions :element-type lisp-type
+                     :initial-element (coerce* initial-element element-type))))))
 
 (defun convert-array* (array element-type)
   "Convert an ARRAY to a given LLA type."
