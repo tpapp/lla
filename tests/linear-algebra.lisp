@@ -254,7 +254,7 @@
          (ss 6.724986d0)
          ;; ((:values beta1 ss1 nu1 other1) (least-squares y x :method :svd-d))
          ((:values beta2 ss2 nu2 qr) (lla::least-squares y x :method :qr))
-         (raw-var (reconstruct (invert-xx qr)))
+         (raw-var (as-array (invert-xx qr)))
          (variance (e* raw-var (/ ss2 nu2)))
          (*==-tolerance* 1e-5))
     ;; (ensure-same beta1 beta)

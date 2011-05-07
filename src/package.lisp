@@ -37,8 +37,8 @@
 
    ;; factorizations
 
-   reconstruct lu ipiv qr r matrix-square-root left-square-root right-square-root
-   cholesky
+   lu ipiv qr r matrix-square-root left-square-root right-square-root cholesky
+   hermitian-factorization
    
    ;;    matrix-factorization component reconstruct lu lu-matrix ipiv
    ;;    permutations qr qr-matrix cholesky factor hermitian

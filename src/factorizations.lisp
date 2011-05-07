@@ -2,10 +2,6 @@
 
 (in-package #:lla)
 
-(defgeneric reconstruct (matrix-factorization)
-  (:documentation "Calculate the original matrix from the matrix
-  factorization/decomposition."))
-
 (defclass lu ()
   ((lu :type matrix :initarg :lu :reader lu
        :documentation "matrix storing the transpose of the LU decomposition.")
@@ -61,7 +57,7 @@
   (:method (object)
     (transpose* (left-square-root object))))
 
-(defmethod reconstruct ((matrix-square-root matrix-square-root))
+(defmethod as-array ((matrix-square-root matrix-square-root) &key &allow-other-keys)
   (mm (left-square-root matrix-square-root) t))
 
 (defmethod e2* ((a matrix-square-root) (b number))
@@ -96,29 +92,11 @@
 (defmethod permutations ((lu lu))
   (count-permutations% (ipiv lu)))
 
+;;; hermitian factorization
 
-;; (defclass hermitian (matrix-factorization)
-;;   ((factor :type (or lower-matrix upper-matrix)
-;;            :initarg :factor :reader factor
-;;            :documentation "upper/lower triangular matrix M such
-;;              that MDM^* is equal to the original matrix")
-;;    (ipiv :type vector :initarg :ipiv :reader ipiv
-;;          :documentation "pivot indices"))
-;;   (:documentation "Factorization for an indefinite hermitian matrix
-;;   with pivoting."))
-
-;; (defmethod component ((mf cholesky) component &key (copy? nil))
-;;   (flet ((copy-maybe (matrix)
-;;            (if copy?
-;;                (copy-matrix matrix :copy? t)
-;;                matrix)))
-;;     (bind (((:slots-read-only factor) mf))
-;;       (etypecase factor
-;;         (lower-matrix
-;;            (ecase component
-;;              (:U (copy-maybe (conjugate-transpose factor)))
-;;              (:L factor)))
-;;         (upper-matrix
-;;            (ecase component
-;;              (:U factor)
-;;              (:L (copy-maybe (conjugate-transpose factor)))))))))
+(defclass hermitian-factorization ()
+  ((factor :type matrix :initarg :factor :reader factor
+           :documentation "see documentation of *SYTRF and *HETRF, storage is in the
+           half specified by HERMITIAN-ORIENTATION and otherwise treated as opaque.")
+   (ipiv :type vector :initarg :ipiv :reader ipiv   :documentation "pivot indices"))
+  (:documentation "Factorization for an indefinite hermitian matrix with pivoting."))
