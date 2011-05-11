@@ -93,14 +93,14 @@ contain the string used for printing non-represented elements."
        (bind (((:slots-r/o elements) matrix)
               ,@bindings)
          (if copy?
-             (aprog1 (make-similar-array matrix)
-               (row-major-loop (elements index row col)
+             (aprog1 (make-similar-array elements)
+               (row-major-loop ((array-dimensions elements) index row col)
                  (setf (row-major-aref it index)
                        (if ,represented-element?
                            (row-major-aref elements index)
                            ,non-represented-element))))
              (prog1 elements
-               (row-major-loop (elements index row col)
+               (row-major-loop ((array-dimensions elements) index row col)
                  (unless ,represented-element?
                    (setf (row-major-aref elements index)
                          ,non-represented-element)))))))))

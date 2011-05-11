@@ -5,19 +5,19 @@
 (deftype symbol* () '(and symbol (not null)))
 (defun symbolp* (object) (typep object 'symbol*))
 
-(defmacro row-major-loop ((matrix index row col &key
-                                 (nrow (gensym* '#:nrow)) (ncol (gensym* '#:ncol)))
+(defmacro row-major-loop ((dimensions row-major-index row-index col-index &key
+                                      (nrow (gensym* '#:nrow))
+                                      (ncol (gensym* '#:ncol)))
                           &body body)
-  "Loop through row-major MATRIX, incrementing INDEX (flat row-major index), ROW, and
-COL."
-  (check-types (row col index nrow ncol) symbol)
-  (once-only (matrix)
-    `(bind (((,nrow ,ncol) (array-dimensions ,matrix))
-            (,index 0))
-       (dotimes (,row ,nrow)
-         (dotimes (,col ,ncol)
-           ,@body
-           (incf ,index))))))
+  "Loop through row-major matrix with given DIMENSIONS, incrementing
+ROW-MAJOR-INDEX, ROW-INDEX and COL-INDEX."
+  (check-types (row-index col-index row-major-index nrow ncol) symbol)
+  `(bind (((,nrow ,ncol) ,dimensions)
+          (,row-major-index 0))
+     (dotimes (,row-index ,nrow)
+       (dotimes (,col-index ,ncol)
+         ,@body
+         (incf ,row-major-index)))))
 
 (defmacro define-ondemand-slot ((instance-and-class slot-name) &body body)
   `(defmethod slot-missing (,(gensym) ,instance-and-class (slot-name (eql ',slot-name))

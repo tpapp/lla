@@ -90,25 +90,22 @@ sequence or a single element, the latter is recycled."
          ((:values elements nrow ncol) (remove-row-separator elements))
          (dimensions (if ncol (list nrow ncol) nrow))
          (elements-var (gensym* '#:elements-var))
-         (array (make-array* dimensions element-type))
-         non-constant-elements
+         represented-elements
          ((:flet save-element (index element))
-          (if (numberp element)
-              (setf (row-major-aref array index) (coerce* element element-type))
-              (push (list index element) non-constant-elements))))
-    ;; separate represented elements to numbers and other expressions
+          (push (list index element) represented-elements)))
+    ;; collect elements that are set
     (if ncol
-        (row-major-loop (array index row col)
+        (row-major-loop (dimensions index row col)
           (when (or (eql kind :dense) (represented-element? kind row col))
             (save-element index (aref elements index))))
         (loop for index :from 0
               for element :across elements
               do (save-element index element)))
-    `(let ((,elements-var ,array))
+    `(let ((,elements-var (make-array* ',dimensions ',element-type)))
        ;; fill elements
        ,@(loop
-           for (index element) :in (nreverse non-constant-elements)
-           collect `(setf (row-major-aref ,array ,index)
+           for (index element) :in (nreverse represented-elements)
+           collect `(setf (row-major-aref ,elements-var ,index)
                           (coerce* ,element ,element-type)))
        ;; create object !! will be used when introducing kinds
        ,(if (eq kind :dense)
