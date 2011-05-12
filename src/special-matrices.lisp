@@ -2,8 +2,8 @@
 
 (defclass wrapped-matrix ()
   ((elements :accessor elements :initarg :elements :type matrix
-             :documentation "The representation depends on the class, use as-array to
-           convert to a regular matrix."))
+             :documentation "The representation depends on the class, use
+           as-array to convert to a regular matrix."))
   (:documentation "A matrix that has some special structure (eg triangular,
   symmetric/hermitian).  Elements are always a matrix."))
 
@@ -11,31 +11,44 @@
                                        &key &allow-other-keys)
   (check-type (elements wrapped-matrix) matrix))
 
-(defun make-array-using-contents% (dimensions initial-contents element-type copy?)
+(defun make-array-using-contents% (dimensions initial-contents element-type
+                                   copy?)
   (typecase initial-contents
     (null
-     (make-array* dimensions (aif element-type it t) initial-contents))
+       (make-array* dimensions (aif element-type it t) initial-contents))
     (number
-     (make-array* dimensions (aif element-type it t) initial-contents))
+       (make-array* dimensions (aif element-type it t) initial-contents))
     (array
-     (when dimensions
-       (assert (equal (ensure-list dimensions) (array-dimensions initial-contents))
-               () "Dimension mismatch."))
-     (if element-type
-         (maybe-convert-array* initial-contents element-type copy?)
-         (clnu::maybe-copy-array initial-contents copy?)))
-    (otherwise (make-array-using-contents% dimensions (as-array initial-contents)
-                                   element-type copy?))))
+       (when dimensions
+         (assert (equal (ensure-list dimensions)
+                        (array-dimensions initial-contents))
+                 () "Dimension mismatch."))
+       (if element-type
+           (maybe-convert-array* initial-contents element-type copy?)
+           (clnu::maybe-copy-array initial-contents copy?)))
+    (otherwise (make-array-using-contents% dimensions 
+                                           (as-array initial-contents)
+                                           element-type copy?))))
 
-(defgeneric make-matrix (kind dimensions &key initial-contents element-type copy?)
-  (:documentation "Create a matrix of given KIND, with DIMENSIONS (can be NIL if
-  inferred from initial contents, usually another matrix-like object).")
-  (:method ((kind (eql :dense)) dimensions &key initial-contents element-type copy?)
-    (make-array-using-contents% dimensions initial-contents element-type copy?)))
+(defmethod emap-dimensions ((wrapped-matrix wrapped-matrix))
+  (array-dimensions (elements wrapped-matrix)))
+
+(defmethod stack-into ((wrapped-matrix wrapped-matrix)
+                       h? result cumulative-index)
+  (stack-into (as-array wrapped-matrix) h? result cumulative-index))
+
+(defgeneric make-matrix (kind dimensions 
+                              &key initial-contents element-type copy?)
+  (:documentation "Create a matrix of given KIND, with DIMENSIONS (can be NIL
+  if inferred from initial contents, usually another matrix-like object).")
+  (:method ((kind (eql :dense)) dimensions
+            &key initial-contents element-type copy?)
+    (make-array-using-contents% dimensions initial-contents element-type
+                                copy?)))
 
 (defgeneric mref (matrix row col)
-  (:documentation "Element accessor for matrices.  When second value is true, element
-  is constant or calculated from other elements.")
+  (:documentation "Element accessor for matrices.  When second value is true,
+  element is constant or calculated from other elements.")
   (:method ((array array) row col)
     (aref array row col)))
 
@@ -49,16 +62,18 @@
   (:documentation "Trying to set a constant element."))
 
 (defgeneric represented-element? (kind row col)
-  (:documentation "Return a boolean, indicating whether the element is represented
-  directly.  Only defined for subclasses of WRAPPED-MATRIX."))
+  (:documentation "Return a boolean, indicating whether the element is
+  represented directly.  Only defined for subclasses of WRAPPED-MATRIX."))
 
-(defmacro define-special-matrix (class documentation synonyms represented-element?
-                                 non-represented-element masked-element-string &key bindings)
-  "Define a special matrix class and methods for represents elements in wrapped-matrix object,
-using a 2d array.  ROW, COL and ELEMENTS are bound to row/column indexes and the 2d
-array for REPRESENTED-ELEMENT? (should evaluate to boolean) and
-NON-REPRESENTED-ELEMENT (should evaluate to the value).  MASKED-ELEMENT-STRING should
-contain the string used for printing non-represented elements."
+(defmacro define-special-matrix (class documentation synonyms
+                                 represented-element? non-represented-element
+                                 masked-element-string &key bindings)
+  "Define a special matrix class and methods for represents elements in
+ wrapped-matrix object, using a 2d array.  ROW, COL and ELEMENTS are bound to
+ row/column indexes and the 2d array for REPRESENTED-ELEMENT? (should evaluate
+ to boolean) and NON-REPRESENTED-ELEMENT (should evaluate to the value).
+ MASKED-ELEMENT-STRING should contain the string used for printing
+ non-represented elements."
   `(progn
      (defclass ,class (wrapped-matrix) () (:documentation ,documentation))
      (defmethod make-matrix ((kind (eql ',class)) dimensions &key
@@ -69,7 +84,8 @@ contain the string used for printing non-represented elements."
      ,@(loop for synonym :in synonyms collect
              `(defmethod make-matrix ((kind (eql ',synonym)) dimensions &key
                                       initial-contents element-type copy?)
-                (make-matrix ',class dimensions :copy? copy? :element-type element-type
+                (make-matrix ',class dimensions :copy? copy?
+                             :element-type element-type
                              :initial-contents initial-contents)))
      (defmethod represented-element? ((kind (eql ',class)) row col)
        ,represented-element?)
@@ -155,14 +171,22 @@ contain the string used for printing non-represented elements."
 
 (defclass diagonal-matrix ()
   ((elements :accessor elements :initarg :elements :type vector
-             :documentation "The representation depends on the class, use as-array to
-           convert to a regular matrix."))
+             :documentation "The representation depends on the class, use
+           as-array to convert to a regular matrix."))
   (:documentation
    "Diagonal matrix.  The elements in the diagonal are stored in a vector."))
 
 (defmethod initialize-instance :after ((diagonal-matrix diagonal-matrix)
                                        &key &allow-other-keys)
   (check-type (elements diagonal-matrix) vector))
+
+(defmethod emap-dimensions ((diagonal-matrix diagonal-matrix))
+  (let ((length (length (elements diagonal-matrix))))
+    (list length length)))
+
+(defmethod stack-into ((diagonal-matrix diagonal-matrix)
+                       h? result cumulative-index)
+  (stack-into (as-array diagonal-matrix) h? result cumulative-index))
 
 (defmethod make-matrix ((kind (eql 'diagonal-matrix)) dimensions 
                         &key initial-contents element-type copy?)
