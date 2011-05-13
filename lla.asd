@@ -6,7 +6,7 @@
 ;;;
 ;;; This copyright notice pertains to all files in this library.
 
-(defsystem #:lla
+(defsystem lla
   :description "Lisp Linear Algebra"
   :version "beta"
   :author "Tamas K Papp <tkpapp@gmail.com>"
