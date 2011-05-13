@@ -49,6 +49,10 @@
   roots, regardless of how they were computed.  The convention is to store the
   left square root."))
 
+(defun matrix-square-root (left-square-root)
+  "Convenience function to create a matrix from a squre root."
+  (make-instance 'matrix-square-root :left-square-root left-square-root))
+
 (defmethod print-object ((matrix-square-root matrix-square-root) stream)
   (print-unreadable-object (matrix-square-root stream :type t)
     (format stream " LL^* with L=~A" (left-square-root matrix-square-root))))
