@@ -5,26 +5,11 @@
 (deftype symbol* () '(and symbol (not null)))
 (defun symbolp* (object) (typep object 'symbol*))
 
-(defmacro row-major-loop ((dimensions row-major-index row-index col-index &key
-                                      (nrow (gensym* '#:nrow))
-                                      (ncol (gensym* '#:ncol)))
-                          &body body)
-  "Loop through row-major matrix with given DIMENSIONS, incrementing
-ROW-MAJOR-INDEX, ROW-INDEX and COL-INDEX."
-  (check-types (row-index col-index row-major-index nrow ncol) symbol)
-  `(bind (((,nrow ,ncol) ,dimensions)
-          (,row-major-index 0))
-     (dotimes (,row-index ,nrow)
-       (dotimes (,col-index ,ncol)
-         ,@body
-         (incf ,row-major-index)))))
-
 (defmacro define-ondemand-slot ((instance-and-class slot-name) &body body)
   `(defmethod slot-missing (,(gensym) ,instance-and-class (slot-name (eql ',slot-name))
                             (operation (eql 'slot-value)) &optional new-value)
      (declare (ignore new-value))
      ,@body))
-
 
 ;;;; this is missing from CFFI at the moment
 (define-with-multiple-bindings with-foreign-pointer)
