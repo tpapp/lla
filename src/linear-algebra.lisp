@@ -2,17 +2,18 @@
 
 ;;; Higher level linear algebra functions defined here.
 ;;;
-;;; General convention for vectors in places of matrices: should be interpreted as a
-;;; conforming vector.  If the result is an 1xn or nx1 matrix, it should be
-;;; converted to a vector iff some related argument was a vector.  For example,
-;;; (solve a b) should be a vector iff b is a vector, otherwise it should be a
-;;; matrix.  In case of ambiguity (eg (mm a b) could be both (dot a b) or (outer a
-;;; b) when a and b are vectors) signal an error.
+;;; General convention for vectors in places of matrices: should be
+;;; interpreted as a conforming vector.  If the result is an 1xn or nx1
+;;; matrix, it should be converted to a vector iff some related argument was a
+;;; vector.  For example, (solve a b) should be a vector iff b is a vector,
+;;; otherwise it should be a matrix.  In case of ambiguity (eg (mm a b) could
+;;; be both (dot a b) or (outer a b) when a and b are vectors) signal an
+;;; error.
 
 ;;; General notes about LAPACKE/CBLAS:
 ;;; 
-;;; The leading dimension for row-major matrices is the SECOND dimension (number of
-;;; columns).
+;;; The leading dimension for row-major matrices is the SECOND dimension
+;;; (number of columns).
 
 ;;; Helper functions
 
@@ -54,7 +55,8 @@
     c))
 
 (defgeneric mm (a b &optional alpha)
-  (:documentation "multiply A and B, also by the scalar alpha (defaults to 1)."))
+  (:documentation
+   "multiply A and B, also by the scalar alpha (defaults to 1)."))
 
 (defun mmm (&rest matrices)
   (reduce #'mm matrices))
@@ -62,11 +64,11 @@
 (defmethod mm ((a array) (b array) &optional (alpha 1))
   (mm-internal a b :alpha alpha))
 
-;;; !! this is how we could speed things up with compiler macros: have a compiler
-;;; !! macro transform (MM (TRANSPOSE FOO) BAR) to (MM-TN FOO BAR), which is a
-;;; !! generic function and would use MM-INTERNAL accordingly.  Or, we could have
-;;; !! (lazy-transpose* FOO) explicitly, and have MM dispatch on that.  Will
-;;; !! investigate.
+;;; !! this is how we could speed things up with compiler macros: have a
+;;; !! compiler macro transform (MM (TRANSPOSE FOO) BAR) to (MM-TN FOO BAR),
+;;; !! which is a generic function and would use MM-INTERNAL accordingly.  Or,
+;;; !! we could have (lazy-transpose* FOO) explicitly, and have MM dispatch on
+;;; !! that.  Will investigate.
 
 (defun mm-hermitian% (a op-left? &optional (alpha 1))
   "Calculate alpha*A*op(A) if OP-LEFT? is NIL, and alpha*op(A)*A
@@ -237,7 +239,8 @@
   (solve a (as-array b)))
 
 (defmethod solve ((lu lu) (b array))
-  (lb-call (((:values b0 b1 b-orientation ldb) (maybe-vector-as-matrix b :column))
+  (lb-call (((:values b0 b1 b-orientation ldb)
+             (maybe-vector-as-matrix b :column))
             ((:slots-r/o lu ipiv) lu)
             (common-type (common-float-type lu b))
             ((:lapack getrs common-type))
@@ -250,7 +253,8 @@
     x))
 
 (defmethod solve ((a array) (b array))
-  (lb-call (((:values b0 b1 b-orientation ldb) (maybe-vector-as-matrix b :column))
+  (lb-call (((:values b0 b1 b-orientation ldb)
+             (maybe-vector-as-matrix b :column))
             (common-type (common-float-type a b))
             ((:lapack gesv common-type))
             ((:array a% common-type :dimensions (a0 a1)) a)
@@ -280,7 +284,8 @@
             (common-type (common-float-type factor b))
             ((:lapack (sytrs hetrs) common-type))
             ((:array factor% common-type :dimensions (n n2)) factor)
-            ((:values n3 nrhs b-orientation ldb) (maybe-vector-as-matrix b :column))
+            ((:values n3 nrhs b-orientation ldb)
+             (maybe-vector-as-matrix b :column))
             ((:array b% common-type :output x :output-dimensions
                       (vector-or-matrix-dimensions n nrhs b-orientation)) b)
             ((:array ipiv% :integer :dimensions n4) ipiv))
@@ -298,7 +303,8 @@ matrix.  transpose-a? determines whether op(A) is A^T or A.  The
 result is multiplied by ALPHA."
   (lb-call ((common-type (common-float-type a b))
             ((:blas trsm common-type))
-            ((:values b0 b1 b-orientation ldb) (maybe-vector-as-matrix b :column))
+            ((:values b0 b1 b-orientation ldb)
+             (maybe-vector-as-matrix b :column))
             ((:array a% common-type :dimensions (a0 a1)) a)
             ((:array b% common-type :output result :output-dimensions
                      (vector-or-matrix-dimensions b0 b1 b-orientation)) b)
@@ -322,10 +328,10 @@ result is multiplied by ALPHA."
 
 (defgeneric invert (a &key &allow-other-keys)
   (:documentation "Invert A.  The inverse of matrix factorizations are other
-  factorizations when appropriate, otherwise the result is a matrix.  Usage note:
-  inverting dense matrices is unnecessary and unwise in most cases, because it is
-  numerically unstable.  If you are solving many Ax=b equations with the same A, use
-  a matrix factorization like LU."))
+  factorizations when appropriate, otherwise the result is a matrix.  Usage
+  note: inverting dense matrices is unnecessary and unwise in most cases,
+  because it is numerically unstable.  If you are solving many Ax=b equations
+  with the same A, use a matrix factorization like LU."))
 
 (defmethod invert ((a array) &key) (invert (lu a)))
 
@@ -343,7 +349,8 @@ result is multiplied by ALPHA."
   (lb-call (((:slots-r/o factor ipiv) hermitian-factorization)
             (common-type (common-float-type factor))
             ((:lapack (sytri hetri) common-type))
-            ((:array factor% common-type :dimensions (n n2) :output inverse) factor)
+            ((:array factor% common-type :dimensions (n n2) :output inverse)
+             factor)
             ((:array ipiv% :integer :dimensions n3) ipiv))
     (assert (= n n2 n3))
     (call (hermitian-orientation :lapack) n factor% n ipiv%)
@@ -354,9 +361,9 @@ result is multiplied by ALPHA."
 
 (defun invert-triangular% (a upper? unit-diag? kind)
   "Invert a dense (triangular) matrix using the LAPACK routine *TRTRI.
-UPPER? indicates if the matrix is in the upper or the lower triangle of a matrix,
-UNIT-DIAG? indicates whether the diagonal is supposed to consist of 1s.  For internal
-use, not exported."
+UPPER? indicates if the matrix is in the upper or the lower triangle of a
+matrix, UNIT-DIAG? indicates whether the diagonal is supposed to consist of
+1s.  For internal use, not exported."
   (lb-call ((common-type (common-float-type a))
             ((:lapack trtri common-type))
             ((:array a% common-type :dimensions (n n2) :output inverse) a)
@@ -499,8 +506,8 @@ use, not exported."
   ())
 
 (defun last-rows-ss (matrix nrhs common-type)
-  "Calculate the sum of squares of the last rows of MATRIX columnwise, omitting the
-first NRHS rows.  Used for interfacing with xGELS."
+  "Calculate the sum of squares of the last rows of MATRIX columnwise,
+omitting the first NRHS rows.  Used for interfacing with xGELS."
   (bind (((m n) (array-dimensions matrix))
          (real-type (real-lla-type common-type))
          (sum (make-array* n real-type (zero* real-type)))
@@ -514,17 +521,22 @@ first NRHS rows.  Used for interfacing with xGELS."
 
 (defun least-squares-qr (y x &key &allow-other-keys)
   "Least squares using QR decomposition.  Additional values returned: the QR
-decomposition of X.  See LEAST-SQUARES for additional documentation.  Usage note:
-SVD-based methods are recommended over this one, unless X is well-conditioned."
+decomposition of X.  See LEAST-SQUARES for additional documentation.  Usage
+note: SVD-based methods are recommended over this one, unless X is
+well-conditioned."
   ;; Note: the naming convention (y,X,b) is different from LAPACK's
   ;; (b,A,x).  Sorry if this creates confusion, I decided to follow
   ;; standard statistical notation.
   (lb-call ((common-type (common-float-type x y))
-            ((:values m n x-orientation ldx) (maybe-vector-as-matrix x :column))
-            ((:values m2 nrhs y-orientation ldy) (maybe-vector-as-matrix y :column))
+            ((:values m n x-orientation ldx)
+             (maybe-vector-as-matrix x :column))
+            ((:values m2 nrhs y-orientation ldy)
+             (maybe-vector-as-matrix y :column))
             ((:lapack gels common-type))
-            ((:array x% common-type :output qr :output-dimensions (list m n)) x)
-            ((:array y% common-type :output b :output-dimensions (list m nrhs)) y))
+            ((:array x% common-type
+                     :output qr :output-dimensions (list m n)) x)
+            ((:array y% common-type
+                     :output b :output-dimensions (list m nrhs)) y))
     (assert (= m m2))
     (unless (<= n m)
       (error 'not-enough-columns))
@@ -577,14 +589,14 @@ SVD-based methods are recommended over this one, unless X is well-conditioned."
 ;;; !! least-squares too
 
 (defgeneric invert-xx (xx)
-  (:documentation "Calculate (X^T X)-1 (which is used for calculating the variance of
-estimates) and return as a decomposition.  Usually XX is a decomposition itself, eg
-QR returned by least squares.  Note: this can be used to generate random draws,
-etc."))
+  (:documentation "Calculate (X^T X)-1 (which is used for calculating the
+variance of estimates) and return as a decomposition.  Usually XX is a
+decomposition itself, eg QR returned by least squares.  Note: this can be used
+to generate random draws, etc."))
 
 (defmethod invert-xx ((qr qr))
-  ;; Notes: X = QR, and thus X^T X = R^T Q^T Q R = R^T R because Q is orthogonal,
-  ;; also (X^T X)^-1 = R^-1 (R^T)-1
+  ;; Notes: X = QR, and thus X^T X = R^T Q^T Q R = R^T R because Q is
+  ;; orthogonal, also (X^T X)^-1 = R^-1 (R^T)-1
   (bind (((:slots r) qr))
     (assert (<= (ncol r) (nrow r)))
     (make-instance 'matrix-square-root :left-square-root (invert r))))
@@ -627,7 +639,8 @@ etc."))
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (assert (eql (load-time-value (hermitian-orientation :lapack)) +l+)
           () 
-          "Cholesky implementation below assumes that hermitian orientation is L."))
+          "Cholesky implementation below assumes that hermitian orientation is
+          L."))
 
 (defmethod cholesky ((a hermitian-matrix))
   (lb-call ((a (elements a))
