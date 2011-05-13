@@ -318,10 +318,10 @@ result is multiplied by ALPHA."
     result))
 
 (defmethod solve ((a lower-triangular-matrix) b)
-  (trsm% (elements a) :CBLASLOWER b :left nil))
+  (trsm% (elements a) :CBLASLOWER (as-array b) :left nil))
 
 (defmethod solve ((a upper-triangular-matrix) b)
-  (trsm% (elements a) :CBLASUPPER b :left nil))
+  (trsm% (elements a) :CBLASUPPER (as-array b) :left nil))
 
 ;; (defmethod solve ((a diagonal) (b dense-matrix-like))
 ;;   (mm (e/ a) b))
