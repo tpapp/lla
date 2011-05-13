@@ -103,7 +103,27 @@
 
 ;; ;;; pinned-vector is tested in a separate file
 
-;; ;;; matrix-classes
+;; special matrixes
+
+(addtest (basic-tests)
+  special-univariate-operation
+  (let ((*lift-equality-test* #'==))
+    (ensure-same (e- (clo :upper 2 :/)) (clo :upper -2 :/))
+    (ensure-same (e/ (clo :upper 2 :/)) (clo :upper 0.5 :/))
+    (ensure-same (e+ (clo :upper 2 :/)) (clo :upper 2 :/))))
+
+(addtest (basic-tests)
+  special-mean
+  (let ((a (clo :upper :double
+                2 4 :/
+                0 6))
+        (b (clo :lower :double
+                2 0 :/
+                4 6))
+        (*lift-equality-test* #'==))
+    (ensure-same (mean (list (e* 2 a) (e- a))) (e/ a 2))
+    (ensure-same (mean (list (e* 2 b) (e- b))) (e/ b 2))
+    (ensure-same (mean (list a b)) (mean (list (as-array a) (as-array b))))))
 
 ;; (addtest (basic-tests)
 ;;   matrix-classes

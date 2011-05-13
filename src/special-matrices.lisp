@@ -159,10 +159,11 @@
 
 ;;; Hermitian matrices
 ;;;
-;;; LLA uses the class HERMITIAN-MATRIX to implement both real symmetric and complex
-;;; Hermitian matrices --- as technically, real symmetric matrices are also
-;;; Hermitian.  Complex symmetric matrices are NOT implemented as a special matrix
-;;; type, as they don't have any special properties (eg real eigenvalues, etc).
+;;; LLA uses the class HERMITIAN-MATRIX to implement both real symmetric and
+;;; complex Hermitian matrices --- as technically, real symmetric matrices are
+;;; also Hermitian.  Complex symmetric matrices are NOT implemented as a
+;;; special matrix type, as they don't have any special properties (eg real
+;;; eigenvalues, etc).
 
 (define-special-matrix hermitian-matrix
     "Hermitian/symmetric matrix, with elements stored in the lower triangle."
@@ -211,8 +212,8 @@
 
 (defmethod make-matrix ((kind (eql :diagonal)) dimensions 
                         &key initial-contents element-type copy?)
-  (make-matrix 'diagonal-matrix dimensions :copy? copy? :element-type element-type
-               :initial-contents initial-contents))
+  (make-matrix 'diagonal-matrix dimensions :copy? copy?
+               :element-type element-type :initial-contents initial-contents))
 
 (defmethod nrow ((diagonal-matrix diagonal-matrix))
   (length (elements diagonal-matrix)))
@@ -240,7 +241,8 @@
 
 ;;; elementwise operations
 
-(defmacro define-elementwise-with-constant (class &optional (functions '(e2* e2/)))
+(defmacro define-elementwise-with-constant (class
+                                            &optional (functions '(e2* e2/)))
   "Define elementwise operations for FUNCTION for all subclasses of
 wrapped-elements.  "
   `(progn
@@ -252,12 +254,23 @@ wrapped-elements.  "
              `(defmethod ,function ((a number) (b ,class))
                 (make-instance ',class :elements (,function a (elements b)))))))
   
-(defmacro define-elementwise-same-class (class &optional (functions '(e2+ e2- e2*)))
+(defmacro define-elementwise-same-class (class
+                                         &optional (functions '(e2+ e2- e2*)))
   `(progn
      ,@(loop for function in functions collect
              `(defmethod ,function ((a ,class) (b ,class))
                 (make-instance ',class
                                :elements (,function (elements a) (elements b)))))))
+
+(defmacro define-elementwise-univariate (class
+                                         &optional (functions '(e1- e1/)))
+  "Define elementwise operations for FUNCTION for all subclasses of
+wrapped-elements.  "
+  `(progn
+     ,@(loop :for function :in functions
+             :collect
+             `(defmethod ,function ((a ,class))
+                (make-instance ',class :elements (,function (elements a)))))))
 
 (define-elementwise-with-constant lower-triangular-matrix)
 (define-elementwise-with-constant upper-triangular-matrix)
@@ -268,6 +281,11 @@ wrapped-elements.  "
 (define-elementwise-same-class upper-triangular-matrix)
 (define-elementwise-same-class hermitian-matrix)
 (define-elementwise-same-class diagonal-matrix)
+
+(define-elementwise-univariate lower-triangular-matrix)
+(define-elementwise-univariate upper-triangular-matrix)
+(define-elementwise-univariate hermitian-matrix)
+(define-elementwise-univariate diagonal-matrix)
 
 ;;; transpose
 
