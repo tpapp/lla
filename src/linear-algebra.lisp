@@ -639,6 +639,9 @@ etc."))
     (make-instance 'cholesky :left-square-root 
                    (make-matrix :lower nil :initial-contents l))))
 
+(defmethod left-square-root ((hermitian-matrix hermitian-matrix))
+  (left-square-root (cholesky hermitian-matrix)))
+
 ;; ;;; SVD
 
 ;; (defgeneric svd (a &key left right)
