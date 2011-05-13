@@ -37,6 +37,21 @@
                        h? result cumulative-index)
   (stack-into (as-array wrapped-matrix) h? result cumulative-index))
 
+(defmethod mean-accumulator ((first-element wrapped-matrix) sequence)
+  (let ((type (type-of first-element))
+        (array-accumulator (mean-accumulator (elements first-element)
+                                             sequence)))
+    (lambda (&optional x)
+      (if x
+          (progn
+            (when (and type (not (equal type (type-of x))))
+              (setf type nil))
+            (funcall array-accumulator x))
+          (let ((mean (funcall array-accumulator)))
+            (if type
+                (make-instance type :elements mean)
+                mean))))))
+
 (defgeneric make-matrix (kind dimensions 
                               &key initial-contents element-type copy?)
   (:documentation "Create a matrix of given KIND, with DIMENSIONS (can be NIL
