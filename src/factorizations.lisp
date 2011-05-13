@@ -34,30 +34,34 @@
   (bind (((:slots-r/o qr) qr)
          ((:accessors-r/o nrow ncol) qr))
     (assert (>= nrow ncol))
-    (make-matrix :upper nil :initial-contents (matrix-from-first-rows qr ncol nil))))
+    (make-matrix :upper nil
+                 :initial-contents (matrix-from-first-rows qr ncol nil))))
 
 ;;; generic interface for square root-like decompositions
 
 (defclass matrix-square-root ()
   ((left-square-root :reader left-square-root :initarg :left-square-root
                      :documentation "Matrix L such that LL^* is equal to the
-                     original (decomposed) matrix.  This method should be defined for
-                     other classes that can yield something similar."))
-  (:documentation "General class for representing all kinds of matrix square roots,
-  regardless of how they were computed.  The convention is to store the left square
-  root."))
+                     original (decomposed) matrix.  This method should be
+                     defined for other classes that can yield something
+                     similar."))
+  (:documentation "General class for representing all kinds of matrix square
+  roots, regardless of how they were computed.  The convention is to store the
+  left square root."))
 
 (defmethod print-object ((matrix-square-root matrix-square-root) stream)
   (print-unreadable-object (matrix-square-root stream :type t)
     (format stream " LL^* with L=~A" (left-square-root matrix-square-root))))
 
 (defgeneric right-square-root (object)
-  (:documentation "Matrix L such that LL^* is equal to the original (decomposed)
-   matrix.  Efficiency note: may be calculated on demand.")
+  (:documentation "Matrix L such that LL^* is equal to the
+   original (decomposed) matrix.  Efficiency note: may be calculated on
+   demand.")
   (:method (object)
     (transpose* (left-square-root object))))
 
-(defmethod as-array ((matrix-square-root matrix-square-root) &key &allow-other-keys)
+(defmethod as-array ((matrix-square-root matrix-square-root)
+                     &key &allow-other-keys)
   (mm (left-square-root matrix-square-root) t))
 
 (defmethod e2* ((a matrix-square-root) (b number))
@@ -72,15 +76,16 @@
   ()
   (:documentation "Cholesky decomposition a matrix."))
 
-(defmethod initialize-instance :after ((instance cholesky) &key &allow-other-keys)
+(defmethod initialize-instance :after ((instance cholesky)
+                                       &key &allow-other-keys)
   (assert (typep (left-square-root instance) 
                  '(and lower-triangular-matrix (satisfies square?)))))
 
 ;;; permutations (pivoting)
 
 (defgeneric permutations (object)
-  (:documentation "Return the number of permutations in object (which is usually
-  a matrix factorization, or a pivot index."))
+  (:documentation "Return the number of permutations in object (which is
+  usually a matrix factorization, or a pivot index."))
 
 (defun count-permutations% (ipiv)
   "Count the permutations in a pivoting vector."
@@ -96,7 +101,10 @@
 
 (defclass hermitian-factorization ()
   ((factor :type matrix :initarg :factor :reader factor
-           :documentation "see documentation of *SYTRF and *HETRF, storage is in the
-           half specified by HERMITIAN-ORIENTATION and otherwise treated as opaque.")
-   (ipiv :type vector :initarg :ipiv :reader ipiv   :documentation "pivot indices"))
-  (:documentation "Factorization for an indefinite hermitian matrix with pivoting."))
+           :documentation "see documentation of *SYTRF and *HETRF, storage is
+           in the half specified by HERMITIAN-ORIENTATION and otherwise
+           treated as opaque.")
+   (ipiv :type vector :initarg :ipiv :reader ipiv :documentation "pivot
+   indices"))
+  (:documentation "Factorization for an indefinite hermitian matrix with
+  pivoting."))
