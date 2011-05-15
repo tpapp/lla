@@ -1,5 +1,5 @@
 (defpackage #:lla
-  (:use common-lisp iterate bind cffi anaphora alexandria cl-num-utils)
+    (:use common-lisp iterate bind cffi anaphora alexandria cl-num-utils)
   (:shadowing-import-from cl-num-utils mean variance)
   (:export 
 
@@ -37,8 +37,8 @@
 
    ;; factorizations
 
-   lu ipiv qr r matrix-square-root left-square-root right-square-root cholesky
-   hermitian-factorization
+   reconstruct lu ipiv qr r matrix-square-root left-square-root
+   right-square-root cholesky hermitian-factorization
    
    ;;    matrix-factorization component reconstruct lu lu-matrix ipiv
    ;;    permutations qr qr-matrix cholesky factor hermitian

@@ -2,6 +2,10 @@
 
 (in-package #:lla)
 
+(defgeneric reconstruct (factorization)
+  (:documentation "Reconstruct a matrix from a factorization.  Always return a
+  freshly created object."))
+
 (defclass lu ()
   ((lu :type matrix :initarg :lu :reader lu
        :documentation "matrix storing the transpose of the LU decomposition.")
@@ -64,9 +68,12 @@
   (:method (object)
     (transpose* (left-square-root object))))
 
+(defmethod reconstruct ((matrix-square-root matrix-square-root))
+  (mm (left-square-root matrix-square-root) t))
+
 (defmethod as-array ((matrix-square-root matrix-square-root)
                      &key &allow-other-keys)
-  (mm (left-square-root matrix-square-root) t))
+  (as-array (reconstruct matrix-square-root)))
 
 (defmethod e2* ((a matrix-square-root) (b number))
   (make-instance (class-of a)
