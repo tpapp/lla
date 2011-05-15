@@ -107,6 +107,9 @@
 (defmethod mm (a (b wrapped-matrix) &optional (alpha 1))
   (mm a (as-array b) alpha))
 
+(defmethod mm ((a vector) (b (eql t)) &optional (alpha 1))
+  (mm (as-column a) t alpha))
+
 ;; ;;; mm for diagonal matrices
 
 ;; (defmethod mm ((a diagonal) (b dense-matrix-like) &optional (alpha 1))
