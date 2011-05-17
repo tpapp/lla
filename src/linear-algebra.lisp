@@ -552,6 +552,14 @@ well-conditioned."
       (- m n)
       (make-instance 'qr :qr qr))))
 
+(defmethod qr ((a array))
+  (lb-call ((type (common-float-type a))
+            ((:lapack geqrf type))
+            ((:array a% type :dimensions (m n) :output qr) a)
+            ((:output tau% type tau) (min m n)))
+    (call m n a% n tau%)
+    (make-instance 'qr :qr qr :tau tau)))
+
 ;; (defun least-squares-svd-d (y x &key (rcond -1))
 ;;   (lb-call ((common-type (common-float-type x y))
 ;;             (real-type (real-lla-type common-type))
@@ -658,22 +666,22 @@ to generate random draws, etc."))
 (defmethod left-square-root ((hermitian-matrix hermitian-matrix))
   (left-square-root (cholesky hermitian-matrix)))
 
-;; ;;; SVD
+;;; SVD
 
-;; (defgeneric svd (a &key left right)
-;;   (:documentation "Return singular value decomposition A, with left- and right
-;; singular vectors as second and third values (when requested, see vector
-;; specifications).  Valid vector specifications are :NONE, :SINGULAR (singular
-;; vectors only) and :ALL.  Return values S (singular values, descending order, as
-;; a DIAGONAL), U (left singular vectors, DENSE-MATRIX, or NIL), VT ([conjugate]
-;; transpose of right singular vectors, DENSE-MATRIX, or NIL)."))
+(defgeneric svd (a &key left right)
+  (:documentation "Return singular value decomposition A, with left- and right
+singular vectors as second and third values (when requested, see vector
+specifications).  Valid vector specifications are :NONE, :SINGULAR (singular
+vectors only) and :ALL.  Return values S (singular values, descending order,
+as a DIAGONAL), U (left singular vectors, ARRAY, or NIL),
+VT ([conjugate] transpose of right singular vectors, DENSE-MATRIX, or NIL)."))
 
-;; (defmethod svd ((a dense-matrix-like) &key (left :none) (right :none))
+;; (defmethod svd ((a array) &key (left :none) (right :none))
 ;;   (lb-call ((type (common-float-type a))
 ;;             (real-type (real-lla-type type))
 ;;             (complex? (lla-complex? type))
-;;             (procedure (lb-procedure-name type gesvd))
-;;             ((:matrix a% type (m m%) (n n%) :output :copy) a)
+;;             (:lapack gesvd type)
+;;             ((:array a% type (:dimensions m n) :output :copy) a)
 ;;             (min-mn (min m n))
 ;;             ((:values u-ncol jobu) (ecase left
 ;;                                      (:none (values 1 #\N)) ; LAPACK needs >=1
@@ -683,16 +691,15 @@ to generate random draws, etc."))
 ;;                                        (:none (values 1 #\N)) ; LAPACK needs >=1
 ;;                                        (:singular (values min-mn #\S))
 ;;                                        (:all (values n #\A))))
-;;             ((:char jobu%) jobu)
-;;             ((:char jobvt%) jobvt)
-;;             ((:integer vt-nrow%) vt-nrow)
 ;;             ((:output s% real-type s) min-mn)
 ;;             ((:output u% type u) (* m u-ncol))
 ;;             ((:output vt% type vt) (* vt-nrow n))
-;;             ((:work rwork% real-type) (if complex? (* 5 min-mn) 0))
-;;             ((:work-queries lwork% (work% type)))
-;;             ((:check info%)))
+;;             ((:work work% real-type) )
+;;             )
 ;;     (with-lapack-traps-masked
+;;       (lapacke_dgesvd call jobu jobvt m n a% n s% u% )
+
+
 ;;       (if complex?
 ;;           (call procedure jobu% jobvt% m% n% a% m% s% u% m% vt% vt-nrow%
 ;;                 work% lwork% rwork% info%)
