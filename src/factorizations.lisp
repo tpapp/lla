@@ -31,7 +31,9 @@
 
 (defclass qr ()
   ((qr :type matrix :initarg :qr :reader qr
-       :documentation "matrix storing the QR decomposition."))
+       :documentation "matrix storing the QR decomposition.")
+   (tau :accessor tau :initarg :tau :documentation "complex scalar for
+   elementary reflectors (see documentation of xGEQRF)."))
   (:documentation "QR decomposition of a matrix."))
 
 (define-ondemand-slot ((qr qr) r)
@@ -119,3 +121,10 @@
    indices"))
   (:documentation "Factorization for an indefinite hermitian matrix with
   pivoting."))
+
+;;; svd
+
+(defclass svd ()
+  ((u :accessor u :initarg :u)
+   (s :accessor s :initarg :s)
+   (vt :accessor vt :initarg :vt)))
