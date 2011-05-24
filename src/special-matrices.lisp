@@ -37,20 +37,30 @@
                        h? result cumulative-index)
   (stack-into (as-array wrapped-matrix) h? result cumulative-index))
 
-(defmethod mean-accumulator ((first-element wrapped-matrix) sequence)
-  (let ((type (type-of first-element))
-        (array-accumulator (mean-accumulator (elements first-element)
-                                             sequence)))
-    (lambda (&optional x)
-      (if x
-          (progn
-            (when (and type (not (equal type (type-of x))))
-              (setf type nil))
-            (funcall array-accumulator x))
-          (let ((mean (funcall array-accumulator)))
-            (if type
-                (make-instance type :elements mean)
-                mean))))))
+(defstruct+ wrapped-matrix-mean-accumulator
+  "Accumulator for wrapped matrices.  Save type as extra information."
+  (array-accumulator nil)
+  (type nil))
+
+(defmethod conforming-mean-accumulator ((element wrapped-matrix))
+  (make-wrapped-matrix-mean-accumulator
+   :array-accumulator (conforming-mean-accumulator (elements element))
+   :type (type-of element)))
+
+(defmethod add ((accumulator wrapped-matrix-mean-accumulator) object)
+  (let+ (((&wrapped-matrix-mean-accumulator array-accumulator type)
+          accumulator))
+    (when (and type (not (equal type (type-of object))))
+      (setf type nil))
+    (add array-accumulator object)))
+
+(defmethod mean ((accumulator wrapped-matrix-mean-accumulator))
+  (let+ (((&wrapped-matrix-mean-accumulator array-accumulator type)
+          accumulator)
+         (mean (mean array-accumulator)))
+    (if type
+        (make-instance type :elements mean)
+        mean)))
 
 (defgeneric make-matrix (kind dimensions 
                               &key initial-contents element-type copy?)
