@@ -54,7 +54,7 @@
       (:file "lapack-blas-call")
       (:file "linear-algebra"))))
   :depends-on
-  (iterate metabang-bind cffi anaphora alexandria cl-num-utils))
+  (iterate metabang-bind let-plus cffi anaphora alexandria cl-num-utils))
 
 (defsystem lla-tests
   :description "Unit tests for LLA."
