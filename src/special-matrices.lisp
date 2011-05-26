@@ -37,10 +37,11 @@
                        h? result cumulative-index)
   (stack-into (as-array wrapped-matrix) h? result cumulative-index))
 
-(defstruct+ wrapped-matrix-mean-accumulator
-  "Accumulator for wrapped matrices.  Save type as extra information."
-  (array-accumulator nil)
-  (type nil))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defstruct+ wrapped-matrix-mean-accumulator
+      "Accumulator for wrapped matrices.  Save type as extra information."
+    (array-accumulator nil)
+    (type nil)))
 
 (defmethod conforming-mean-accumulator ((element wrapped-matrix))
   (make-wrapped-matrix-mean-accumulator
