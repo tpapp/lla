@@ -260,10 +260,12 @@ wrapped-elements.  "
      ,@(loop :for function :in functions
              :collect
              `(defmethod ,function ((a ,class) (b number))
-                (make-instance ',class :elements (,function (elements a) b)))
+                (make-instance ',class
+                               :elements (,function (elements a) b)))
              :collect
              `(defmethod ,function ((a number) (b ,class))
-                (make-instance ',class :elements (,function a (elements b)))))))
+                (make-instance ',class
+                               :elements (,function a (elements b)))))))
   
 (defmacro define-elementwise-same-class (class
                                          &optional (functions '(e2+ e2- e2*)))
@@ -271,7 +273,8 @@ wrapped-elements.  "
      ,@(loop for function in functions collect
              `(defmethod ,function ((a ,class) (b ,class))
                 (make-instance ',class
-                               :elements (,function (elements a) (elements b)))))))
+                               :elements 
+                               (,function (elements a) (elements b)))))))
 
 (defmacro define-elementwise-univariate (class
                                          &optional (functions '(e1- e1/)))
@@ -319,12 +322,14 @@ wrapped-elements.  "
                  :elements (transpose (as-array matrix) :copy? copy?)))
 (defmethod transpose* ((matrix hermitian-matrix) &key copy?)
   (if copy?
-      (make-instance 'hermitian-matrix :elements (copy-array (elements matrix)))
+      (make-instance 'hermitian-matrix
+                     :elements (copy-array (elements matrix)))
       matrix))
 
 (defmethod transpose ((diagonal diagonal-matrix) &key copy?)
   (if copy?
-      (make-instance 'diagonal-matrix :elements (copy-array (elements diagonal)))
+      (make-instance 'diagonal-matrix
+                     :elements (copy-array (elements diagonal)))
       diagonal))
 (defmethod transpose* ((diagonal diagonal-matrix) &key copy?)
   (declare (ignore copy?))
