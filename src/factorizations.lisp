@@ -79,12 +79,12 @@
 
 (defmethod e2* ((a matrix-square-root) (b number))
   (make-instance (class-of a)
-                 :left-square-root (e* (left-square-root a) (sqrt b))))
+                 :left-square-root (e2* (left-square-root a) (sqrt b))))
 (defmethod e2* ((a number) (b matrix-square-root))
   (e2* b a))
 (defmethod e2/ ((a matrix-square-root) (b number))
   (make-instance (class-of a)
-                 :left-square-root (e/ (left-square-root a) (sqrt b))))
+                 :left-square-root (e2/ (left-square-root a) (sqrt b))))
 
 
 ;;; Cholesky decomposition
