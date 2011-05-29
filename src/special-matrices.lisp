@@ -37,28 +37,29 @@
                        h? result cumulative-index)
   (stack-into (as-array wrapped-matrix) h? result cumulative-index))
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (defstruct+ wrapped-matrix-mean-accumulator
-      "Accumulator for wrapped matrices.  Save type as extra information."
-    (array-accumulator nil)
-    (type nil)))
+(defstruct+ (wrapped-matrix-mean-accumulator
+             (:constructor wrapped-matrix-mean-accumulator% (mean type))
+             (:include array-mean-accumulator))
+    "Accumulator for wrapped matrices.  Save type as extra information."
+  (type nil))
 
-(defmethod conforming-mean-accumulator ((element wrapped-matrix))
-  (make-wrapped-matrix-mean-accumulator
-   :array-accumulator (conforming-mean-accumulator (elements element))
-   :type (type-of element)))
+(defun wrapped-matrix-mean-accumulator (wrapped-matrix)
+  "Create a conforming wrapped-matrix-mean-accumulator."
+  (wrapped-matrix-mean-accumulator%
+   (make-array (array-dimensions (elements wrapped-matrix))
+               :initial-element 0d0)
+   (type-of wrapped-matrix)))
 
-(defmethod add ((accumulator wrapped-matrix-mean-accumulator) object)
-  (let+ (((&wrapped-matrix-mean-accumulator array-accumulator type)
-          accumulator))
+(define-conforming-accumulator (mean (matrix wrapped-matrix))
+  (wrapped-matrix-mean-accumulator matrix))
+
+(defmethod add :after ((accumulator wrapped-matrix-mean-accumulator) object)
+  (let+ (((&wrapped-matrix-mean-accumulator type) accumulator))
     (when (and type (not (equal type (type-of object))))
-      (setf type nil))
-    (add array-accumulator object)))
+      (setf type nil))))
 
 (defmethod mean ((accumulator wrapped-matrix-mean-accumulator))
-  (let+ (((&wrapped-matrix-mean-accumulator array-accumulator type)
-          accumulator)
-         (mean (mean array-accumulator)))
+  (let+ (((&structure wrapped-matrix-mean-accumulator- mean type) accumulator))
     (if type
         (make-instance type :elements mean)
         mean)))
