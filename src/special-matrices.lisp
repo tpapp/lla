@@ -11,6 +11,9 @@
                                        &key &allow-other-keys)
   (check-type (elements wrapped-matrix) matrix))
 
+(defmethod diagonal ((matrix wrapped-matrix) &key copy?)
+  (diagonal (elements matrix) :copy? copy?))
+
 (defun make-array-using-contents% (dimensions initial-contents element-type
                                    copy?)
   (typecase initial-contents
