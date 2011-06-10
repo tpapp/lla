@@ -40,7 +40,7 @@
                        h? result cumulative-index)
   (stack-into (as-array wrapped-matrix) h? result cumulative-index))
 
-(defstruct+ (wrapped-matrix-mean-accumulator
+(defstruct (wrapped-matrix-mean-accumulator
              (:constructor wrapped-matrix-mean-accumulator% (mean type))
              (:include array-mean-accumulator))
     "Accumulator for wrapped matrices.  Save type as extra information."
@@ -57,7 +57,7 @@
   (wrapped-matrix-mean-accumulator matrix))
 
 (defmethod add :after ((accumulator wrapped-matrix-mean-accumulator) object)
-  (let+ (((&wrapped-matrix-mean-accumulator type) accumulator))
+  (let+ (((&structure wrapped-matrix-mean-accumulator- type) accumulator))
     (when (and type (not (equal type (type-of object))))
       (setf type nil))))
 
