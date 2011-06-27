@@ -125,7 +125,7 @@
      (defmethod nrow ((matrix ,class)) (array-dimension (elements matrix) 0))
      (defmethod ncol ((matrix ,class)) (array-dimension (elements matrix) 1))
      (defmethod mref ((matrix ,class) row col)
-       (bind (((:slots-r/o elements) matrix)
+       (let+ (((&slots-r/o elements) matrix)
               ,@bindings)
          (if ,represented-element?
              (aref (elements matrix) row col)
@@ -136,7 +136,7 @@
          (terpri stream)
          (print-matrix matrix stream ,masked-element-string)))
      (defmethod as-array ((matrix ,class) &key copy?)
-       (bind (((:slots-r/o elements) matrix)
+       (let+ (((&slots-r/o elements) matrix)
               ,@bindings)
          (if copy?
              (aprog1 (make-similar-array elements)
@@ -248,7 +248,7 @@
 
 (defmethod as-array ((diagonal-matrix diagonal-matrix) &key copy?)
   (declare (ignore copy?))
-  (bind (((:slots-r/o elements) diagonal-matrix)
+  (let+ (((&slots-r/o elements) diagonal-matrix)
          (n (length elements)))
     (aprog1 (make-similar-array elements :dimensions (list n n)
                                 :initial-element (zero* elements))

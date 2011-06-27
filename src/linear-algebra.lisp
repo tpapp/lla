@@ -34,9 +34,9 @@
 ;;; - methods for triangular matrices
 
 (defun mm-internal (a b &key a-op b-op (alpha 1))
-  (lb-call (((:values a0 a1 a-orientation lda a-op)
+  (lb-call (((&values a0 a1 a-orientation lda a-op)
              (maybe-vector-as-matrix a :row a-op))
-            ((:values b0 b1 b-orientation ldb b-op)
+            ((&values b0 b1 b-orientation ldb b-op)
              (maybe-vector-as-matrix b :column b-op))
             (common-type (common-float-type a b alpha))
             ((:blas gemm common-type))
@@ -80,7 +80,7 @@
             (real-type (real-lla-type common-type))
             ((:blas (syrk herk) common-type))
             ((:array a% common-type :dimensions (nrow ncol)) a)
-            ((:values dim-c other-dim-a)
+            ((&values dim-c other-dim-a)
              (if op-left?
                  (values ncol nrow)
                  (values nrow ncol)))
@@ -242,9 +242,9 @@
   (solve a (as-array b)))
 
 (defmethod solve ((lu lu) (b array))
-  (lb-call (((:values b0 b1 b-orientation ldb)
+  (lb-call (((&values b0 b1 b-orientation ldb)
              (maybe-vector-as-matrix b :column))
-            ((:slots-r/o lu ipiv) lu)
+            ((&slots-r/o lu ipiv) lu)
             (common-type (common-float-type lu b))
             ((:lapack getrs common-type))
             ((:array lu% common-type :dimensions (lu0 lu1)) lu)
@@ -256,7 +256,7 @@
     x))
 
 (defmethod solve ((a array) (b array))
-  (lb-call (((:values b0 b1 b-orientation ldb)
+  (lb-call (((&values b0 b1 b-orientation ldb)
              (maybe-vector-as-matrix b :column))
             (common-type (common-float-type a b))
             ((:lapack gesv common-type))
@@ -269,7 +269,7 @@
     x))
 
 ;; (defmethod solve ((cholesky cholesky) (b dense-matrix-like))
-;;   (lb-call (((:slots-r/o factor) cholesky)
+;;   (lb-call (((&slots-r/o factor) cholesky)
 ;;             (common-type (common-float-type factor))
 ;;             (procedure (lb-procedure-name common-type potrs))
 ;;             ((:matrix factor% common-type (n n%) n2) factor)
@@ -283,11 +283,11 @@
 ;;     (make-matrix% n nrhs x)))
 
 (defmethod solve ((hermitian-factorization hermitian-factorization) (b array))
-  (lb-call (((:slots-r/o factor ipiv) hermitian-factorization)
+  (lb-call (((&slots-r/o factor ipiv) hermitian-factorization)
             (common-type (common-float-type factor b))
             ((:lapack (sytrs hetrs) common-type))
             ((:array factor% common-type :dimensions (n n2)) factor)
-            ((:values n3 nrhs b-orientation ldb)
+            ((&values n3 nrhs b-orientation ldb)
              (maybe-vector-as-matrix b :column))
             ((:array b% common-type :output x :output-dimensions
                       (vector-or-matrix-dimensions n nrhs b-orientation)) b)
@@ -306,7 +306,7 @@ matrix.  transpose-a? determines whether op(A) is A^T or A.  The
 result is multiplied by ALPHA."
   (lb-call ((common-type (common-float-type a b))
             ((:blas trsm common-type))
-            ((:values b0 b1 b-orientation ldb)
+            ((&values b0 b1 b-orientation ldb)
              (maybe-vector-as-matrix b :column))
             ((:array a% common-type :dimensions (a0 a1)) a)
             ((:array b% common-type :output result :output-dimensions
@@ -339,7 +339,7 @@ result is multiplied by ALPHA."
 (defmethod invert ((a array) &key) (invert (lu a)))
 
 (defmethod invert ((lu lu) &key)
-  (lb-call (((:slots-r/o lu ipiv) lu)
+  (lb-call (((&slots-r/o lu ipiv) lu)
             (common-type (common-float-type lu))
             ((:lapack getri common-type))
             ((:array lu% common-type :dimensions (n n2) :output inverse) lu)
@@ -349,7 +349,7 @@ result is multiplied by ALPHA."
     inverse))
 
 (defmethod invert ((hermitian-factorization hermitian-factorization) &key)
-  (lb-call (((:slots-r/o factor ipiv) hermitian-factorization)
+  (lb-call (((&slots-r/o factor ipiv) hermitian-factorization)
             (common-type (common-float-type factor))
             ((:lapack (sytri hetri) common-type))
             ((:array factor% common-type :dimensions (n n2) :output inverse)
@@ -511,7 +511,7 @@ matrix, UNIT-DIAG? indicates whether the diagonal is supposed to consist of
 (defun last-rows-ss (matrix nrhs common-type)
   "Calculate the sum of squares of the last rows of MATRIX columnwise,
 omitting the first NRHS rows.  Used for interfacing with xGELS."
-  (bind (((m n) (array-dimensions matrix))
+  (let+ (((m n) (array-dimensions matrix))
          (real-type (real-lla-type common-type))
          (sum (make-array* n real-type (zero* real-type)))
          (matrix-index (array-row-major-index matrix nrhs 0)))
@@ -531,9 +531,9 @@ well-conditioned."
   ;; (b,A,x).  Sorry if this creates confusion, I decided to follow
   ;; standard statistical notation.
   (lb-call ((common-type (common-float-type x y))
-            ((:values m n x-orientation ldx)
+            ((&values m n x-orientation ldx)
              (maybe-vector-as-matrix x :column))
-            ((:values m2 nrhs y-orientation ldy)
+            ((&values m2 nrhs y-orientation ldy)
              (maybe-vector-as-matrix y :column))
             ((:lapack gels common-type))
             ((:array x% common-type
@@ -608,7 +608,7 @@ to generate random draws, etc."))
 (defmethod invert-xx ((qr qr))
   ;; Notes: X = QR, and thus X^T X = R^T Q^T Q R = R^T R because Q is
   ;; orthogonal, also (X^T X)^-1 = R^-1 (R^T)-1
-  (bind (((:slots r) qr))
+  (let+ (((&slots r) qr))
     (assert (<= (ncol r) (nrow r)))
     (make-instance 'matrix-square-root :left-square-root (invert r))))
 
@@ -683,11 +683,11 @@ VT ([conjugate] transpose of right singular vectors, DENSE-MATRIX, or NIL)."))
 ;;             (:lapack gesvd type)
 ;;             ((:array a% type (:dimensions m n) :output :copy) a)
 ;;             (min-mn (min m n))
-;;             ((:values u-ncol jobu) (ecase left
+;;             ((&values u-ncol jobu) (ecase left
 ;;                                      (:none (values 1 #\N)) ; LAPACK needs >=1
 ;;                                      (:singular (values min-mn #\S))
 ;;                                      (:all (values m #\A))))
-;;             ((:values vt-nrow jobvt) (ecase right
+;;             ((&values vt-nrow jobvt) (ecase right
 ;;                                        (:none (values 1 #\N)) ; LAPACK needs >=1
 ;;                                        (:singular (values min-mn #\S))
 ;;                                        (:all (values n #\A))))
@@ -736,7 +736,7 @@ VT ([conjugate] transpose of right singular vectors, DENSE-MATRIX, or NIL)."))
 ;;   (check-type logrc-threshold (or null (and number (satisfies plusp))))
 ;;   (bind (((:accessors-r/o nrow ncol) matrix)
 ;;          (ratio (log (/ nrow ncol)))
-;;          ((:values matrix squared?)
+;;          ((&values matrix squared?)
 ;;           (cond 
 ;;             ((aand logrc-threshold (< ratio (- it))) ; fewer rows than columns
 ;;              (values (mm matrix t) t))
@@ -763,7 +763,7 @@ VT ([conjugate] transpose of right singular vectors, DENSE-MATRIX, or NIL)."))
 (defun det (matrix)
   "Determinant of a matrix.  If you need the log of this, use LOGDET
   directly."
-  (bind (((:values logdet sign) (logdet matrix)))
+  (let+ (((&values logdet sign) (logdet matrix)))
     (if (zerop sign)
         0
         (* sign (exp logdet)))))
@@ -781,7 +781,7 @@ block-name (values nil 0) when zero."
   "Sum of the log of the elements in the diagonal.  Sign-changes counts the
 negative values, and may be started at something else than 0 (eg in case of
 pivoting).  Return (values NIL 0) in case of encountering a 0."
-  (bind (((nrow ncol) (array-dimensions matrix)))
+  (let+ (((nrow ncol) (array-dimensions matrix)))
     (assert (= nrow ncol))
     (values 
       (iter

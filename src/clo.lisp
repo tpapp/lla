@@ -9,9 +9,9 @@
   (let ((ncol (position separator elements))
         (length (length elements)))
     (if ncol
-        (bind ((elements (remove separator elements))
+        (let+ ((elements (remove separator elements))
                (length (1- length))
-               ((:values nrow remainder) (floor length ncol)))
+               ((&values nrow remainder) (floor length ncol)))
           (assert (plusp ncol) ()
                   "Zero number of columns.")
           (assert (not (find separator elements)) ()
@@ -79,7 +79,7 @@ sequence or a single element, the latter is recycled."
 
   :/ in elements terminates a row for matrix types.  It can occur at
   most once.  If not given, all elements will be in a single row."
-  (bind (((:values elements keys)
+  (let+ (((&values elements keys)
           (strip-keys arguments (load-time-value (list (lla-types)
                                                        '(:diagonal :dense
                                                          :lower :lower-triangular
@@ -87,12 +87,12 @@ sequence or a single element, the latter is recycled."
                                                          :hermitian)))
                       :defaults '(t :dense)))
          (#(element-type kind) keys)
-         ((:values elements nrow ncol) (remove-row-separator elements))
+         ((&values elements nrow ncol) (remove-row-separator elements))
          (dimensions (if ncol (list nrow ncol) nrow))
          (elements-var (gensym* '#:elements-var))
          represented-elements
-         ((:flet save-element (index element))
-          (push (list index element) represented-elements)))
+         ((&flet save-element (index element)
+            (push (list index element) represented-elements))))
     ;; collect elements that are set
     (if ncol
         (row-major-loop (dimensions index row col)

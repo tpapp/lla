@@ -49,8 +49,8 @@ columns will be right-aligned.  Prints at most *PRINT-LENGTH* rows and columns,
 indicating more with a ...  Uses MREF for element access, printing MASKED-ELEMENT for
 masked elements.."
   ;; ?? maybe column & row labels, not a high priority at the moment
-  (bind (((:values nrow row-trunc?) (print-length-truncate (nrow matrix)))
-	 ((:values ncol col-trunc?) (print-length-truncate (ncol matrix)))
+  (let+ (((&values nrow row-trunc?) (print-length-truncate (nrow matrix)))
+	 ((&values ncol col-trunc?) (print-length-truncate (ncol matrix)))
 	 (formatted-elements (make-array (list nrow ncol)))
 	 (column-widths (make-array ncol :element-type 'fixnum :initial-element 0))
 	 (padding (make-array *lla-print-matrix-paddig*
@@ -59,7 +59,7 @@ masked elements.."
     ;; first pass - format elements, measure width
     (dotimes (col ncol)
       (dotimes (row nrow)
-	(bind (((:values element masked?) (mref matrix row col))
+	(let+ (((&values element masked?) (mref matrix row col))
                (formatted-element (if masked?
                                       masked-element
                                       (funcall formatter element)))

@@ -18,7 +18,7 @@
 
 (define-ondemand-slot ((lu lu) l)
   (aprog1 (make-matrix :lower nil :initial-contents (lu lu) :copy? t)
-    (bind (((:slots-r/o elements) it)
+    (let+ (((&slots-r/o elements) it)
            ((nrow ncol) (array-dimensions elements))
            (one (one* elements)))
       (dotimes (index (min nrow ncol))
@@ -37,8 +37,8 @@
   (:documentation "QR decomposition of a matrix."))
 
 (define-ondemand-slot ((qr qr) r)
-  (bind (((:slots-r/o qr) qr)
-         ((:accessors-r/o nrow ncol) qr))
+  (let+ (((&slots-r/o qr) qr)
+         ((&accessors-r/o nrow ncol) qr))
     (assert (>= nrow ncol))
     (make-matrix :upper nil
                  :initial-contents (matrix-from-first-rows qr ncol nil))))

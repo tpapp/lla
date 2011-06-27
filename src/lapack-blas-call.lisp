@@ -33,9 +33,9 @@ Orientation is :ROW or :COLUMN, and TRANSPOSE indicates transposition (see TRANS
 Return (values DIMENSION0 DIMENSION1 ORIENTATION LEADING-DIMENSION TRANSPOSE-ENUM).
 ORIENTATION is NIL or the ORIENTATION argument to the function, depending on whether
 the argument was a vector."
-  (bind (((d1 &optional d2 d-rest) (array-dimensions vector-or-matrix))
-         ((:flet error% ()) (error "~A is not a vector or a matrix." vector-or-matrix))
-         ((:values m n orientation)
+  (let+ (((d1 &optional d2 d-rest) (array-dimensions vector-or-matrix))
+         ((&flet error% () (error "~A is not a vector or a matrix." vector-or-matrix)))
+         ((&values m n orientation)
           (cond
             (d-rest (error%))
             (d2 (values d1 d2))
@@ -43,7 +43,7 @@ the argument was a vector."
                   (:row (values 1 d1 :row))
                   (:column (values d1 1 :column))))
             (t (error%))))
-         ((:values m-trans n-trans) (if transpose
+         ((&values m-trans n-trans) (if transpose
                                         (values n m)
                                         (values m n))))
     (values m-trans n-trans orientation n (lb-transpose transpose library))))
@@ -67,7 +67,7 @@ the argument was a vector."
 (defun matrix-from-first-rows (matrix nrow orientation)
   "Create a matrix (or vector, depending on ORIENTATION) from the first rows NRHS of
 MATRIX.  Used for interfacing with xGELS, extracting R from QR decompositions, etc."
-  (bind (((nil n) (array-dimensions matrix)))
+  (let+ (((nil n) (array-dimensions matrix)))
     (copy-array (displace-array matrix 
                                 (vector-or-matrix-dimensions nrow n orientation)))))
 (defparameter *lla-double?* t
@@ -470,7 +470,7 @@ to the function call) and error checking.  The latter works as follows: when STA
 is given, the return value of the function is assigned to the value named by it, and
 it is checked for being nonzero.  In case of an argument error, a
 LAPACK-INVALID-ARGUMENT condition is raised, otherwise CONDITION is used, with INFO."
-  (bind (((function &key layout status condition) procedure)
+  (let+ (((function &key layout status condition) procedure)
          (arguments (if layout
                         (cons layout arguments)
                         arguments))
@@ -491,7 +491,7 @@ LAPACK-INVALID-ARGUMENT condition is raised, otherwise CONDITION is used, with I
 
 (defun lb-process-binding (binding-form bindings)
   "Process a binding form, putting the result in bindings."
-  (bind (((variable-form &rest value-forms) binding-form))
+  (let+ (((variable-form &rest value-forms) binding-form))
     (if (atom variable-form)
         (push `(,variable-form ,@value-forms)
               (slot-value bindings 'bindings))
@@ -548,7 +548,7 @@ LAPACK-INVALID-ARGUMENT condition is raised, otherwise CONDITION is used, with I
 
 (defmethod lb-process-binding% ((keyword (eql :lapack)) specification value-forms
                                 call-information)
-  (bind (((procedure-name lla-type &key (layout :row-major) (status (gensym* '#:status))
+  (let+ (((procedure-name lla-type &key (layout :row-major) (status (gensym* '#:status))
                           (condition 'lapack-failure))
           specification))
     (assert (null value-forms))
@@ -557,7 +557,7 @@ LAPACK-INVALID-ARGUMENT condition is raised, otherwise CONDITION is used, with I
 
 (defmethod lb-process-binding% ((keyword (eql :blas)) specification value-forms
                                 call-information)
-  (bind (((procedure-name lla-type &key (layout :row-major) status condition)
+  (let+ (((procedure-name lla-type &key (layout :row-major) status condition)
           specification))
     (assert (null value-forms))
     (lb-set-procedure call-information :blas lla-type procedure-name layout status
@@ -578,7 +578,7 @@ LAPACK-INVALID-ARGUMENT condition is raised, otherwise CONDITION is used, with I
                                 specification value-forms call-information)
   ;; syntax: ((:matrix pointer lla-type dimensions &key
   ;;             (set-restricted? t) output) matrix)
-  (bind (((pointer-name lla-type-value &key dimensions output 
+  (let+ (((pointer-name lla-type-value &key dimensions output 
                         output-dimensions rank)
           specification)
          (lla-type-name (gensym* '#:lla-type- pointer-name))
@@ -629,7 +629,7 @@ LAPACK-INVALID-ARGUMENT condition is raised, otherwise CONDITION is used, with I
 (defmethod lb-process-binding% ((keyword (eql :output))
                                 specification value-forms call-information)
   ;; syntax: ((:output pointer-name lla-type output) dimensions)
-  (bind (((pointer-name lla-type-value output-name)
+  (let+ (((pointer-name lla-type-value output-name)
           specification)
          (lla-type-name (gensym* '#:lla-type- pointer-name))
          (dimensions-name (gensym* '#:dimensions- pointer-name)))
@@ -702,7 +702,7 @@ LAPACK-INVALID-ARGUMENT condition is raised, otherwise CONDITION is used, with I
 (defmethod lb-process-binding% ((keyword (eql :work))
                                 specification value-forms call-information)
   ;; syntax: ((:work pointer lla-type) size)
-  (bind (((pointer-name lla-type-value) specification)
+  (let+ (((pointer-name lla-type-value) specification)
          (lla-type-name (gensym* '#:lla-type- pointer-name))
          (size-name (gensym* '#:lla-type- pointer-name)))
     (check-type pointer-name symbol*)
@@ -720,12 +720,12 @@ method.
 !! todo rewrite doc here when done with reorganization
 
 "
-  (bind ((call-information (make-instance 'lb-call-information))
-         ((:flet expand (slot-name))
-          (nreverse (slot-value call-information slot-name))))
+  (let+ ((call-information (make-instance 'lb-call-information))
+         ((&flet expand (slot-name)
+            (nreverse (slot-value call-information slot-name)))))
     (dolist (binding-form binding-forms)
       (lb-process-binding binding-form call-information))
-    `(bind ,(nreverse (slot-value call-information 'bindings))
+    `(let+ ,(nreverse (slot-value call-information 'bindings))
        ;; define CALL macro
        (macrolet ((call (&rest arguments)
                     `(with-pinned-arrays ,',(expand 'arrays)

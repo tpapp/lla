@@ -1,6 +1,5 @@
 (defpackage #:lla
-  (:use common-lisp iterate bind let-plus cffi anaphora alexandria
-        cl-num-utils)
+  (:use common-lisp iterate let-plus cffi anaphora alexandria cl-num-utils)
   (:shadowing-import-from cl-num-utils mean variance)
   (:export 
 

@@ -33,7 +33,7 @@
 
 (addtest (linear-algebra-tests)
   mm-solve-lu
-  (bind ((a (clo 1 2 :/
+  (let* ((a (clo 1 2 :/
                  3 4))
          (x (clo :double 5 6))
          (x-matrix (as-column x))
@@ -243,7 +243,7 @@
 
 (addtest (linear-algebra-tests)
   least-squares
-  (bind ((x (clo :double 
+  (let+ ((x (clo :double 
                  23 23 :/
                  22 21
                  25 20
@@ -253,7 +253,7 @@
          (beta (clo :double 0.7633278 2.2350028))
          (ss 6.724986d0)
          ;; ((:values beta1 ss1 nu1 other1) (least-squares y x :method :svd-d))
-         ((:values beta2 ss2 nu2 qr) (lla::least-squares y x :method :qr))
+         ((&values beta2 ss2 nu2 qr) (lla::least-squares y x :method :qr))
          (raw-var (invert-xx qr))
          (variance (e* (reconstruct raw-var) (/ ss2 nu2)))
          (*==-tolerance* 1e-5))
