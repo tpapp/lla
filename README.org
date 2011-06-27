@@ -3,6 +3,13 @@
 The library is currently undergoind a reorganizaton.  Documentation
 will appear here when the reorganization is finished and I have time.
 
+** Intel MKL 
+=/etc/ld.so.conf.d/=
+#+BEGIN_SRC 
+/opt/intel/mkl/lib/intel64
+/opt/intel/composerxe/lib/intel64
+#+END_SRC
+
 ** Things to do (roughly in order of priority)
    [ ] decide whether hermitian matrices use upper or lower triangle
    (look at functions that use hermitian matrices, in principle this
