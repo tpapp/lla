@@ -1,9 +1,9 @@
 (in-package :lla)
 
 (defun lb-transpose (transpose library &optional complex?)
-  "Return an integer (enum) that denotes the desired transpose operation (NIL: no
-transpose, T: transpose, *: conjugate transpose which is usually equivalent to T for
-real-valued matrices.  When complex?, T is replaced by *."
+  "Return an integer (enum) that denotes the desired transpose operation (NIL:
+no transpose, T: transpose, *: conjugate transpose which is usually equivalent
+to T for real-valued matrices.  When complex?, T is replaced by *."
   (when (and transpose complex?)
     (setf transpose '*))
   (ecase library
@@ -19,8 +19,8 @@ real-valued matrices.  When complex?, T is replaced by *."
          ((*) :CblasConjTrans)))))
 
 (defun transposed-dimensions (m n transpose &optional (library :blas))
-  "Process dimensions of a matrix, which may be transposed.  Third value is the enum
-expected by the library."
+  "Process dimensions of a matrix, which may be transposed.  Third value is
+the enum expected by the library."
   (ecase transpose
     ((nil) (values m n (ecase library (:blas ) (:lapack (char-code #\N)))))
     ((t) (values n m (ecase library (:blas) (:lapack #\T))))
@@ -29,12 +29,13 @@ expected by the library."
 (defun maybe-vector-as-matrix (vector-or-matrix orientation &optional 
                                transpose (library :blas))
   "Process dimensions of vectors which are meant to be reoriented as matrices.
-Orientation is :ROW or :COLUMN, and TRANSPOSE indicates transposition (see TRANS).
-Return (values DIMENSION0 DIMENSION1 ORIENTATION LEADING-DIMENSION TRANSPOSE-ENUM).
-ORIENTATION is NIL or the ORIENTATION argument to the function, depending on whether
-the argument was a vector."
+Orientation is :ROW or :COLUMN, and TRANSPOSE indicates transposition (see
+TRANS).  Return (values DIMENSION0 DIMENSION1 ORIENTATION LEADING-DIMENSION
+TRANSPOSE-ENUM).  ORIENTATION is NIL or the ORIENTATION argument to the
+function, depending on whether the argument was a vector."
   (let+ (((d1 &optional d2 d-rest) (array-dimensions vector-or-matrix))
-         ((&flet error% () (error "~A is not a vector or a matrix." vector-or-matrix)))
+         ((&flet error% () (error "~A is not a vector or a matrix."
+                                  vector-or-matrix)))
          ((&values m n orientation)
           (cond
             (d-rest (error%))
@@ -49,8 +50,8 @@ the argument was a vector."
     (values m-trans n-trans orientation n (lb-transpose transpose library))))
 
 (defun vector-or-matrix-dimensions (m n orientation)
-  "Return dimensions for matrices that can potentially be vectors, depending on
- orientation."
+  "Return dimensions for matrices that can potentially be vectors, depending
+ on orientation."
   (ecase orientation
     (:row (assert (= m 1)) n)
     (:column (assert (= n 1)) m)
@@ -65,11 +66,13 @@ the argument was a vector."
       array))
 
 (defun matrix-from-first-rows (matrix nrow orientation)
-  "Create a matrix (or vector, depending on ORIENTATION) from the first rows NRHS of
-MATRIX.  Used for interfacing with xGELS, extracting R from QR decompositions, etc."
+  "Create a matrix (or vector, depending on ORIENTATION) from the first rows
+NRHS of MATRIX.  Used for interfacing with xGELS, extracting R from QR
+decompositions, etc."
   (let+ (((nil n) (array-dimensions matrix)))
     (copy-array (displace-array matrix 
-                                (vector-or-matrix-dimensions nrow n orientation)))))
+                                (vector-or-matrix-dimensions nrow n
+                                                             orientation)))))
 (defparameter *lla-double?* t
   "Determines whether rational->float conversions result in double or single
    floats.")
@@ -83,8 +86,9 @@ MATRIX.  Used for interfacing with xGELS, extracting R from QR decompositions, e
   "Evaluate to the LAPACK/BLAS procedure name.  LIBRARY is :BLAS or :LAPACK.
 LLA-TYPE has to evaluate to a symbol denoting a float LLA type.  If you need
 conditionals etc for the function name, do that outside this macro.  For some
-functions (usually those involving Hermitian matrices), the names actually differ
-based on whether the matrix is real or complex, use COMPLEX-NAME in that case."
+functions (usually those involving Hermitian matrices), the names actually
+differ based on whether the matrix is real or complex, use COMPLEX-NAME in
+that case."
   (check-type name symbol*)
   (check-type complex-name symbol*)
   (let ((library-prefix (ecase library
@@ -464,12 +468,13 @@ assigning the pointer to pointer."
    (preamble :initform nil)))
 
 (defun lb-call-expansion (procedure arguments)
-  "Return an expansion for calling PROCEDURE with ARGUMENTS.  Handles matrix layout
-arguments (which should be preprocessed by MATRIX-LAYOUT as they are passed directly
-to the function call) and error checking.  The latter works as follows: when STATUS
-is given, the return value of the function is assigned to the value named by it, and
-it is checked for being nonzero.  In case of an argument error, a
-LAPACK-INVALID-ARGUMENT condition is raised, otherwise CONDITION is used, with INFO."
+  "Return an expansion for calling PROCEDURE with ARGUMENTS.  Handles matrix
+layout arguments (which should be preprocessed by MATRIX-LAYOUT as they are
+passed directly to the function call) and error checking.  The latter works as
+follows: when STATUS is given, the return value of the function is assigned to
+the value named by it, and it is checked for being nonzero.  In case of an
+argument error, a LAPACK-INVALID-ARGUMENT condition is raised, otherwise
+CONDITION is used, with INFO."
   (let+ (((function &key layout status condition) procedure)
          (arguments (if layout
                         (cons layout arguments)
@@ -543,25 +548,27 @@ LAPACK-INVALID-ARGUMENT condition is raised, otherwise CONDITION is used, with I
                    `(,procedure-name-variable :layout ,layout :status ,status
                                               :condition ,condition))
     (lb-collect (call-information)
-      bindings `(,procedure-name-variable (procedure-name ,library ,lla-type
-                                                          ,@(ensure-list procedure-name))))))
+      bindings `(,procedure-name-variable
+                 (procedure-name ,library ,lla-type
+                     ,@(ensure-list procedure-name))))))
 
-(defmethod lb-process-binding% ((keyword (eql :lapack)) specification value-forms
-                                call-information)
-  (let+ (((procedure-name lla-type &key (layout :row-major) (status (gensym* '#:status))
-                          (condition 'lapack-failure))
+(defmethod lb-process-binding% ((keyword (eql :lapack)) specification
+                                value-forms call-information)
+  (let+ (((procedure-name lla-type 
+              &key (layout :row-major) (status (gensym* '#:status))
+              (condition 'lapack-failure))
           specification))
     (assert (null value-forms))
-    (lb-set-procedure call-information :lapack lla-type procedure-name layout status 
-                      condition)))
+    (lb-set-procedure call-information :lapack lla-type procedure-name layout
+                      status condition)))
 
-(defmethod lb-process-binding% ((keyword (eql :blas)) specification value-forms
-                                call-information)
+(defmethod lb-process-binding% ((keyword (eql :blas)) specification
+                                value-forms call-information)
   (let+ (((procedure-name lla-type &key (layout :row-major) status condition)
           specification))
     (assert (null value-forms))
-    (lb-set-procedure call-information :blas lla-type procedure-name layout status
-                      condition)))
+    (lb-set-procedure call-information :blas lla-type procedure-name layout
+                      status condition)))
 
 ;; (defmethod lb-process-binding% ((keyword (eql :atom))
 ;;                                 specification value-forms bindings)
@@ -584,7 +591,8 @@ LAPACK-INVALID-ARGUMENT condition is raised, otherwise CONDITION is used, with I
          (lla-type-name (gensym* '#:lla-type- pointer-name))
          ((value-form) value-forms)
          (value-name (gensym* '#:value- pointer-name))
-         (output-dimensions-name (gensym* '#:output-dimensions- pointer-name)))
+         (output-dimensions-name
+          (gensym* '#:output-dimensions- pointer-name)))
     (lb-collect (call-information)
       bindings `(,value-name ,value-form)
       bindings `(,lla-type-name ,lla-type-value))
@@ -731,7 +739,8 @@ method.
                     `(with-pinned-arrays ,',(expand 'arrays)
                        (with-array-outputs ,',(expand 'outputs)
                          (with-work-areas ,',(expand 'work-areas)
-                           ,(lb-call-expansion ',(slot-value call-information 'procedure)
-                                               arguments))))))
+                           ,(lb-call-expansion
+                             ',(slot-value call-information 'procedure)
+                             arguments))))))
          ,@(expand 'preamble)
          ,@body))))
