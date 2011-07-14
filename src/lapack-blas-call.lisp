@@ -210,7 +210,7 @@ that case."
 ;;          (type-values (mapcar #'second pointer-type-pairs))
 ;;          (initialize? (mapcar #'third pointer-type-pairs))
 ;;          ((:flet prepend (prefix names))
-;;           (mapcar (lambda (name) (gensym* prefix name)) names))
+;;           (mapcar (lambda (name) (gensym+ prefix name)) names))
 ;;          (type-names (prepend '#:type-of- pointers))
 ;;          (atom-sizes (prepend '#:atom-size-of- pointers))
 ;;          (returned-sizes (prepend '#:returned-size-of- pointers)))
@@ -542,7 +542,7 @@ CONDITION is used, with INFO."
 
 (defun lb-set-procedure (call-information library lla-type procedure-name 
                          layout status condition)
-  (let ((procedure-name-variable (gensym* '#:procedure))
+  (let ((procedure-name-variable (gensym "procedure"))
         (layout (matrix-layout library layout)))
     (set-slot-once call-information 'procedure 
                    `(,procedure-name-variable :layout ,layout :status ,status
@@ -555,7 +555,7 @@ CONDITION is used, with INFO."
 (defmethod lb-process-binding% ((keyword (eql :lapack)) specification
                                 value-forms call-information)
   (let+ (((procedure-name lla-type 
-              &key (layout :row-major) (status (gensym* '#:status))
+              &key (layout :row-major) (status (gensym "status"))
               (condition 'lapack-failure))
           specification))
     (assert (null value-forms))
@@ -574,8 +574,8 @@ CONDITION is used, with INFO."
 ;;                                 specification value-forms bindings)
 ;;   ;; syntax: ((:atom pointer-name lla-type) value)
 ;;   (bind (((pointer-name lla-type-value) specification)
-;;          (lla-type-name (gensym* '#:lla-type- pointer-name))
-;;          (value-name (gensym* '#:atom- pointer-name)))
+;;          (lla-type-name (gensym+ '#:lla-type- pointer-name))
+;;          (value-name (gensym+ '#:atom- pointer-name)))
 ;;     (lb-collect (bindings)
 ;;       bindings `(,value-name ,@value-forms)
 ;;       bindings `(,lla-type-name ,lla-type-value)
@@ -588,11 +588,11 @@ CONDITION is used, with INFO."
   (let+ (((pointer-name lla-type-value &key dimensions output 
                         output-dimensions rank)
           specification)
-         (lla-type-name (gensym* '#:lla-type- pointer-name))
+         (lla-type-name (gensym+ '#:lla-type- pointer-name))
          ((value-form) value-forms)
-         (value-name (gensym* '#:value- pointer-name))
+         (value-name (gensym+ '#:value- pointer-name))
          (output-dimensions-name
-          (gensym* '#:output-dimensions- pointer-name)))
+          (gensym+ '#:output-dimensions- pointer-name)))
     (lb-collect (call-information)
       bindings `(,value-name ,value-form)
       bindings `(,lla-type-name ,lla-type-value))
@@ -620,8 +620,8 @@ CONDITION is used, with INFO."
 ;;   ;;   &optional copy-or-output) vector)
 ;;   (bind (((pointer-name lla-type-value length-spec &optional
 ;;                         output) specification)
-;;          (lla-type-name (gensym* '#:lla-type- pointer-name))
-;;          (value-name (gensym* '#:vector- pointer-name)))
+;;          (lla-type-name (gensym+ '#:lla-type- pointer-name))
+;;          (value-name (gensym+ '#:vector- pointer-name)))
 ;;     (check-type pointer-name symbol*)
 ;;     (check-type output (or null (eql :copy) symbol*))
 ;;     (lb-collect (bindings)
@@ -639,8 +639,8 @@ CONDITION is used, with INFO."
   ;; syntax: ((:output pointer-name lla-type output) dimensions)
   (let+ (((pointer-name lla-type-value output-name)
           specification)
-         (lla-type-name (gensym* '#:lla-type- pointer-name))
-         (dimensions-name (gensym* '#:dimensions- pointer-name)))
+         (lla-type-name (gensym+ '#:lla-type- pointer-name))
+         (dimensions-name (gensym+ '#:dimensions- pointer-name)))
     (check-type pointer-name symbol*)
     (check-type output-name symbol*)
     (lb-collect (call-information)
@@ -670,7 +670,7 @@ CONDITION is used, with INFO."
 ;;   (bind (((pointer-name lla-type-value nrow-spec ncol-spec
 ;;                         &key (set-restricted? t)
 ;;                         output) specification)
-;;          (value-name (gensym* '#:value- pointer-name)))
+;;          (value-name (gensym+ '#:value- pointer-name)))
 ;;     (lb-collect (bindings)
 ;;       bindings `(,value-name ,@value-forms)
 ;;       process `((:vector ,pointer-name ,lla-type-value nil
@@ -711,8 +711,8 @@ CONDITION is used, with INFO."
                                 specification value-forms call-information)
   ;; syntax: ((:work pointer lla-type) size)
   (let+ (((pointer-name lla-type-value) specification)
-         (lla-type-name (gensym* '#:lla-type- pointer-name))
-         (size-name (gensym* '#:lla-type- pointer-name)))
+         (lla-type-name (gensym+ '#:lla-type- pointer-name))
+         (size-name (gensym+ '#:lla-type- pointer-name)))
     (check-type pointer-name symbol*)
     (lb-collect (call-information)
       bindings `(,lla-type-name ,lla-type-value)

@@ -89,7 +89,7 @@ sequence or a single element, the latter is recycled."
          (#(element-type kind) keys)
          ((&values elements nrow ncol) (remove-row-separator elements))
          (dimensions (if ncol (list nrow ncol) nrow))
-         (elements-var (gensym* '#:elements-var))
+         (elements-var (gensym "elements-var"))
          represented-elements
          ((&flet save-element (index element)
             (push (list index element) represented-elements))))
