@@ -1,0 +1,49 @@
+* Row-major
+
+** Matrix multiplication
+
+$$C=AB$$
+
+$$C^T=(AB)^T=B^T A^T$$
+
+*possible*
+
+** Solve/LU factorization
+
+** Hermitian factorization
+
+$$A=LDL^T$$
+$$A^T=(LDL)^T=L^T D^T L$$
+
+*possible*
+
+** Inversion
+
+same as solve
+
+** Least squares
+
+*will require a transpose*
+
+** QR
+
+*will require a transpose*
+
+** Cholesky
+
+$$A=LL^T$$
+$$A^T=L^TL$$
+
+*possible*
+
+** SVD
+
+$$A=UDV^T$$
+$$A^T=(UDV^T)^T = VD^TU^T$$
+
+*possible*
+
+** determinant
+
+just uses the diagonals of decompositions, representation irrelevant
+

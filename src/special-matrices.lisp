@@ -1,37 +1,15 @@
 (in-package :lla)
 
-(defclass wrapped-matrix ()
-  ((elements :accessor elements :initarg :elements :type matrix
-             :documentation "The representation depends on the class, use
-           as-array to convert to a regular matrix."))
-  (:documentation "A matrix that has some special structure (eg triangular,
-  symmetric/hermitian).  Elements are always a matrix."))
+(defstruct (wrapped-matrix (:constructor make-wrapped-matrix (elements)))
+  "A matrix that has some special structure (eg triangular,
+  symmetric/hermitian).  Elements are always a matrix."
+  (elements nil :type matrix))
 
-(defmethod initialize-instance :after ((wrapped-matrix wrapped-matrix) 
-                                       &key &allow-other-keys)
-  (check-type (elements wrapped-matrix) matrix))
+(defmethod elements ((matrix wrapped-matrix))
+  (wrapped-matrix-elements matrix))
 
 (defmethod diagonal ((matrix wrapped-matrix) &key copy?)
   (diagonal (elements matrix) :copy? copy?))
-
-(defun make-array-using-contents% (dimensions initial-contents element-type
-                                   copy?)
-  (typecase initial-contents
-    (null
-       (make-array* dimensions (aif element-type it t) initial-contents))
-    (number
-       (make-array* dimensions (aif element-type it t) initial-contents))
-    (array
-       (when dimensions
-         (assert (equal (ensure-list dimensions)
-                        (array-dimensions initial-contents))
-                 () "Dimension mismatch."))
-       (if element-type
-           (maybe-convert-array* initial-contents element-type copy?)
-           (clnu::maybe-copy-array initial-contents copy?)))
-    (otherwise (make-array-using-contents% dimensions 
-                                           (as-array initial-contents)
-                                           element-type copy?))))
 
 (defmethod emap-dimensions ((wrapped-matrix wrapped-matrix))
   (array-dimensions (elements wrapped-matrix)))
@@ -39,6 +17,8 @@
 (defmethod stack-into ((wrapped-matrix wrapped-matrix)
                        h? result cumulative-index)
   (stack-into (as-array wrapped-matrix) h? result cumulative-index))
+
+;;; mean accumulator
 
 (defstruct (wrapped-matrix-mean-accumulator
              (:constructor wrapped-matrix-mean-accumulator% (mean type))
@@ -64,17 +44,35 @@
 (defmethod mean ((accumulator wrapped-matrix-mean-accumulator))
   (let+ (((&structure wrapped-matrix-mean-accumulator- mean type) accumulator))
     (if type
-        (make-instance type :elements mean)
+        (convert-matrix type mean)
         mean)))
 
-(defgeneric make-matrix (kind dimensions 
-                              &key initial-contents element-type copy?)
-  (:documentation "Create a matrix of given KIND, with DIMENSIONS (can be NIL
-  if inferred from initial contents, usually another matrix-like object).")
-  (:method ((kind (eql :dense)) dimensions
-            &key initial-contents element-type copy?)
-    (make-array-using-contents% dimensions initial-contents element-type
-                                copy?)))
+;;; creation
+
+(defgeneric matrix-kind (matrix)
+  (:method ((matrix array))
+    (check-type matrix matrix)
+    :dense))
+
+(declaim (inline make-matrix%))
+(defun make-matrix% (nrow ncol element-type initial-element)
+  "Internal function used by make-matrix methods."
+  (make-array (list nrow ncol)
+              :element-type element-type
+              :initial-element initial-element))
+
+(defgeneric make-matrix (kind nrow ncol
+                         &key element-type initial-element)
+  (:documentation "Create matrix of ")
+  (:method ((kind (eql :dense)) nrow ncol
+            &key (element-type t) (initial-element (zero* element-type)))
+    (make-matrix% nrow ncol element-type initial-element)))
+
+(defgeneric convert-matrix (kind object &key copy?)
+  (:documentation "Convert object to a matrix of the given KIND.  May share
+  structure unless COPY?.")
+  (:method ((kind (eql :dense)) object &key copy?)
+    (as-array object :copy? copy?)))
 
 (defgeneric mref (matrix row col)
   (:documentation "Element accessor for matrices.  When second value is true,
@@ -95,67 +93,71 @@
   (:documentation "Return a boolean, indicating whether the element is
   represented directly.  Only defined for subclasses of WRAPPED-MATRIX."))
 
-(defmacro define-special-matrix (class documentation synonyms
+(defmacro define-special-matrix (type documentation designator
                                  represented-element? non-represented-element
-                                 masked-element-string &key bindings)
+                                 masked-element-string
+                                 &key bindings make-matrix-check
+                                      convert-matrix-check)
   "Define a special matrix class and methods for represents elements in
  wrapped-matrix object, using a 2d array.  ROW, COL and ELEMENTS are bound to
  row/column indexes and the 2d array for REPRESENTED-ELEMENT? (should evaluate
  to boolean) and NON-REPRESENTED-ELEMENT (should evaluate to the value).
  MASKED-ELEMENT-STRING should contain the string used for printing
  non-represented elements."
-  `(progn
-     (defclass ,class (wrapped-matrix) () (:documentation ,documentation))
-     (defmethod make-matrix ((kind (eql ',class)) dimensions &key
-                             initial-contents element-type copy?)
-       (make-instance ',class :elements
-                      (make-array-using-contents% dimensions initial-contents
-                                                  element-type copy?)))
-     ,@(loop for synonym :in synonyms collect
-             `(defmethod make-matrix ((kind (eql ',synonym)) dimensions &key
-                                      initial-contents element-type copy?)
-                (make-matrix ',class dimensions :copy? copy?
-                             :element-type element-type
-                             :initial-contents initial-contents)))
-     (defmethod represented-element? ((kind (eql ',class)) row col)
-       ,represented-element?)
-     ,@(loop for synonym :in synonyms :collect
-             `(defmethod represented-element? ((kind (eql ',synonym)) row col)
-                (represented-element? ',class row col)))
-     (defmethod nrow ((matrix ,class)) (array-dimension (elements matrix) 0))
-     (defmethod ncol ((matrix ,class)) (array-dimension (elements matrix) 1))
-     (defmethod mref ((matrix ,class) row col)
-       (let+ (((&slots-r/o elements) matrix)
-              ,@bindings)
-         (if ,represented-element?
-             (aref (elements matrix) row col)
-             (values ,non-represented-element t))))
-     ;; !! setf mref
-     (defmethod print-object ((matrix ,class) stream)
-       (print-unreadable-object (matrix stream :type t)
-         (terpri stream)
-         (print-matrix matrix stream ,masked-element-string)))
-     (defmethod as-array ((matrix ,class) &key copy?)
-       (let+ (((&slots-r/o elements) matrix)
-              ,@bindings)
-         (if copy?
-             (aprog1 (make-similar-array elements)
-               (row-major-loop ((array-dimensions elements) index row col)
-                 (setf (row-major-aref it index)
-                       (if ,represented-element?
-                           (row-major-aref elements index)
-                           ,non-represented-element))))
-             (prog1 elements
-               (row-major-loop ((array-dimensions elements) index row col)
-                 (unless ,represented-element?
-                   (setf (row-major-aref elements index)
-                         ,non-represented-element)))))))))
+  (check-type designator keyword)
+  (let ((make (symbolicate '#:make- type)))
+    `(progn
+       (defstruct (,type (:include wrapped-matrix)
+                         (:constructor ,make (elements)))
+         ,documentation)
+       (defmethod make-matrix ((kind (eql ,designator)) nrow ncol
+                               &key (element-type t)
+                                    (initial-element (zero* element-type)))
+         ,make-matrix-check
+         (,make (make-matrix% nrow ncol element-type initial-element)))
+       (defmethod matrix-kind ((matrix ,type))
+         ,designator)
+       (defmethod represented-element? ((kind (eql ,designator)) row col)
+         ,represented-element?)
+       (defmethod convert-matrix ((kind (eql ,designator)) object &key copy?)
+         ,convert-matrix-check
+         (,make (as-array object :copy? copy?)))
+       (defmethod nrow ((matrix ,type))
+         (array-dimension (elements matrix) 0))
+       (defmethod ncol ((matrix ,type))
+         (array-dimension (elements matrix) 1))
+       (defmethod mref ((matrix ,type) row col)
+         (let+ (((&slots-r/o elements) matrix)
+                ,@bindings)
+           (if ,represented-element?
+               (aref (elements matrix) row col)
+               (values ,non-represented-element t))))
+       ;; !! setf mref
+       (defmethod print-object ((matrix ,type) stream)
+         (print-unreadable-object (matrix stream :type t)
+           (terpri stream)
+           (print-matrix matrix stream ,masked-element-string)))
+       (defmethod as-array ((matrix ,type) &key copy?)
+         (let+ (((&slots-r/o elements) matrix)
+                ,@bindings)
+           (if copy?
+               (aprog1 (make-similar-array elements)
+                 (row-major-loop ((array-dimensions elements) index row col)
+                   (setf (row-major-aref it index)
+                         (if ,represented-element?
+                             (row-major-aref elements index)
+                             ,non-represented-element))))
+               (prog1 elements
+                 (row-major-loop ((array-dimensions elements) index row col)
+                   (unless ,represented-element?
+                     (setf (row-major-aref elements index)
+                           ,non-represented-element))))))))))
 
 ;;; Triangular matrices
 
 (define-special-matrix lower-triangular-matrix
     "Lower triangular matrix.  Elements in the upper triangle are zero."
-  (:lower :lower-triangular)
+  :lower
   (>= row col)
   zero
   "."
@@ -163,7 +165,7 @@
 
 (define-special-matrix upper-triangular-matrix
     "Upper triangular matrix.  Elements in the upper triangle are zero."
-  (:upper :upper-triangular)
+  :upper
   (<= row col)
   zero
   "."
@@ -181,74 +183,50 @@
 ;;; eigenvalues, etc).
 
 (define-special-matrix hermitian-matrix
-    "Hermitian/symmetric matrix, with elements stored in the lower triangle."
-  (:hermitian :hermitian-matrix)
+    "Hermitian/symmetric matrix, with elements stored in the LOWER triangle."
+  :hermitian
   (>= row col)
   (conjugate (aref elements col row))
-  "*")
-
-(declaim (inline hermitian-orientation))
-(defun hermitian-orientation (library)
-  "Return a constant that denotes the orientation of hermitian matrices."
-  (ecase library
-    (:blas :CBLASLOWER)
-    (:lapack +l+)))
-
-(defmethod initialize-instance :after ((hermitian-matrix hermitian-matrix)
-                                       &key &allow-other-keys)
-  (check-type (elements hermitian-matrix) (and matrix (satisfies square?))))
+  "*"
+  :make-matrix-check (assert (= nrow ncol))
+  :convert-matrix-check (assert (square? object)))
 
 ;;; Diagonal matrices
 
-(defclass diagonal-matrix ()
-  ((elements :accessor elements :initarg :elements :type vector
-             :documentation "The representation depends on the class, use
-           as-array to convert to a regular matrix."))
-  (:documentation
-   "Diagonal matrix.  The elements in the diagonal are stored in a vector."))
+(defstruct (diagonal (:constructor make-diagonal (elements)))
+  "Diagonal matrix.  The elements in the diagonal are stored in a vector."
+  (elements nil :type vector))
 
-(defmethod initialize-instance :after ((diagonal-matrix diagonal-matrix)
-                                       &key &allow-other-keys)
-  (check-type (elements diagonal-matrix) vector))
+(defmethod elements ((diagonal diagonal))
+  (diagonal-elements diagonal))
 
-(defmethod emap-dimensions ((diagonal-matrix diagonal-matrix))
-  (let ((length (length (elements diagonal-matrix))))
+(defmethod emap-dimensions ((diagonal diagonal))
+  (let ((length (length (elements diagonal))))
     (list length length)))
 
-(defmethod stack-into ((diagonal-matrix diagonal-matrix)
+(defmethod stack-into ((diagonal diagonal)
                        h? result cumulative-index)
-  (stack-into (as-array diagonal-matrix) h? result cumulative-index))
+  (stack-into (as-array diagonal) h? result cumulative-index))
 
-(defmethod make-matrix ((kind (eql 'diagonal-matrix)) dimensions 
-                        &key initial-contents element-type copy?)
-  (make-instance 'diagonal-matrix :elements 
-                 (make-array-using-contents% dimensions initial-contents
-                                             element-type copy?)))
+(defmethod nrow ((diagonal diagonal))
+  (length (elements diagonal)))
 
-(defmethod make-matrix ((kind (eql :diagonal)) dimensions 
-                        &key initial-contents element-type copy?)
-  (make-matrix 'diagonal-matrix dimensions :copy? copy?
-               :element-type element-type :initial-contents initial-contents))
+(defmethod ncol ((diagonal diagonal))
+  (length (elements diagonal)))
 
-(defmethod nrow ((diagonal-matrix diagonal-matrix))
-  (length (elements diagonal-matrix)))
-
-(defmethod ncol ((diagonal-matrix diagonal-matrix))
-  (length (elements diagonal-matrix)))
-
-(defmethod mref ((diagonal-matrix diagonal-matrix) row col)
+(defmethod mref ((diagonal diagonal) row col)
   (if (= row col)
-      (aref (elements diagonal-matrix) row)
+      (aref (elements diagonal) row)
       (values 0 t)))
 
-(defmethod print-object ((diagonal-matrix diagonal-matrix) stream)
-  (print-unreadable-object (diagonal-matrix stream :type t)
+(defmethod print-object ((diagonal diagonal) stream)
+  (print-unreadable-object (diagonal stream :type t)
     (terpri stream)
-    (print-matrix diagonal-matrix stream ".")))
+    (print-matrix diagonal stream ".")))
 
-(defmethod as-array ((diagonal-matrix diagonal-matrix) &key copy?)
+(defmethod as-array ((diagonal diagonal) &key copy?)
   (declare (ignore copy?))
-  (let+ (((&slots-r/o elements) diagonal-matrix)
+  (let+ (((&slots-r/o elements) diagonal)
          (n (length elements)))
     (aprog1 (make-similar-array elements :dimensions (list n n)
                                 :initial-element (zero* elements))
@@ -256,93 +234,85 @@
 
 ;;; elementwise operations
 
-(defmacro define-elementwise-with-constant (class
+(defmacro define-elementwise-with-constant (type
                                             &optional (functions '(e2* e2/)))
   "Define elementwise operations for FUNCTION for all subclasses of
-wrapped-elements.  "
-  `(progn
-     ,@(loop :for function :in functions
-             :collect
-             `(defmethod ,function ((a ,class) (b number))
-                (make-instance ',class
-                               :elements (,function (elements a) b)))
-             :collect
-             `(defmethod ,function ((a number) (b ,class))
-                (make-instance ',class
-                               :elements (,function a (elements b)))))))
+wrapped-elements."
+  (let ((make (symbolicate '#:make- type)))
+    `(progn
+       ,@(loop :for function :in functions
+               :collect
+               `(defmethod ,function ((a ,type) (b number))
+                  (,make (,function (elements a) b)))
+               :collect
+               `(defmethod ,function ((a number) (b ,type))
+                  (,make (,function a (elements b))))))))
   
-(defmacro define-elementwise-same-class (class
+(defmacro define-elementwise-same-class (type
                                          &optional (functions '(e2+ e2- e2*)))
   `(progn
      ,@(loop for function in functions collect
-             `(defmethod ,function ((a ,class) (b ,class))
-                (make-instance ',class
+             `(defmethod ,function ((a ,type) (b ,type))
+                (make-instance ',(symbolicate '#:make- type)
                                :elements 
                                (,function (elements a) (elements b)))))))
 
-(defmacro define-elementwise-univariate (class
+(defmacro define-elementwise-univariate (type
                                          &optional (functions '(e1- e1/)))
   "Define elementwise operations for FUNCTION for all subclasses of
 wrapped-elements.  "
   `(progn
      ,@(loop :for function :in functions
              :collect
-             `(defmethod ,function ((a ,class))
-                (make-instance ',class :elements (,function (elements a)))))))
+             `(defmethod ,function ((a ,type))
+                (,(symbolicate '#:make- type) (,function (elements a)))))))
 
 (define-elementwise-with-constant lower-triangular-matrix)
 (define-elementwise-with-constant upper-triangular-matrix)
 (define-elementwise-with-constant hermitian-matrix)
-(define-elementwise-with-constant diagonal-matrix)
+(define-elementwise-with-constant diagonal)
 
 (define-elementwise-same-class lower-triangular-matrix)
 (define-elementwise-same-class upper-triangular-matrix)
 (define-elementwise-same-class hermitian-matrix)
-(define-elementwise-same-class diagonal-matrix)
+(define-elementwise-same-class diagonal)
 
 (define-elementwise-univariate lower-triangular-matrix)
 (define-elementwise-univariate upper-triangular-matrix)
 (define-elementwise-univariate hermitian-matrix)
-(define-elementwise-univariate diagonal-matrix)
+(define-elementwise-univariate diagonal)
 
 ;;; transpose
 
 (defmethod transpose ((matrix lower-triangular-matrix) &key copy?)
-  (make-instance 'upper-triangular-matrix
-                 :elements (transpose (elements matrix) :copy? copy?)))
+  (make-upper-triangular-matrix (transpose (elements matrix) :copy? copy?)))
 (defmethod transpose* ((matrix lower-triangular-matrix) &key copy?)
-  (make-instance 'upper-triangular-matrix
-                 :elements (transpose* (elements matrix) :copy? copy?)))
+  (make-upper-triangular-matrix (transpose* (elements matrix) :copy? copy?)))
 
 (defmethod transpose ((matrix upper-triangular-matrix) &key copy?)
-  (make-instance 'lower-triangular-matrix
-                 :elements (transpose (elements matrix) :copy? copy?)))
+  (make-lower-triangular-matrix (transpose (elements matrix) :copy? copy?)))
 (defmethod transpose* ((matrix upper-triangular-matrix) &key copy?)
-  (make-instance 'lower-triangular-matrix
-                 :elements (transpose* (elements matrix) :copy? copy?)))
+  (make-lower-triangular-matrix (transpose* (elements matrix) :copy? copy?)))
 
 (defmethod transpose ((matrix hermitian-matrix) &key copy?)
-  (make-instance 'hermitian-matrix
-                 :elements (transpose (as-array matrix) :copy? copy?)))
+  (make-hermitian-matrix (transpose (as-array matrix) :copy? copy?)))
 (defmethod transpose* ((matrix hermitian-matrix) &key copy?)
   (if copy?
-      (make-instance 'hermitian-matrix
-                     :elements (copy-array (elements matrix)))
+      (make-hermitian-matrix (copy-array (elements matrix)))
       matrix))
 
-(defmethod transpose ((diagonal diagonal-matrix) &key copy?)
+(defmethod transpose ((diagonal diagonal) &key copy?)
   (if copy?
-      (make-instance 'diagonal-matrix
-                     :elements (copy-array (elements diagonal)))
+      (make-diagonal (copy-array (elements diagonal)))
       diagonal))
-(defmethod transpose* ((diagonal diagonal-matrix) &key copy?)
+(defmethod transpose* ((diagonal diagonal) &key copy?)
   (declare (ignore copy?))
-  (make-instance 'diagonal-matrix :elements (econjugate (elements diagonal))))
+  (make-diagonal (econjugate (elements diagonal))))
 
 ;;; sub
 ;;; 
-;;; (sub wrapped-matrix index-specification nil) returns a matrix of the same class
-;;; (or a scalar), using index-specification along both dimensions
+;;; (sub wrapped-matrix index-specification nil) returns a matrix of the same
+;;; class (or a scalar), using index-specification along both dimensions
 
 (defmethod sub ((matrix wrapped-matrix) &rest index-specifications)
   (destructuring-bind (is0 &optional is1) index-specifications
@@ -350,16 +320,16 @@ wrapped-elements.  "
         (sub (as-array matrix) is0 is1)
         (let ((submatrix (sub (elements matrix) is0 is0)))
           (if (arrayp submatrix)
-              (make-instance (class-of matrix) :elements submatrix)
+              (convert-matrix (matrix-kind matrix) submatrix)
               submatrix)))))
 
 ;;; ==
 
 (defmethod == ((a wrapped-matrix) (b wrapped-matrix)
                &optional (tolerance *==-tolerance*))
-    (and (equal (type-of a) (type-of b))
+    (and (equal (matrix-kind a) (matrix-kind b))
          (== (as-array a) (as-array b) tolerance)))
 
-(defmethod == ((a diagonal-matrix) (b diagonal-matrix)
+(defmethod == ((a diagonal) (b diagonal)
                &optional (tolerance *==-tolerance*))
     (== (elements a) (elements b) tolerance))

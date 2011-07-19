@@ -42,7 +42,8 @@ constraint is binding."
 (defvar *lla-print-matrix-paddig* 1
   "Number of spaces between columns.")
 
-(defun print-matrix (matrix stream masked-element &key (formatter #'standard-numeric-formatter))
+(defun print-matrix (matrix stream masked-element 
+                     &key (formatter #'standard-numeric-formatter))
   "Format and print the elements of matrix to stream, using
 *LLA-PRINT-MATRIX-PADDING* spaces between columns.  If *LLA-PRINT-MATRIX-ALIGNED*,
 columns will be right-aligned.  Prints at most *PRINT-LENGTH* rows and columns,

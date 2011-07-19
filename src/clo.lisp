@@ -70,9 +70,9 @@ sequence or a single element, the latter is recycled."
   elements ::= element* | element* :/ element*
 
   Possible KIND keywords
-  are :diagonal, :dense, :lower(-triangular), :upper(-triangular) and :hermitian.  If
-  none are given, the result is a numeric-vector, unless an element separator (:/) is
-  given.  At most one KIND keyword can be given.
+  are :diagonal, :dense, :lower(-triangular), :upper(-triangular)
+  and :hermitian.  If none are given, the result is a numeric-vector, unless
+  an element separator (:/) is given.  At most one KIND keyword can be given.
 
   At most one LLA-TYPE keyword can be given, if one is supplied, it
   elements will be coerced to that type.
@@ -108,6 +108,7 @@ sequence or a single element, the latter is recycled."
            collect `(setf (row-major-aref ,elements-var ,index)
                           (coerce* ,element ,element-type)))
        ;; create object !! will be used when introducing kinds
-       ,(if (eq kind :dense)
-            elements-var
-            `(make-matrix ,kind ',dimensions :initial-contents ,elements-var)))))
+       ,(case kind
+          (:dense elements-var)
+          (:diagonal `(make-diagonal ,elements-var))
+          (t `(convert-matrix ,kind ,elements-var))))))

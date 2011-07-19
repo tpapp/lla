@@ -36,7 +36,7 @@ ways, (3) real floats can be upgraded to complex."
 (defun test-pinning-readonly (source-type destination-type &key
                               (report? t) (length 50))
   (let ((vector (make-random-array length source-type 100)))
-    (lla::with-pinned-array (vector pointer destination-type)
+    (lla::with-pinned-array (pointer vector destination-type nil nil nil nil)
       (array-at-pointer= vector pointer destination-type :report? report?))))
 
 (defun test-pinning-copy (source-type destination-type &key
@@ -44,9 +44,11 @@ ways, (3) real floats can be upgraded to complex."
   (let* ((vector (make-random-array length source-type 100))
          (copy (copy-seq vector))
          (copy-inc (map 'vector #'1+ copy)))
-    (lla::with-pinned-array (vector pointer destination-type :output :copy)
+    (lla::with-pinned-array (pointer vector destination-type nil
+                                     :copy nil nil)
       ;; check equality
-      (unless (array-at-pointer= copy pointer destination-type :report? report?)
+      (unless (array-at-pointer= copy pointer destination-type
+                                 :report? report?)
         (return-from test-pinning-copy nil))
       ;; increment memory area, check equality, and that original is intact
       (dotimes (i length)
@@ -61,7 +63,8 @@ ways, (3) real floats can be upgraded to complex."
          vector-inc
          (copy (copy-seq vector))
          (copy-inc (map 'vector #'1+ copy)))
-    (lla::with-pinned-array (vector pointer destination-type :output vector-inc)
+    (lla::with-pinned-array (pointer vector destination-type nil
+                                    vector-inc nil nil)
       ;; check equality
       (unless (array-at-pointer= copy pointer destination-type :report? report?)
         (return-from test-pinning-output nil))
@@ -78,7 +81,7 @@ ways, (3) real floats can be upgraded to complex."
 (defun test-vector-output (lla-type &key (length 50))
   (let ((vector (make-random-array length lla-type 100))
         output)
-    (lla::with-array-output (output pointer lla-type length)
+    (lla::with-array-output (pointer output lla-type length nil)
       (dotimes (index length)
         (setf (lla::mem-aref* pointer lla-type index) (aref vector index))))
     (equalp vector output)))

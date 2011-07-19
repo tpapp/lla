@@ -3,13 +3,6 @@
 The library is currently undergoind a reorganizaton.  Documentation
 will appear here when the reorganization is finished and I have time.
 
-** Intel MKL 
-=/etc/ld.so.conf.d/=
-#+BEGIN_SRC 
-/opt/intel/mkl/lib/intel64
-/opt/intel/composerxe/lib/intel64
-#+END_SRC
-
 ** Things to do (roughly in order of priority)
    [ ] decide whether hermitian matrices use upper or lower triangle
    (look at functions that use hermitian matrices, in principle this
@@ -21,18 +14,12 @@ will appear here when the reorganization is finished and I have time.
 
    [ ] write SBCL and ECL pinning interfaces
 
-   [ ] write notes on how to compile LAPACK(E) for those who don't
-   want to use the Intel MKL
-
    [ ] write hermitian factorization methods, inverse
    
    [ ] write documentation
 
    [ ] write more tests
    
-   [ ] maybe move == from tests to CLNU, it is quite handy, could be
-   rewritten with explicit optional argument
-
 ** Wishlist
    [ ] foreign-atoms is no longer needed now that we are using a C
    interface: move it into array/vector copying code (see point below)
@@ -44,24 +31,73 @@ will appear here when the reorganization is finished and I have time.
    just as well, then all functions could use CL types (not a high
    priority at the moment)
    
-* Compiling LAPACKE
 
 
-apt-get install libblas3gf liblapack3gf
+* Libraries
+
+** Dependencies and configuration
+
+LLA needs BLAS and LAPACK shared libraries to work.  When it comes to loading libraries, LLA tries to pick a sensible default for each platform, but in case it fails, you need to tell LLA where the libraries are before loading.
+
+You can do this by putting something like this in your startup script (eg =~/.sbclrc=, the symbol needs to be in the package =cl-user=):
+
+#+BEGIN_SRC lisp
+(defvar *lla-configuration* 
+  '(:libraries ("/usr/lib/atlas-base/atlas/libblas.so.3gf"
+                "/usr/lib/atlas-base/libatlas.so.3gf")))
+#+END_SRC
+
+
+** Debian
+
+On Debian-based distributions, it is very likely that LLA will work out of the box if you just install ATLAS, eg
+#+BEGIN_EXAMPLE
+apt-get install libatlas3gf-base
+#+END_EXAMPLE
+However, you may want to build a version optimized for your architecture.
+
+*** Building ATLAS on Debian
+
+Prepare the build (as root):
+#+BEGIN_EXAMPLE
+apt-get build-dep atlas
+apt-get install fakeroot devscripts
+cpufreq-set -g performance -c 0   # do this for all CPUs
+#+END_EXAMPLE
+Then as a regular user,
+#+BEGIN_EXAMPLE
+apt-get source atlas
+cd atlas-[fill in your version here]/
+fakeroot debian/rules custom
+#+END_EXAMPLE
+
+
+*** Selecting the right linear algebra library
+
+#+BEGIN_EXAMPLE
 update-alternatives --config libblas.so.3gf
 update-alternatives --config liblapack.so.3gf
-http://wiki.debian.org/DebianScience/LinearAlgebraLibraries
+#+END_EXAMPLE
 
 
-## as root (Debian) or with sudo (Ubuntu)
-apt-get install devscripts
-apt-get build-dep liblapack3gf
-## as normal user
-mkdir lapack-build              # or any directory you prefer, you will build here
-cd lapack-build
-apt-get source liblapack3gf
-cd lapack-3.3.0                 # or whatever version/directory you ended up with after apt-get
-uupdate ~/src/lapack-3.3.1.tgz  # downloaded from Netlib
-ln -s INSTALL install
-ln -s TESTING testing
-dpkg-buildpackage -us -uc -nc
+** Intel MKL on Linux
+
+In =/etc/ld.so.conf.d/=, create a file that contains the paths, eg
+#+BEGIN_EXAMPLE
+/opt/intel/mkl/lib/intel64
+/opt/intel/composerxe/lib/intel64
+#+END_EXAMPEL
+
+Then the configuration
+#+BEGIN_SRC lisp
+(defvar *lla-configuration* 
+  '("libgomp.so.1" "libiomp5.so" "libmkl_rt" "libpthread.so.0" "libpthread"))
+#+END_SRC
+should work.
+
+
+
+
+
+
+

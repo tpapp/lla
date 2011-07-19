@@ -33,26 +33,19 @@
 ;;; - mmm could detect and collect scalars
 ;;; - methods for triangular matrices
 
-(defun mm-internal (a b &key a-op b-op (alpha 1))
-  (lb-call (((&values a0 a1 a-orientation lda a-op)
-             (maybe-vector-as-matrix a :row a-op))
-            ((&values b0 b1 b-orientation ldb b-op)
-             (maybe-vector-as-matrix b :column b-op))
-            (common-type (common-float-type a b alpha))
-            ((:blas gemm common-type))
-            ((:array a% common-type) a)
-            ((:array b% common-type) b)
-            ((:output c% common-type c)
-             (cond
-               ((and a-orientation b-orientation) 
-                (error "Can't use MM on two vectors, see DOT or OUTER."))
-               (a-orientation b1)
-               (b-orientation a0)
-               (t (list a0 b1)))))
-    (assert (= a1 b0))
-    (call a-op b-op a0 b1 a1 (coerce* alpha common-type) a% lda b% ldb
-          (zero* common-type) c% b1)
-    c))
+
+(defun dimensions-as-matrix (array orientation)
+  "If ARRAY is a vector, return its dimensions as a matrix with given
+ORIENTATION (:ROW or :COLUMN) as multiple values, and T as the third value.
+If it is matrix, just return the dimensions and NIL.  Used for considering
+vectors as conforming matrices (eg see MM)."
+  (ecase (array-rank array)
+    (1 (let ((d0 (array-dimension array 0)))
+         (ecase orientation
+           (:row (values 1 d0 t))
+           (:column (values d0 1 t)))))
+    (2 (let+ (((d0 d1) (array-dimensions array)))
+         (values d0 d1 nil)))))
 
 (defgeneric mm (a b &optional alpha)
   (:documentation
@@ -62,7 +55,20 @@
   (reduce #'mm matrices))
 
 (defmethod mm ((a array) (b array) &optional (alpha 1))
-  (mm-internal a b :alpha alpha))
+  (let+ ((common-type (common-float-type a b alpha))
+         ((&values a0 a1 av) (dimensions-as-matrix a :row))
+         ((&values b0 b1 bv) (dimensions-as-matrix b :column))
+         (c-dimensions (cond
+                         ((and av bv) (error "MM called with two vectors."))
+                         ((or av bv) (* a0 b1))
+                         (t (list a0 b1)))))
+    (assert (= a1 b0) () "Incompatible dimensions.")
+    ;; here C=AB <=> C^T=B^T A^T, so in the argument list, A and B are
+    ;; interchanged
+    (blas-call ("gemm" common-type c)
+               #\N #\N (&integers b1 a0 b0) (&atom* alpha) (&array b)
+               (&integer b1) (&array a) (&integer a1) 0
+               (&output c c-dimensions) (&integer b1))))
 
 ;;; !! this is how we could speed things up with compiler macros: have a
 ;;; !! compiler macro transform (MM (TRANSPOSE FOO) BAR) to (MM-TN FOO BAR),
@@ -70,25 +76,27 @@
 ;;; !! we could have (lazy-transpose* FOO) explicitly, and have MM dispatch on
 ;;; !! that.  Will investigate.
 
-(defun mm-hermitian% (a op-left? &optional (alpha 1))
-  "Calculate alpha*A*op(A) if OP-LEFT? is NIL, and alpha*op(A)*A
-  otherwise.  ALPHA defaults to 1.  op() is always conjugate
-  transpose, but may be implemented as a transpose if A is real, in
-  which case the two are equivalent.  This function is meant to be
-  used internally, and is not exported."
-  (lb-call ((common-type (common-float-type a))
-            (real-type (real-lla-type common-type))
-            ((:blas (syrk herk) common-type))
-            ((:array a% common-type :dimensions (nrow ncol)) a)
-            ((&values dim-c other-dim-a)
-             (if op-left?
-                 (values ncol nrow)
-                 (values nrow ncol)))
-            ((:output c% common-type c) (list dim-c dim-c)))
-    (call (hermitian-orientation :blas) (lb-transpose op-left? :blas t)
-          dim-c other-dim-a (coerce* alpha real-type) a% ncol
-          (zero* real-type) c% dim-c)
-    (make-instance 'hermitian-matrix :elements c)))
+(defun mm-hermitian% (a transpose-left? &optional (alpha 1))
+  "Calculate alpha*A*op(A) if TRANSPOSE-LEFT? is NIL, and alpha*op(A)*A
+  otherwise.  ALPHA defaults to 1.  op() is always conjugate transpose, but
+  may be implemented as a transpose if A is real, in which case the two are
+  equivalent.  This function is meant to be used internally, and is not
+  exported."
+  ;; implementation note: no transpose is necessary
+  (let+ (((a0 a1) (array-dimensions a))
+         ((&values dim-c other-dim-a)
+             (if transpose-left?
+                 (values a1 a0)
+                 (values a0 a1)))
+         (type (common-float-type a))
+         (real-type (real-lla-type type)))
+    (blas-call (("syrk" "herk") type 
+                (make-hermitian-matrix c))
+               #\U (&char (if transpose-left? #\N #\C))
+               (&integers dim-c other-dim-a) (&atom* alpha)
+               (&array a) (&integer a1) 0
+               (&output c (list dim-c dim-c) :type real-type)
+               (&integer dim-c))))
 
 (defmethod mm ((a array) (b (eql t)) &optional (alpha 1))
   ;; A A^T
@@ -110,64 +118,41 @@
 (defmethod mm ((a vector) (b (eql t)) &optional (alpha 1))
   (mm (as-column a) t alpha))
 
-;; ;;; mm for diagonal matrices
+;;; mm for diagonal matrices
 
-;; (defmethod mm ((a diagonal) (b dense-matrix-like) &optional (alpha 1))
-;;   (declare (optimize speed))
-;;   (bind ((diagonal-elements (elements a))
-;;          ((:slots-read-only  nrow ncol (matrix-elements elements)) b)
-;;          (common-type (lb-target-type diagonal-elements matrix-elements alpha))
-;;          (alpha (coerce* alpha common-type))
-;;          (result (make-matrix nrow ncol common-type :kind (matrix-kind b)))
-;;          (result-elements (elements result))
-;;          (i 0))
-;;     (declare (fixnum i nrow ncol))
-;;     (assert (= (length diagonal-elements) nrow) () "Dimension mismatch.")
-;;     (with-vector-type-expansion
-;;         (result-elements
-;;          :other-vectors (diagonal-elements matrix-elements)
-;;          :simple-test :other-vectors)
-;;       (lambda (lla-type)
-;;         `(locally 
-;;              (declare (type ,(lla->lisp-type lla-type) alpha))
-;;            (dotimes (col ncol)
-;;              (dotimes (row nrow)
-;;                (setf (aref result-elements i)
-;;                      (* (aref matrix-elements i)
-;;                         (aref diagonal-elements row) alpha))
-;;                (incf i))))))
-;;     result))
+(defmethod mm ((a diagonal) (b array) &optional (alpha 1))
+  (let+ (((b0 b1) (array-dimensions b))
+         (a (elements a))
+         (c (make-array (list b0 b1)
+                        :element-type (clnu::emap-common-type a b alpha)))
+         (i 0))
+    (assert (= (length a) b0) () 'lla-incompatible-dimensions)
+    (dotimes (row b0)
+      (let ((a*alpha (* (row-major-aref a row) alpha)))
+        (dotimes (col b1)
+          (setf (row-major-aref c i) (* (row-major-aref b i) a*alpha))
+          (incf i))))
+    c))
 
-;; (defmethod mm ((a dense-matrix-like) (b diagonal) &optional (alpha 1))
-;;   (declare (optimize speed))
-;;   (bind (((:slots-read-only  nrow ncol (matrix-elements elements)) a)
-;;          (diagonal-elements (elements b))
-;;          (common-type (lb-target-type diagonal-elements matrix-elements alpha))
-;;          (alpha (coerce* alpha common-type))
-;;          (result (make-matrix nrow ncol common-type :kind (matrix-kind a)))
-;;          (result-elements (elements result))
-;;          (i 0))
-;;     (assert (= (length diagonal-elements) ncol) () "Dimension mismatch.")
-;;     (with-vector-type-expansion
-;;         (result-elements
-;;          :other-vectors (diagonal-elements matrix-elements)
-;;          :simple-test :other-vectors)
-;;       (lambda (lla-type)
-;;         `(locally 
-;;              (declare (type ,(lla->lisp-type lla-type) alpha))
-;;                (dotimes (col ncol)
-;;       (let ((d*alpha (* (aref diagonal-elements col) alpha)))
-;;         (dotimes (row nrow)
-;;           (setf (aref result-elements i)
-;;                 (* (aref matrix-elements i) d*alpha))
-;;           (incf i)))))))
-;;     result))
+(defmethod mm ((a array) (b diagonal) &optional (alpha 1))
+  (let+ (((a0 a1) (array-dimensions a))
+         (b (elements b))
+         (c (make-array (list a0 a1)
+                        :element-type (clnu::emap-common-type a b alpha)))
+         (i 0))
+    (assert (= a1 (length b)) () 'lla-incompatible-dimensions)
+    (dotimes (row a0)
+      (dotimes (col a1)
+        (setf (row-major-aref c i)
+              (* (row-major-aref a i) (row-major-aref b col) alpha))
+        (incf i)))
+    c))
 
-;; (defmethod mm ((a vector) (b diagonal) &optional (alpha 1))
-;;   (mm-row% a b alpha))
+(defmethod mm ((a vector) (b diagonal) &optional (alpha 1))
+  (e* a (elements b) alpha))
 
-;; (defmethod mm ((a diagonal) (b vector) &optional (alpha 1))
-;;   (mm-column% a b alpha))
+(defmethod mm ((a diagonal) (b vector) &optional (alpha 1))
+  (e* (elements a) b alpha))
 
 ;;; hermitian (symmetric) updates
 
@@ -211,120 +196,133 @@
   (:documentation "LU decomposition of A"))
 
 (defmethod lu ((a array))
-  (lb-call ((type (common-float-type a))
-            ((:lapack getrf type))
-            ((:array a% type :dimensions (m n) :output lu) a)
-            ((:output ipiv% :integer ipiv) (min m n)))
-    (call m n a% n ipiv%)
-    (make-instance 'lu :lu lu :ipiv ipiv)))
+  (let+ (((a0 a1) (array-dimensions a)))
+    (lapack-call ("getrf" (common-float-type a)
+                     (make-instance 'lu :lu lu :ipiv ipiv))
+                 (&integers a0 a1)
+                 (&array a :transpose? t :output (lu :transpose? t))
+                 (&integer a0) (&output ipiv (min a0 a1) :type :integer)
+                 &info)))
+
 
 ;;;; Hermitian factorization
 
 (defgeneric hermitian-factorization (a)
   (:documentation "Compute the hermitian factorization."))
 
-(defmethod hermitian-factorization ((a hermitian-matrix))
-  (lb-call ((a (elements a))
-            (type (common-float-type a))
-            ((:lapack (sytrf hetrf) type))
-            ((:array a% type :dimensions (n n2) :output factor) a)
-            ((:output ipiv% :integer ipiv) n))
-    (assert (= n n2))
-    (call (hermitian-orientation :lapack) n a% n ipiv%)
-    (make-instance 'hermitian-factorization :factor factor :ipiv ipiv)))
+;; (defmethod hermitian-factorization ((a hermitian-matrix))
+;;   (lb-call ((a (elements a))
+;;             (type (common-float-type a))
+;;             ((:lapack (sytrf hetrf) type))
+;;             ((:array a% type :dimensions (n n2) :output factor) a)
+;;             ((:output ipiv% :integer ipiv) n))
+;;     (assert (= n n2))
+;;     (call (hermitian-orientation :lapack) n a% n ipiv%)
+;;     (make-instance 'hermitian-factorization :factor factor :ipiv ipiv)))
 
 ;;;; solving linear equations
 
 (defgeneric solve (a b)
-  (:documentation "Return X that solves AX=B.  When B is a vector, so is X."))
+  (:documentation "Return X that solves AX=B.  When B is a vector, so is X.")
+  (:argument-precedence-order b a))
 
 (defmethod solve (a (b wrapped-matrix))
   (solve a (as-array b)))
 
 (defmethod solve ((lu lu) (b array))
-  (lb-call (((&values b0 b1 b-orientation ldb)
-             (maybe-vector-as-matrix b :column))
-            ((&slots-r/o lu ipiv) lu)
-            (common-type (common-float-type lu b))
-            ((:lapack getrs common-type))
-            ((:array lu% common-type :dimensions (lu0 lu1)) lu)
-            ((:array b% common-type :output x :output-dimensions 
-                     (vector-or-matrix-dimensions lu1 b1 b-orientation)) b)
-            ((:array ipiv% :integer :dimensions (i0)) ipiv))
-    (assert (= lu0 lu1 b0 i0))
-    (call +n+ lu0 b1 lu% lu1 ipiv% b% ldb)
-    x))
+  (let+ (((&slots lu ipiv) lu)
+         ((lu0 lu1) (array-dimensions lu))
+         ((&values b0 b1 nil) (dimensions-as-matrix b :column)))
+    (assert (= lu0 lu1 b0) () 'lla-incompatible-dimensions)
+    (lapack-call ("getrs" (common-float-type lu b) x)
+                 #\N (&integer lu0) (&integer b1) (&array lu :transpose? t)
+                 (&integer lu0) (&array ipiv :type :integer)
+                 (&array b :transpose? t
+                           :output (x :dimensions (array-dimensions b)
+                                      :transpose? t))
+                 (&integer lu0)
+                 &info)))
 
 (defmethod solve ((a array) (b array))
-  (lb-call (((&values b0 b1 b-orientation ldb)
-             (maybe-vector-as-matrix b :column))
-            (common-type (common-float-type a b))
-            ((:lapack gesv common-type))
-            ((:array a% common-type :dimensions (a0 a1)) a)
-            ((:array b% common-type :output x :output-dimensions
-                     (vector-or-matrix-dimensions a1 b1 b-orientation)) b)
-            ((:work ipiv% :integer) a0)) ; not saving ipiv
-    (assert (= a0 a1 b0))
-    (call a0 b1 a% a1 ipiv% b% ldb)
-    x))
+  (let+ (((a0 a1) (array-dimensions a))
+         ((&values b0 b1 nil) (dimensions-as-matrix b :column)))
+    (assert (= a0 a1 b0) () 'lla-incompatible-dimensions)
+    (lapack-call ("gesv" (common-float-type a b) x)
+                 (&integer a0) (&integer b1) (&array a :transpose? t)
+                 (&integer a0) (&work :integer a0)
+                 (&array b :transpose? t
+                           :output (x :dimensions (array-dimensions b)
+                                      :transpose? t))
+                 (&integer a0)
+                 &info)))
 
-;; (defmethod solve ((cholesky cholesky) (b dense-matrix-like))
-;;   (lb-call (((&slots-r/o factor) cholesky)
-;;             (common-type (common-float-type factor))
-;;             (procedure (lb-procedure-name common-type potrs))
-;;             ((:matrix factor% common-type (n n%) n2) factor)
-;;             ((:matrix b% common-type n3 (nrhs nrhs%) :output x) b)
-;;             ((:char u-char%) (etypecase factor
-;;                                (upper-matrix #\U)
-;;                                (lower-matrix #\L)))
-;;             ((:check info%)))
-;;     (assert (= n n2 n3))
-;;     (call procedure u-char% n% nrhs% factor% n% b% n% info%)
-;;     (make-matrix% n nrhs x)))
+(defmethod solve ((cholesky cholesky) b)
+  (let+ ((a (elements (left-square-root cholesky)))
+         ((&values b0 b1 nil) (dimensions-as-matrix b :column))
+         ((a0 a1) (array-dimensions a)))
+    (assert (= a0 a1 b0) () 'lla-incompatible-dimensions)
+    (lapack-call ("potrs" (common-float-type a b) x)
+                 #\U (&integers a0 b1) (&array a) (&integer a0)
+                 (&array b :transpose? t
+                           :output (x :transpose? t
+                                      :dimensions (array-dimensions b)))
+                 (&integer b0) &info)))
 
-(defmethod solve ((hermitian-factorization hermitian-factorization) (b array))
-  (lb-call (((&slots-r/o factor ipiv) hermitian-factorization)
-            (common-type (common-float-type factor b))
-            ((:lapack (sytrs hetrs) common-type))
-            ((:array factor% common-type :dimensions (n n2)) factor)
-            ((&values n3 nrhs b-orientation ldb)
-             (maybe-vector-as-matrix b :column))
-            ((:array b% common-type :output x :output-dimensions
-                      (vector-or-matrix-dimensions n nrhs b-orientation)) b)
-            ((:array ipiv% :integer :dimensions n4) ipiv))
-    (assert (= n n2 n3 n4))
-    (call (hermitian-orientation :lapack) n nrhs factor% n ipiv% b% ldb)
-    x))
+(defmethod solve ((hermitian-matrix hermitian-matrix) b)
+  (let+ ((a (elements hermitian-matrix))
+         ((&values b0 b1 nil) (dimensions-as-matrix b :column))
+         ((a0 a1) (array-dimensions a)))
+    (assert (= a0 a1 b0) () 'lla-incompatible-dimensions)
+    (lapack-call ("posv" (common-float-type a b) x)
+                 #\U (&integers a0 b1) (&array a :output :copy) (&integer a0)
+                 (&array b :transpose? t
+                           :output (x :transpose? t
+                                      :dimensions (array-dimensions b)))
+                 (&integer b0) &info)))
 
-(defmethod solve ((hermitian-matrix hermitian-matrix) (b array))
-  (solve (hermitian-factorization hermitian-matrix) b))
+;; (defmethod solve ((hermitian-factorization hermitian-factorization) (b array))
+;;   (lb-call (((&slots-r/o factor ipiv) hermitian-factorization)
+;;             (common-type (common-float-type factor b))
+;;             ((:lapack (sytrs hetrs) common-type))
+;;             ((:array factor% common-type :dimensions (n n2)) factor)
+;;             ((&values n3 nrhs b-orientation ldb)
+;;              (maybe-vector-as-matrix b :column))
+;;             ((:array b% common-type :output x :output-dimensions
+;;                       (vector-or-matrix-dimensions n nrhs b-orientation)) b)
+;;             ((:array ipiv% :integer :dimensions n4) ipiv))
+;;     (assert (= n n2 n3 n4))
+;;     (call (hermitian-orientation :lapack) n nrhs factor% n ipiv% b% ldb)
+;;     x))
 
-(defun trsm% (a a-uplo b side transpose-a? &optional (alpha 1))
-  "Wrapper for BLAS routine xTRSM.  Calculates op(A^-1) B (if SIDE
-is :LEFT) or B op(A^-1) (if SIDE is :RIGHT).  A has to be a triangular
-matrix.  transpose-a? determines whether op(A) is A^T or A.  The
-result is multiplied by ALPHA."
-  (lb-call ((common-type (common-float-type a b))
-            ((:blas trsm common-type))
-            ((&values b0 b1 b-orientation ldb)
-             (maybe-vector-as-matrix b :column))
-            ((:array a% common-type :dimensions (a0 a1)) a)
-            ((:array b% common-type :output result :output-dimensions
-                     (vector-or-matrix-dimensions b0 b1 b-orientation)) b)
-            (side (ecase side
-                    (:left (assert (= a0 b0)) :CBLASLEFT)
-                    (:right (assert (= a0 b1)) :CBLASRIGHT)))
-            (trans (lb-transpose transpose-a? :blas t))
-            (alpha (coerce* alpha common-type)))
-    (assert (= a0 a1))
-    (call side a-uplo trans :CBLASNONUNIT b0 b1 alpha a% a0 b% ldb)
-    result))
+;; (defmethod solve ((hermitian-matrix hermitian-matrix) (b array))
+;;   (solve (hermitian-factorization hermitian-matrix) b))
 
-(defmethod solve ((a lower-triangular-matrix) b)
-  (trsm% (elements a) :CBLASLOWER (as-array b) :left nil))
+;; (defun trsm% (a a-uplo b side transpose-a? &optional (alpha 1))
+;;   "Wrapper for BLAS routine xTRSM.  Calculates op(A^-1) B (if SIDE
+;; is :LEFT) or B op(A^-1) (if SIDE is :RIGHT).  A has to be a triangular
+;; matrix.  transpose-a? determines whether op(A) is A^T or A.  The
+;; result is multiplied by ALPHA."
+;;   (lb-call ((common-type (common-float-type a b))
+;;             ((:blas trsm common-type))
+;;             ((&values b0 b1 b-orientation ldb)
+;;              (maybe-vector-as-matrix b :column))
+;;             ((:array a% common-type :dimensions (a0 a1)) a)
+;;             ((:array b% common-type :output result :output-dimensions
+;;                      (vector-or-matrix-dimensions b0 b1 b-orientation)) b)
+;;             (side (ecase side
+;;                     (:left (assert (= a0 b0)) :CBLASLEFT)
+;;                     (:right (assert (= a0 b1)) :CBLASRIGHT)))
+;;             (trans (lb-transpose transpose-a? :blas t))
+;;             (alpha (coerce* alpha common-type)))
+;;     (assert (= a0 a1))
+;;     (call side a-uplo trans :CBLASNONUNIT b0 b1 alpha a% a0 b% ldb)
+;;     result))
 
-(defmethod solve ((a upper-triangular-matrix) b)
-  (trsm% (elements a) :CBLASUPPER (as-array b) :left nil))
+;; (defmethod solve ((a lower-triangular-matrix) b)
+;;   (trsm% (elements a) :CBLASLOWER (as-array b) :left nil))
+
+;; (defmethod solve ((a upper-triangular-matrix) b)
+;;   (trsm% (elements a) :CBLASUPPER (as-array b) :left nil))
 
 ;; (defmethod solve ((a diagonal) (b dense-matrix-like))
 ;;   (mm (e/ a) b))
@@ -336,45 +334,50 @@ result is multiplied by ALPHA."
   because it is numerically unstable.  If you are solving many Ax=b equations
   with the same A, use a matrix factorization like LU."))
 
-(defmethod invert ((a array) &key) (invert (lu a)))
+(defmethod invert ((a array) &key)
+  (invert (lu a)))
 
 (defmethod invert ((lu lu) &key)
-  (lb-call (((&slots-r/o lu ipiv) lu)
-            (common-type (common-float-type lu))
-            ((:lapack getri common-type))
-            ((:array lu% common-type :dimensions (n n2) :output inverse) lu)
-            ((:array ipiv% :integer :dimensions n3) ipiv))
-    (assert (= n n2 n3))
-    (call n lu% n ipiv%)
-    inverse))
+  (let+ (((&slots-r/o lu ipiv) lu)
+         ((lu0 lu1) (array-dimensions lu)))
+    (assert (= lu0 lu1 (length ipiv)))
+    (lapack-call-w/query ("getri" (common-float-type lu) inverse)
+                         (&integer lu0)
+                         (&array lu :transpose? t
+                                    :output (inverse :transpose? t))
+                         (&integer lu0)
+                         (&array ipiv :type :integer)
+                         (&work-query) &info)))
 
-(defmethod invert ((hermitian-factorization hermitian-factorization) &key)
-  (lb-call (((&slots-r/o factor ipiv) hermitian-factorization)
-            (common-type (common-float-type factor))
-            ((:lapack (sytri hetri) common-type))
-            ((:array factor% common-type :dimensions (n n2) :output inverse)
-             factor)
-            ((:array ipiv% :integer :dimensions n3) ipiv))
-    (assert (= n n2 n3))
-    (call (hermitian-orientation :lapack) n factor% n ipiv%)
-    (make-instance 'hermitian-matrix :elements inverse)))
+;; (defmethod invert ((hermitian-factorization hermitian-factorization) &key)
+;;   (lb-call (((&slots-r/o factor ipiv) hermitian-factorization)
+;;             (common-type (common-float-type factor))
+;;             ((:lapack (sytri hetri) common-type))
+;;             ((:array factor% common-type :dimensions (n n2) :output inverse)
+;;              factor)
+;;             ((:array ipiv% :integer :dimensions n3) ipiv))
+;;     (assert (= n n2 n3))
+;;     (call (hermitian-orientation :lapack) n factor% n ipiv%)
+;;     (make-instance 'hermitian-matrix :elements inverse)))
 
-(defmethod invert ((a hermitian-matrix) &key)
-  (invert (hermitian-factorization a)))
+;; (defmethod invert ((a hermitian-matrix) &key)
+;;   (invert (hermitian-factorization a)))
 
 (defun invert-triangular% (a upper? unit-diag? kind)
   "Invert a dense (triangular) matrix using the LAPACK routine *TRTRI.
 UPPER? indicates if the matrix is in the upper or the lower triangle of a
 matrix, UNIT-DIAG? indicates whether the diagonal is supposed to consist of
 1s.  For internal use, not exported."
-  (lb-call ((common-type (common-float-type a))
-            ((:lapack trtri common-type))
-            ((:array a% common-type :dimensions (n n2) :output inverse) a)
-            (u-char (if upper? +u+ +l+))
-            (d-char (if unit-diag? +u+ +n+)))
-    (assert (= n n2))
-    (call u-char d-char n a% n)
-    (make-matrix kind (list n n) :initial-contents inverse)))
+  (let+ (((a0 a1) (array-dimensions a)))
+    (assert (= a0 a1))
+    (lapack-call ("trtri" (common-float-type a)
+                          (convert-matrix kind inverse))
+                 (&char (if upper? #\L #\U))
+                 (&char (if unit-diag? #\U #\N))
+                 (&integer a0)
+                 (&array a :output inverse)
+                 (&integer a0)
+                 &info)))
   
 (defmethod invert ((a upper-triangular-matrix) &key)
   (invert-triangular% (elements a) t nil :upper))
@@ -510,17 +513,20 @@ matrix, UNIT-DIAG? indicates whether the diagonal is supposed to consist of
 
 (defun last-rows-ss (matrix nrhs common-type)
   "Calculate the sum of squares of the last rows of MATRIX columnwise,
-omitting the first NRHS rows.  Used for interfacing with xGELS."
-  (let+ (((m n) (array-dimensions matrix))
-         (real-type (real-lla-type common-type))
-         (sum (make-array* n real-type (zero* real-type)))
-         (matrix-index (array-row-major-index matrix nrhs 0)))
-    (loop repeat (- m nrhs) do
-      (dotimes (sum-index n)
-        (incf (aref sum sum-index)
-              (conjugate-square (row-major-aref matrix matrix-index)))
-        (incf matrix-index)))
-    sum))
+omitting the first NRHS rows.  If MATRIX is a vector, just do this for the
+last elements.  Used for interfacing with xGELS."
+  (ecase (array-rank matrix)
+    (1 (reduce #'+ matrix :key #'conjugate-square :start nrhs))
+    (2 (let+ (((m n) (array-dimensions matrix))
+              (real-type (real-lla-type common-type))
+              (sum (make-array* n real-type (zero* real-type)))
+              (matrix-index (array-row-major-index matrix nrhs 0)))
+         (loop repeat (- m nrhs) do
+           (dotimes (sum-index n)
+             (incf (aref sum sum-index)
+                   (conjugate-square (row-major-aref matrix matrix-index)))
+             (incf matrix-index)))
+         sum))))
 
 (defun least-squares-qr (y x &key &allow-other-keys)
   "Least squares using QR decomposition.  Additional values returned: the QR
@@ -530,35 +536,42 @@ well-conditioned."
   ;; Note: the naming convention (y,X,b) is different from LAPACK's
   ;; (b,A,x).  Sorry if this creates confusion, I decided to follow
   ;; standard statistical notation.
-  (lb-call ((common-type (common-float-type x y))
-            ((&values m n x-orientation ldx)
-             (maybe-vector-as-matrix x :column))
-            ((&values m2 nrhs y-orientation ldy)
-             (maybe-vector-as-matrix y :column))
-            ((:lapack gels common-type))
-            ((:array x% common-type
-                     :output qr :output-dimensions (list m n)) x)
-            ((:array y% common-type
-                     :output b :output-dimensions (list m nrhs)) y))
-    (assert (= m m2))
-    (unless (<= n m)
-      (error 'not-enough-columns))
-    (call +n+ m n nrhs x% ldx y% ldy)
-    (values
-      (maybe-pick-first-element (matrix-from-first-rows b n y-orientation)
-                                x-orientation)
-      (maybe-pick-first-element (last-rows-ss b n common-type)
-                                y-orientation)
-      (- m n)
-      (make-instance 'qr :qr qr))))
+  ;; 
+  ;; implementation note: there is no point in transposing the last rows of
+  ;; b-and-ss, we could just sum them as is, would even be better for
+  ;; linearity of memory access
+  (declare (optimize debug (speed 0)))
+  (let+ (((&values y0 y1) (dimensions-as-matrix y :column))
+         ((x0 x1) (array-dimensions x))
+         (df (- x0 x1))
+         (common-type (common-float-type y x)))
+    (assert (= y0 x0) () 'lla-incompatible-dimensions)
+    (assert (plusp df) () 'not-enough-columns)
+    (lapack-call-w/query
+     ("gels"
+      common-type
+      (values
+       (copy-array (partition b-and-ss 0 x1))
+       (last-rows-ss b-and-ss x1 common-type)
+       df
+       (make-instance 'qr :qr qr)))
+     #\N (&integers x0 x1 y1)
+     (&array x :transpose? t
+               :output (qr :transpose? t))
+     (&integer x0)
+     (&array y  :transpose? t
+                :output (b-and-ss :transpose? t))
+     (&integer y0) (&work-query) &info)))
 
 (defmethod qr ((a array))
-  (lb-call ((type (common-float-type a))
-            ((:lapack geqrf type))
-            ((:array a% type :dimensions (m n) :output qr) a)
-            ((:output tau% type tau) (min m n)))
-    (call m n a% n tau%)
-    (make-instance 'qr :qr qr :tau tau)))
+  (let+ (((a0 a1) (array-dimensions a)))
+    (lapack-call-w/query
+        ("geqrf" (common-float-type a)
+                 (make-instance 'qr :qr qr :tau tau))
+        (&integers a0 a1)
+        (&array a :transpose? t :output (qr :transpose? t))
+        (&integer a0) (&output tau (min a0 a1)) (&work-query)
+        &info)))
 
 ;; (defun least-squares-svd-d (y x &key (rcond -1))
 ;;   (lb-call ((common-type (common-float-type x y))
@@ -608,7 +621,7 @@ to generate random draws, etc."))
 (defmethod invert-xx ((qr qr))
   ;; Notes: X = QR, and thus X^T X = R^T Q^T Q R = R^T R because Q is
   ;; orthogonal, also (X^T X)^-1 = R^-1 (R^T)-1
-  (let+ (((&slots r) qr))
+  (let+ ((r (qr-r qr)))
     (assert (<= (ncol r) (nrow r)))
     (make-instance 'matrix-square-root :left-square-root (invert r))))
 
@@ -647,80 +660,70 @@ to generate random draws, etc."))
 (defgeneric cholesky (a)
   (:documentation "Cholesky factorization."))
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (assert (eql (load-time-value (hermitian-orientation :lapack)) +l+)
-          () 
-          "Cholesky implementation below assumes that hermitian orientation is
-          L."))
-
 (defmethod cholesky ((a hermitian-matrix))
-  (lb-call ((a (elements a))
-            (common-type (common-float-type a))
-            ((:lapack potrf common-type))
-            ((:array a% common-type :dimensions (n n2) :output l) a))
-    (assert (= n n2))
-    (call +l+ n a% n)
-    (make-instance 'cholesky :left-square-root 
-                   (make-matrix :lower nil :initial-contents l))))
+  (let+ ((a (elements a))
+         ((a0 a1) (array-dimensions a)))
+    (assert (= a0 a1))
+    (lapack-call ("potrf" (common-float-type a)
+                          (make-instance 'cholesky :left-square-root 
+                                         (make-lower-triangular-matrix l)))
+                 #\U (&integer a0) (&array a :output l) (&integer a0) &info)))
 
 (defmethod left-square-root ((hermitian-matrix hermitian-matrix))
   (left-square-root (cholesky hermitian-matrix)))
 
 ;;; SVD
 
-(defgeneric svd (a &key left right)
-  (:documentation "Return singular value decomposition A, with left- and right
-singular vectors as second and third values (when requested, see vector
-specifications).  Valid vector specifications are :NONE, :SINGULAR (singular
-vectors only) and :ALL.  Return values S (singular values, descending order,
-as a DIAGONAL), U (left singular vectors, ARRAY, or NIL),
-VT ([conjugate] transpose of right singular vectors, DENSE-MATRIX, or NIL)."))
+(defgeneric svd (a &optional vectors)
+  (:documentation "Return singular value decomposition A.
 
-;; (defmethod svd ((a array) &key (left :none) (right :none))
-;;   (lb-call ((type (common-float-type a))
-;;             (real-type (real-lla-type type))
-;;             (complex? (lla-complex? type))
-;;             (:lapack gesvd type)
-;;             ((:array a% type (:dimensions m n) :output :copy) a)
-;;             (min-mn (min m n))
-;;             ((&values u-ncol jobu) (ecase left
-;;                                      (:none (values 1 #\N)) ; LAPACK needs >=1
-;;                                      (:singular (values min-mn #\S))
-;;                                      (:all (values m #\A))))
-;;             ((&values vt-nrow jobvt) (ecase right
-;;                                        (:none (values 1 #\N)) ; LAPACK needs >=1
-;;                                        (:singular (values min-mn #\S))
-;;                                        (:all (values n #\A))))
-;;             ((:output s% real-type s) min-mn)
-;;             ((:output u% type u) (* m u-ncol))
-;;             ((:output vt% type vt) (* vt-nrow n))
-;;             ((:work work% real-type) )
-;;             )
-;;     (with-lapack-traps-masked
-;;       (lapacke_dgesvd call jobu jobvt m n a% n s% u% )
+  VECTORS determines how singular vectors are calculated:
+ 
+  - NIL sets U and VT to NIL
+  - :ALL makes U and VT square, with dimensions conforming to A
+  - :THIN makes the larger of U and VT rectangular.  This means that not all
+    of the singular vectors are calculates, and saves computational time when
+    A is far from square."))
 
-
-;;       (if complex?
-;;           (call procedure jobu% jobvt% m% n% a% m% s% u% m% vt% vt-nrow%
-;;                 work% lwork% rwork% info%)
-;;           (call procedure jobu% jobvt% m% n% a% m% s% u% m% vt% vt-nrow%
-;;                 work% lwork% info%)))
-;;     (values (make-diagonal% s)
-;;             (unless (eq left :none) (make-matrix% m u-ncol u))
-;;             (unless (eq right :none) (make-matrix% vt-nrow n vt)))))
+(defmethod svd ((a array) &optional vectors)
+  (let+ (((a0 a1) (array-dimensions a))
+         (min (min a0 a1))
+         (type (common-float-type a)))
+    (if (lla-complex? type)
+        ;; for the complex case, we have to transpose
+        (error "not implemented yet, report as a bug")
+        ;; for the real case, we don't have to transpose, just exchange order
+        (let+ (((&values jobz u1 vt0) (ecase vectors
+                                        ((nil) (values #\N 0 0))
+                                        (:thin (values #\S min min))
+                                        (:all (values #\A a0 a1)))))
+          (lapack-call-w/query ("gesdd" type
+                                        (make-svd :d (make-diagonal d)
+                                                  :u (when vectors u)
+                                                  :vt (when vectors vt)))
+            (&char jobz) (&integers a1 a0) (&array a :output :copy)
+            (&integer a1) (&output d min) (&output vt (list vt0 a1))
+            (&integer (max a1 1)) (&output u (list a0 u1))
+            (&integer (max u1 1)) (&work-query) (&work :integer (* 8 min))
+            &info)))))
 
 ;;; trace
 
-;; (defgeneric tr (a)
-;;   (:documentation "Trace of a square matrix.")
-;;   (:method ((a dense-matrix-like))
-;;     (check-type a square-matrix)
-;;     (bind (((:lla-matrix a) a))
-;;       (iter
-;;         (for i :from 0 :below (nrow a))
-;;         (summing (a (a-index i i))))))
-;;   (:method ((a diagonal))
-;;     (reduce #'+ (elements a))))
+
+(defun sum-diagonal% (array)
+  "Sum diagonal of array, checking that it is square."
+  (let+ (((a0 a1) (array-dimensions array)))
+    (assert (= a0 a1))
+    (loop for i below a0 summing (aref array i i))))
+
+(defgeneric tr (a)
+  (:documentation "Trace of a square matrix.")
+  (:method ((a array))
+    (sum-diagonal% a))
+  (:method ((a wrapped-matrix))
+    (sum-diagonal% (elements a)))
+  (:method ((a diagonal))
+    (sum (elements a))))
 
 ;; rank
 

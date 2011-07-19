@@ -13,11 +13,11 @@
 	 :documentation "pivot indices"))
   (:documentation "LU decomposition of a matrix with pivoting."))
 
-(define-ondemand-slot ((lu lu) u)
-  (make-matrix :upper nil :initial-contents (lu lu)))
+(defun lu-u (lu)
+  (make-upper-triangular-matrix (lu lu)))
 
-(define-ondemand-slot ((lu lu) l)
-  (aprog1 (make-matrix :lower nil :initial-contents (lu lu) :copy? t)
+(defun lu-l (lu)
+  (aprog1 (make-lower-triangular-matrix (copy-array (lu lu)))
     (let+ (((&slots-r/o elements) it)
            ((nrow ncol) (array-dimensions elements))
            (one (one* elements)))
@@ -36,12 +36,12 @@
    elementary reflectors (see documentation of xGEQRF)."))
   (:documentation "QR decomposition of a matrix."))
 
-(define-ondemand-slot ((qr qr) r)
+(defun qr-r (qr &key copy?)
   (let+ (((&slots-r/o qr) qr)
          ((&accessors-r/o nrow ncol) qr))
     (assert (>= nrow ncol))
-    (make-matrix :upper nil
-                 :initial-contents (matrix-from-first-rows qr ncol nil))))
+    (make-upper-triangular-matrix
+     (clnu::maybe-copy-array (partition qr 0 ncol) copy?))))
 
 ;;; generic interface for square root-like decompositions
 
@@ -128,7 +128,18 @@
 
 ;;; svd
 
-(defclass svd ()
-  ((u :accessor u :initarg :u)
-   (s :accessor s :initarg :s)
-   (vt :accessor vt :initarg :vt)))
+(defstruct svd
+  "Singular value decomposition.  Singular values are in S, in descending
+order.  U and VT may be NIL in case they are not computed."
+  (u nil) d (vt nil))
+
+(defmethod reconstruct ((svd svd))
+  (let+ (((&structure-r/o svd- u d vt) svd)
+         (n (nrow d)))
+    (mmm (if (= (ncol u) n)
+             u
+             (sub u t (cons 0 n)))
+         d
+         (if (= (nrow vt) n)
+             vt
+             (sub vt (cons 0 n) t)))))

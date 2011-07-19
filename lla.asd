@@ -19,21 +19,17 @@
     :serial t
     :components
     ((:file "package")
+     (:file "configuration")
      (:file "libraries")))
-   (:module
-    "foreign-interface"
-    :pathname #P"swig/"
-    :components
-    ((:file "lla-foreign-interface")))
    (:module 
     "basics"
     :pathname #P"src/"
-    :depends-on ("package-init" "foreign-interface")
+    :depends-on ("package-init")
     :serial t
     :components
     ((:file "utilities")
      (:file "types")
-     (:file "foreign-atoms")
+     (:file "fortran-atom")
      (:file "printing")
      (:file "special-matrices")
      (:file "clo")))
@@ -51,7 +47,7 @@
     :serial t
     :components
      ((:file "factorizations")
-      (:file "lapack-blas-call")
+      (:file "fortran-call")
       (:file "linear-algebra"))))
   :depends-on
   (iterate let-plus cffi anaphora alexandria cl-num-utils))

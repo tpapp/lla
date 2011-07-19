@@ -1,15 +1,7 @@
 (in-package :lla)
 
-(define-make-symbol% :lla)
-
 (deftype symbol* () '(and symbol (not null)))
 (defun symbolp* (object) (typep object 'symbol*))
-
-(defmacro define-ondemand-slot ((instance-and-class slot-name) &body body)
-  `(defmethod slot-missing (,(gensym) ,instance-and-class (slot-name (eql ',slot-name))
-                            (operation (eql 'slot-value)) &optional new-value)
-     (declare (ignore new-value))
-     ,@body))
 
 ;;;; this is missing from CFFI at the moment
 (define-with-multiple-bindings with-foreign-pointer)
