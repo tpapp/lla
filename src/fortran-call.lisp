@@ -209,13 +209,13 @@ form (OUTPUT &KEY DIMENSIONS TRANSPOSE?)."
 (defstruct (fortran-work-area (:include fortran-argument))
   (type nil) size)
 
-(defmacro &work (type size)
+(defmacro &work (size &optional type)
   (make-fortran-work-area :type type :size size))
 
 (defmethod wrap-argument ((argument fortran-work-area) (pass (eql 'main))
                           parameters body)
   (let+ (((&structure-r/o fortran-work-area- pointer type size) argument))
-    `(with-work-area (,pointer ,type ,size)
+    `(with-work-area (,pointer ,(maybe-default-type type parameters) ,size)
        ,body)))
 
 ;;; error handling
@@ -340,7 +340,7 @@ complex)."
   (fortran-call-form `(lookup-procedure ,type-var ,@(function-names name))
                      arguments))
 
-(defmacro blas-call ((name type value) &rest forms &environment env)
+(defmacro blas-call ((name type value) &body forms &environment env)
   "!!"
   (let* ((type-var (gensym "TYPE"))
          (arguments (process-forms forms env))
@@ -353,7 +353,7 @@ complex)."
                                                              arguments))
                            ,value)))))
 
-(defmacro lapack-call ((name type value) &rest forms &environment env)
+(defmacro lapack-call ((name type value) &body forms &environment env)
   "!!"
   (let* ((type-var (gensym "TYPE"))
          (arguments (process-forms forms env))
