@@ -21,8 +21,9 @@
    ;; special-matrices
    
    wrapped-matrix elements make-matrix convert-matrix mref
-   lower-triangular-matrix upper-triangulsar-matrix hermitian-matrix
-   diagonal-matrix
+   lower-triangular-matrix upper-triangular-matrix hermitian-matrix
+   diagonal-matrix make-lower-triangular-matrix make-upper-triangular-matrix
+   make-hermitian-matrix make-diagonal-matrix
    
    ;; fortran-atoms -- nothing is exported
    
