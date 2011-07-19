@@ -21,30 +21,30 @@
 ;;; mean accumulator
 
 (defstruct (wrapped-matrix-mean-accumulator
-             (:constructor wrapped-matrix-mean-accumulator% (mean type))
+             (:constructor wrapped-matrix-mean-accumulator% (mean kind))
              (:include array-mean-accumulator))
     "Accumulator for wrapped matrices.  Save type as extra information."
-  (type nil))
+  (kind nil))
 
 (defun wrapped-matrix-mean-accumulator (wrapped-matrix)
   "Create a conforming wrapped-matrix-mean-accumulator."
   (wrapped-matrix-mean-accumulator%
    (make-array (array-dimensions (elements wrapped-matrix))
                :initial-element 0d0)
-   (type-of wrapped-matrix)))
+   (matrix-kind wrapped-matrix)))
 
 (define-conforming-accumulator (mean (matrix wrapped-matrix))
   (wrapped-matrix-mean-accumulator matrix))
 
 (defmethod add :after ((accumulator wrapped-matrix-mean-accumulator) object)
-  (let+ (((&structure wrapped-matrix-mean-accumulator- type) accumulator))
-    (when (and type (not (equal type (type-of object))))
-      (setf type nil))))
+  (let+ (((&structure wrapped-matrix-mean-accumulator- kind) accumulator))
+    (when (and kind (not (eq kind (matrix-kind object))))
+      (setf kind nil))))
 
 (defmethod mean ((accumulator wrapped-matrix-mean-accumulator))
-  (let+ (((&structure wrapped-matrix-mean-accumulator- mean type) accumulator))
-    (if type
-        (convert-matrix type mean)
+  (let+ (((&structure wrapped-matrix-mean-accumulator- mean kind) accumulator))
+    (if kind
+        (convert-matrix kind mean)
         mean)))
 
 ;;; creation
