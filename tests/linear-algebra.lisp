@@ -122,21 +122,21 @@
 ;; ;;     (ensure-same (solve left-d (mm left-d b)) b)))
 
 
-;; ;; (addtest (linear-algebra-tests)
-;; ;;   mm-solve-triangular
-;; ;;   (bind ((u (clo :upper
-;; ;;                  1 2 :/
-;; ;;                  0 3))
-;; ;;          (l (clo :lower
-;; ;;                  1 0 :/
-;; ;;                  2 3))
-;; ;;          (b (clo :double
-;; ;;                  5 6 :/
-;; ;;                  7 8))
-;; ;;          (x-u (solve u b))
-;; ;;          (x-l (solve l b)))
-;; ;;     (ensure-same (mm u x-u) b)
-;; ;;     (ensure-same (mm l x-l) b)))
+(addtest (linear-algebra-tests)
+  mm-solve-triangular
+  (let+ ((u (clo :upper
+                 1 2 :/
+                 0 3))
+         (l (clo :lower
+                 1 0 :/
+                 2 3))
+         (b (clo :double
+                 5 6 :/
+                 7 8))
+         (x-u (solve u b))
+         (x-l (solve l b)))
+    (ensure-same (mm u x-u) b)
+    (ensure-same (mm l x-l) b)))
 
 ;; ;; (defmacro test-update-hermitian% (a x alpha)
 ;; ;;   (once-only (a x alpha)

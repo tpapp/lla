@@ -297,32 +297,20 @@ vectors as conforming matrices (eg see MM)."
 ;; (defmethod solve ((hermitian-matrix hermitian-matrix) (b array))
 ;;   (solve (hermitian-factorization hermitian-matrix) b))
 
-;; (defun trsm% (a a-uplo b side transpose-a? &optional (alpha 1))
-;;   "Wrapper for BLAS routine xTRSM.  Calculates op(A^-1) B (if SIDE
-;; is :LEFT) or B op(A^-1) (if SIDE is :RIGHT).  A has to be a triangular
-;; matrix.  transpose-a? determines whether op(A) is A^T or A.  The
-;; result is multiplied by ALPHA."
-;;   (lb-call ((common-type (common-float-type a b))
-;;             ((:blas trsm common-type))
-;;             ((&values b0 b1 b-orientation ldb)
-;;              (maybe-vector-as-matrix b :column))
-;;             ((:array a% common-type :dimensions (a0 a1)) a)
-;;             ((:array b% common-type :output result :output-dimensions
-;;                      (vector-or-matrix-dimensions b0 b1 b-orientation)) b)
-;;             (side (ecase side
-;;                     (:left (assert (= a0 b0)) :CBLASLEFT)
-;;                     (:right (assert (= a0 b1)) :CBLASRIGHT)))
-;;             (trans (lb-transpose transpose-a? :blas t))
-;;             (alpha (coerce* alpha common-type)))
-;;     (assert (= a0 a1))
-;;     (call side a-uplo trans :CBLASNONUNIT b0 b1 alpha a% a0 b% ldb)
-;;     result))
+(defun trsm% (a a-upper? b)
+  "Wrapper for BLAS routine xTRSM.  Solve AX=B, where A is triangular."
+  (let+ (((a0 a1) (array-dimensions a))
+         ((&values b0 b1 nil) (dimensions-as-matrix b :column)))
+    (assert (= a0 a1 b0) () 'lla-incompatible-dimensions)
+    (blas-call ("trsm" (common-float-type a b) x)
+               #\R (&char (if a-upper? #\L #\U)) #\N #\N (&integers a1 a0) 1
+               (&array a) (&integer a1) (&array b :output x) (&integer b1))))
 
-;; (defmethod solve ((a lower-triangular-matrix) b)
-;;   (trsm% (elements a) :CBLASLOWER (as-array b) :left nil))
+(defmethod solve ((a lower-triangular-matrix) b)
+  (trsm% (elements a) nil b))
 
-;; (defmethod solve ((a upper-triangular-matrix) b)
-;;   (trsm% (elements a) :CBLASUPPER (as-array b) :left nil))
+(defmethod solve ((a upper-triangular-matrix) b)
+  (trsm% (elements a) t b))
 
 ;; (defmethod solve ((a diagonal) (b dense-matrix-like))
 ;;   (mm (e/ a) b))
