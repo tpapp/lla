@@ -66,9 +66,9 @@ vectors as conforming matrices (eg see MM)."
     ;; here C=AB <=> C^T=B^T A^T, so in the argument list, A and B are
     ;; interchanged
     (blas-call ("gemm" common-type c)
-               #\N #\N (&integers b1 a0 b0) (&atom* alpha) (&array b)
-               (&integer b1) (&array a) (&integer a1) 0
-               (&output c c-dimensions) (&integer b1))))
+      #\N #\N (&integers b1 a0 b0) (&atom* alpha) (&array b)
+      (&integer b1) (&array a) (&integer a1) 0
+      (&output c c-dimensions) (&integer b1))))
 
 ;;; !! this is how we could speed things up with compiler macros: have a
 ;;; !! compiler macro transform (MM (TRANSPOSE FOO) BAR) to (MM-TN FOO BAR),
@@ -85,18 +85,18 @@ vectors as conforming matrices (eg see MM)."
   ;; implementation note: no transpose is necessary
   (let+ (((a0 a1) (array-dimensions a))
          ((&values dim-c other-dim-a)
-             (if transpose-left?
-                 (values a1 a0)
-                 (values a0 a1)))
+          (if transpose-left?
+              (values a1 a0)
+              (values a0 a1)))
          (type (common-float-type a))
          (real-type (real-lla-type type)))
     (blas-call (("syrk" "herk") type 
                 (make-hermitian-matrix c))
-               #\U (&char (if transpose-left? #\N #\C))
-               (&integers dim-c other-dim-a) (&atom* alpha)
-               (&array a) (&integer a1) 0
-               (&output c (list dim-c dim-c) :type real-type)
-               (&integer dim-c))))
+      #\U (&char (if transpose-left? #\N #\C))
+      (&integers dim-c other-dim-a) (&atom* alpha)
+      (&array a) (&integer a1) 0
+      (&output c (list dim-c dim-c) :type real-type)
+      (&integer dim-c))))
 
 (defmethod mm ((a array) (b (eql t)) &optional (alpha 1))
   ;; A A^T
@@ -198,11 +198,11 @@ vectors as conforming matrices (eg see MM)."
 (defmethod lu ((a array))
   (let+ (((a0 a1) (array-dimensions a)))
     (lapack-call ("getrf" (common-float-type a)
-                     (make-instance 'lu :lu lu :ipiv ipiv))
-                 (&integers a0 a1)
-                 (&array a :transpose? t :output (lu :transpose? t))
-                 (&integer a0) (&output ipiv (min a0 a1) :type :integer)
-                 &info)))
+                          (make-instance 'lu :lu lu :ipiv ipiv))
+      (&integers a0 a1)
+      (&array a :transpose? t :output (lu :transpose? t))
+      (&integer a0) (&output ipiv (min a0 a1) :type :integer)
+      &info)))
 
 
 ;;;; Hermitian factorization
@@ -210,15 +210,15 @@ vectors as conforming matrices (eg see MM)."
 (defgeneric hermitian-factorization (a)
   (:documentation "Compute the hermitian factorization."))
 
-;; (defmethod hermitian-factorization ((a hermitian-matrix))
-;;   (lb-call ((a (elements a))
-;;             (type (common-float-type a))
-;;             ((:lapack (sytrf hetrf) type))
-;;             ((:array a% type :dimensions (n n2) :output factor) a)
-;;             ((:output ipiv% :integer ipiv) n))
-;;     (assert (= n n2))
-;;     (call (hermitian-orientation :lapack) n a% n ipiv%)
-;;     (make-instance 'hermitian-factorization :factor factor :ipiv ipiv)))
+(defmethod hermitian-factorization ((a hermitian-matrix))
+  (let+ ((a (elements a))
+         ((a0 a1) (array-dimensions a)))
+    (assert (= a0 a1) () 'lla-incompatible-dimensions)
+    (lapack-call-w/query (("sytrf" "hetrf") (common-float-type a)
+                          (make-instance 'hermitian-factorization
+                                         :factor factor :ipiv ipiv))
+      #\U (&integers a0) (&array a :output factor) (&integer a0)
+      (&output ipiv a0 :type :integer) (&work-query) (&info))))
 
 ;;;; solving linear equations
 
@@ -235,26 +235,19 @@ vectors as conforming matrices (eg see MM)."
          ((&values b0 b1 nil) (dimensions-as-matrix b :column)))
     (assert (= lu0 lu1 b0) () 'lla-incompatible-dimensions)
     (lapack-call ("getrs" (common-float-type lu b) x)
-                 #\N (&integer lu0) (&integer b1) (&array lu :transpose? t)
-                 (&integer lu0) (&array ipiv :type :integer)
-                 (&array b :transpose? t
-                           :output (x :dimensions (array-dimensions b)
-                                      :transpose? t))
-                 (&integer lu0)
-                 &info)))
+      #\N (&integer lu0) (&integer b1) (&array lu :transpose? t)
+      (&integer lu0) (&array ipiv :type :integer)
+      (&array b :transpose? t :output (x :transpose? t)) (&integer lu0)
+      &info)))
 
 (defmethod solve ((a array) (b array))
   (let+ (((a0 a1) (array-dimensions a))
          ((&values b0 b1 nil) (dimensions-as-matrix b :column)))
     (assert (= a0 a1 b0) () 'lla-incompatible-dimensions)
     (lapack-call ("gesv" (common-float-type a b) x)
-                 (&integer a0) (&integer b1) (&array a :transpose? t)
-                 (&integer a0) (&work :integer a0)
-                 (&array b :transpose? t
-                           :output (x :dimensions (array-dimensions b)
-                                      :transpose? t))
-                 (&integer a0)
-                 &info)))
+      (&integer a0) (&integer b1) (&array a :transpose? t) (&integer a0)
+      (&work a0 :integer) (&array b :transpose? t :output (x :transpose? t))
+      (&integer a0) &info)))
 
 (defmethod solve ((cholesky cholesky) b)
   (let+ ((a (elements (left-square-root cholesky)))
@@ -262,40 +255,33 @@ vectors as conforming matrices (eg see MM)."
          ((a0 a1) (array-dimensions a)))
     (assert (= a0 a1 b0) () 'lla-incompatible-dimensions)
     (lapack-call ("potrs" (common-float-type a b) x)
-                 #\U (&integers a0 b1) (&array a) (&integer a0)
-                 (&array b :transpose? t
-                           :output (x :transpose? t
-                                      :dimensions (array-dimensions b)))
-                 (&integer b0) &info)))
+      #\U (&integers a0 b1) (&array a) (&integer a0)
+      (&array b :transpose? t :output (x :transpose? t))
+      (&integer b0) &info)))
 
 (defmethod solve ((hermitian-matrix hermitian-matrix) b)
   (let+ ((a (elements hermitian-matrix))
-         ((&values b0 b1 nil) (dimensions-as-matrix b :column))
+         ((&values b0 b1) (dimensions-as-matrix b :column))
          ((a0 a1) (array-dimensions a)))
     (assert (= a0 a1 b0) () 'lla-incompatible-dimensions)
     (lapack-call ("posv" (common-float-type a b) x)
-                 #\U (&integers a0 b1) (&array a :output :copy) (&integer a0)
-                 (&array b :transpose? t
-                           :output (x :transpose? t
-                                      :dimensions (array-dimensions b)))
-                 (&integer b0) &info)))
+      #\U (&integers a0 b1) (&array a :output :copy) (&integer a0)
+      (&array b :transpose? t :output (x :transpose? t))
+      (&integer b0) &info)))
 
-;; (defmethod solve ((hermitian-factorization hermitian-factorization) (b array))
-;;   (lb-call (((&slots-r/o factor ipiv) hermitian-factorization)
-;;             (common-type (common-float-type factor b))
-;;             ((:lapack (sytrs hetrs) common-type))
-;;             ((:array factor% common-type :dimensions (n n2)) factor)
-;;             ((&values n3 nrhs b-orientation ldb)
-;;              (maybe-vector-as-matrix b :column))
-;;             ((:array b% common-type :output x :output-dimensions
-;;                       (vector-or-matrix-dimensions n nrhs b-orientation)) b)
-;;             ((:array ipiv% :integer :dimensions n4) ipiv))
-;;     (assert (= n n2 n3 n4))
-;;     (call (hermitian-orientation :lapack) n nrhs factor% n ipiv% b% ldb)
-;;     x))
+(defmethod solve ((a hermitian-factorization) (b array))
+  (let+ (((&slots-r/o factor ipiv) a)
+         ((a0 a1) (array-dimensions factor))
+         ((&values b0 b1) (dimensions-as-matrix b :column)))
+    (assert (= a0 a1 b0) () 'lla-incompatible-dimensions)
+    (lapack-call (("sytrs" "hetrs") (common-float-type factor b) x)
+      #\U (&integers a0 b1) (&array factor) (&integer a0)
+      (&array ipiv :type :integer)
+      (&array b :transpose? t :output (x :transpose? t)) (&integer b0)
+      &info)))
 
-;; (defmethod solve ((hermitian-matrix hermitian-matrix) (b array))
-;;   (solve (hermitian-factorization hermitian-matrix) b))
+(defmethod solve ((a hermitian-matrix) (b array))
+  (solve (hermitian-factorization a) b))
 
 (defun trsm% (a a-upper? b)
   "Wrapper for BLAS routine xTRSM.  Solve AX=B, where A is triangular."
@@ -303,8 +289,8 @@ vectors as conforming matrices (eg see MM)."
          ((&values b0 b1 nil) (dimensions-as-matrix b :column)))
     (assert (= a0 a1 b0) () 'lla-incompatible-dimensions)
     (blas-call ("trsm" (common-float-type a b) x)
-               #\R (&char (if a-upper? #\L #\U)) #\N #\N (&integers a1 a0) 1
-               (&array a) (&integer a1) (&array b :output x) (&integer b1))))
+      #\R (&char (if a-upper? #\L #\U)) #\N #\N (&integers b1 b0) 1
+      (&array a) (&integer a1) (&array b :output x) (&integer b1))))
 
 (defmethod solve ((a lower-triangular-matrix) b)
   (trsm% (elements a) nil b))
@@ -330,26 +316,20 @@ vectors as conforming matrices (eg see MM)."
          ((lu0 lu1) (array-dimensions lu)))
     (assert (= lu0 lu1 (length ipiv)))
     (lapack-call-w/query ("getri" (common-float-type lu) inverse)
-                         (&integer lu0)
-                         (&array lu :transpose? t
-                                    :output (inverse :transpose? t))
-                         (&integer lu0)
-                         (&array ipiv :type :integer)
-                         (&work-query) &info)))
+      (&integer lu0) (&array lu :transpose? t :output (inverse :transpose? t))
+      (&integer lu0) (&array ipiv :type :integer) (&work-query) &info)))
 
-;; (defmethod invert ((hermitian-factorization hermitian-factorization) &key)
-;;   (lb-call (((&slots-r/o factor ipiv) hermitian-factorization)
-;;             (common-type (common-float-type factor))
-;;             ((:lapack (sytri hetri) common-type))
-;;             ((:array factor% common-type :dimensions (n n2) :output inverse)
-;;              factor)
-;;             ((:array ipiv% :integer :dimensions n3) ipiv))
-;;     (assert (= n n2 n3))
-;;     (call (hermitian-orientation :lapack) n factor% n ipiv%)
-;;     (make-instance 'hermitian-matrix :elements inverse)))
+(defmethod invert ((a hermitian-factorization) &key)
+  (let+ (((&slots-r/o factor ipiv) a)
+         ((a0 a1) (array-dimensions factor)))
+    (assert (= a0 a1))
+    (lapack-call (("sytri" "hetri") (common-float-type factor)
+                  (make-hermitian-matrix inverse))
+      #\U (&integer a0) (&array factor :output inverse) (&integer a0)
+      (&array ipiv :type :integer) (&work a0) &info)))
 
-;; (defmethod invert ((a hermitian-matrix) &key)
-;;   (invert (hermitian-factorization a)))
+(defmethod invert ((a hermitian-matrix) &key)
+  (invert (hermitian-factorization a)))
 
 (defun invert-triangular% (a upper? unit-diag? kind)
   "Invert a dense (triangular) matrix using the LAPACK routine *TRTRI.
@@ -373,21 +353,13 @@ matrix, UNIT-DIAG? indicates whether the diagonal is supposed to consist of
 (defmethod invert ((a lower-triangular-matrix) &key)
   (invert-triangular% (elements a) nil nil :lower))
 
-;; (defmethod invert ((cholesky cholesky) &key)
-;;   ;; If the FACTOR of CHOLESKY is lower triangular, we need to
-;;   ;; transpose it, as hermitian matrices always store the upper
-;;   ;; triangle.
-;;   (lb-call ((factor (aetypecase (factor cholesky)
-;;                       (lower-matrix (transpose it))
-;;                       (upper-matrix it)))
-;;             (common-type (common-float-type factor))
-;;             (procedure (lb-procedure-name common-type potri))
-;;             ((:matrix factor% common-type (n n%) n2 :output inverse) factor)
-;;             ((:char u-char%) #\U)
-;;             ((:check info%)))
-;;     (assert (= n n2))
-;;     (call procedure u-char% n% factor% n% info%)
-;;     (make-matrix% n n inverse :kind :hermitian)))
+(defmethod invert ((a cholesky) &key)
+  (let+ ((a (elements (left-square-root a)))
+         ((a0 a1) (array-dimensions a)))
+    (assert (= a0 a1))
+    (lapack-call ("potri" (common-float-type a)
+                          (make-hermitian-matrix inverse))
+      #\U (&integer a0) (&array a :output inverse) (&integer a0) &info)))
 
 ;; (defmethod invert ((diagonal diagonal) &key (tolerance 0))
 ;;   "For pseudoinverse, suppressing diagonal elements below TOLERANCE
@@ -643,7 +615,7 @@ to generate random draws, etc."))
 ;;     b))
 
 
-;; ;;;; Cholesky factorization
+;;;; Cholesky factorization
 
 (defgeneric cholesky (a)
   (:documentation "Cholesky factorization."))
@@ -692,11 +664,11 @@ to generate random draws, etc."))
             (&char jobz) (&integers a1 a0) (&array a :output :copy)
             (&integer a1) (&output d min) (&output vt (list vt0 a1))
             (&integer (max a1 1)) (&output u (list a0 u1))
-            (&integer (max u1 1)) (&work-query) (&work :integer (* 8 min))
+            (&integer (max u1 1)) (&work-query) (&work (* 8 min) :integer)
             &info)))))
 
-;;; trace
 
+;;; trace
 
 (defun sum-diagonal% (array)
   "Sum diagonal of array, checking that it is square."
