@@ -73,32 +73,16 @@ decompositions, etc."
     (copy-array (displace-array matrix 
                                 (vector-or-matrix-dimensions nrow n
                                                              orientation)))))
-(defparameter *lla-double?* t
-  "Determines whether rational->float conversions result in double or single
-   floats.")
 
-(defun common-float-type (&rest objects)
-  "Determine common float type for OBJECTS.  For use in LAPACK/BLAS calls."
-  (common-lla-type objects :force-float? t :double? *lla-double?*))
 
-(defmacro procedure-name (library lla-type name &optional
-                             (complex-name name))
-  "Evaluate to the LAPACK/BLAS procedure name.  LIBRARY is :BLAS or :LAPACK.
-LLA-TYPE has to evaluate to a symbol denoting a float LLA type.  If you need
-conditionals etc for the function name, do that outside this macro.  For some
-functions (usually those involving Hermitian matrices), the names actually
-differ based on whether the matrix is real or complex, use COMPLEX-NAME in
-that case."
-  (check-type name symbol*)
-  (check-type complex-name symbol*)
-  (let ((library-prefix (ecase library
-                          (:blas '#:CBLAS_)
-                          (:lapack '#:LAPACKE_))))
-    `(ecase ,lla-type
-       (:single #',(make-symbol% library-prefix "S" name))
-       (:double #',(make-symbol% library-prefix "D" name))
-       (:complex-single #',(make-symbol% library-prefix "C" complex-name))
-       (:complex-double #',(make-symbol% library-prefix "Z" complex-name)))))
+
+
+(defun first-rows (array nrow)
+  (ecase (array-rank array)
+    
+    )
+  )
+
 
 (defun matrix-layout (library layout)
   "Return the matrix layout constant."
@@ -461,11 +445,28 @@ assigning the pointer to pointer."
 
 (defclass lb-call-information ()
   ((procedure :documentation "see lb-call-expansion")
-   (bindings :initform nil :documentation "Filtered bindings list.")
+   (bindings :initform nil :documentation "Filtered bindings list.  Passed to
+   LET+.")
    (arrays :initform nil)
    (outputs :initform nil)
    (work-areas :initform nil)
-   (preamble :initform nil)))
+   (preamble :initform nil))
+  (:documentation "LB-call saves the bindings in this class."))
+
+(defun lb-set-procedure (call-information library lla-type procedure-name 
+                         layout status condition)
+  "Save procedure information, checking that it was not set before."
+  (let+ ((procedure-name-variable (gensym "procedure"))
+         (layout (matrix-layout library layout))
+         ((&slots procedure bindings) call-information))
+    (assert (not (slot-boundp call-information 'procedure)) ()
+            "Can't set procedure twice.")
+    (setf procedure
+          `(,procedure-name-variable :layout ,layout :status ,status
+                                     :condition ,condition))
+    (push `(,procedure-name-variable (procedure-name ,library ,lla-type
+                                         ,@(ensure-list procedure-name)))
+          bindings)))
 
 (defun lb-call-expansion (procedure arguments)
   "Return an expansion for calling PROCEDURE with ARGUMENTS.  Handles matrix
@@ -494,132 +495,128 @@ CONDITION is used, with INFO."
                    (error ',condition :info ,status)))))
         call)))
 
-(defun lb-process-binding (binding-form bindings)
-  "Process a binding form, putting the result in bindings."
-  (let+ (((variable-form &rest value-forms) binding-form))
-    (if (atom variable-form)
-        (push `(,variable-form ,@value-forms)
-              (slot-value bindings 'bindings))
-        (lb-process-binding% (car variable-form)
-                             (cdr variable-form)
-                             value-forms
-                             bindings))))
+(defgeneric lb-process-binding% (keyword binding call-information)
+  (:documentation "Process BINDING and add to CALL-INFORMATION.  Method is
+  selected on the CAAR binding.")
+  (:method (keyword binding call-information)
+    ;; default: pass on to LET+.
+    (push binding (slot-value call-information 'bindings))))
 
-(defmacro lb-collect ((call-information) &body slot-value-pairs)
-  "Helper function for use inside lb-process-binding% methods.
+(defun lb-process-binding (binding call-information)
+  "Process BINDING, putting the result in CALL-INFORMATION."
+  (if (or (atom binding) (atom (car binding)))
+      (push binding (slot-value call-information 'bindings))
+      (lb-process-binding% (caar binding) binding call-information)))
 
-   Example:
+;; (defmacro lb-collect ((call-information) &body slot-value-pairs)
+;;   "Helper function for use inside lb-process-binding% methods.
 
-     (lb-collect (bindings)
-       bindings `(,name ,value)
-       arrays ...
-       process `((:atom ...) value))"
-  (assert (divides? (length slot-value-pairs) 2))
-  (once-only (call-information)
-    `(progn
-       ,@(iter
-           (for (slot value &rest rest) :on slot-value-pairs
-                :by #'cddr)
-           (collecting 
-             (if (eq slot 'process)
-                 `(lb-process-binding ,value ,call-information)
-                 `(push ,value (slot-value ,call-information ',slot))))))))
+;;    Example:
 
-(defun set-slot-once (call-information slot-name value)
-  (assert (not (slot-boundp call-information slot-name)) ()
-          "Slot ~A can only be set once." slot-name)
-  (setf (slot-value call-information slot-name) value))
+;;      (lb-collect (call-information)
+;;        bindings `(,name ,value)
+;;        arrays ...
+;;        process `((:atom ...) value))
 
-(defgeneric lb-process-binding% (keyword specification value-forms
-                                         call-information)
-  (:documentation "Process specification and add to CALL-INFORMATION."))
+;;   Note: this is a macro so that one doesn't have to quote the first of each
+;; pair."
+;;   (assert (divides? (length slot-value-pairs) 2))
+;;   (once-only (call-information)
+;;     `(progn
+;;        ,@(iter
+;;            (for (slot value &rest rest) :on slot-value-pairs
+;;                 :by #'cddr)
+;;            (collecting 
+;;              (if (eq slot 'process)
+;;                  `(lb-process-binding ,value ,call-information)
+;;                  `(push ,value (slot-value ,call-information ',slot))))))))
 
-(defmethod lb-process-binding% (keyword specification value-forms
-                                call-information)
-  ;; default: process as is
-  (lb-collect (call-information)
-    bindings `((,keyword ,@specification) ,@value-forms)))
+(defmacro lb-collect (&whole whole &rest slot-value-pairs)
+  "Placeholder macro for LB-COLLECT, defined locally by DEFINE-LB-BINDING."
+  (declare (ignore slot-value-pairs))
+  (error "called!")
+  whole)
 
-(defun lb-set-procedure (call-information library lla-type procedure-name 
-                         layout status condition)
-  (let ((procedure-name-variable (gensym "procedure"))
-        (layout (matrix-layout library layout)))
-    (set-slot-once call-information 'procedure 
-                   `(,procedure-name-variable :layout ,layout :status ,status
-                                              :condition ,condition))
-    (lb-collect (call-information)
-      bindings `(,procedure-name-variable
-                 (procedure-name ,library ,lla-type
-                     ,@(ensure-list procedure-name))))))
+(defmacro define-lb-binding* (call-information binding &body body)
+  "Helper macro for defining an LB-PROCESS-BINDING% method, dispatched on the
+caar of BINDING, the rest is destructured using LET+.  A placeholder macro is
+defined for editor hints.  A local macro LB-COLLECT is defined with scope over
+body for saving into the call information."
+  (let ((keyword (caar binding))
+        (arguments (cdar binding))
+        (fixed-binding (aprog1 (copy-tree binding)
+                         (setf (caar it) nil))))
+    (with-unique-names (binding-var whole)
+      `(progn
+         (defmethod lb-process-binding% ((keyword (eql ',(caar binding)))
+                                         ,binding-var ,call-information)
+           (let+ ((,fixed-binding ,binding-var)
+                  ((&macrolet lb-collect (&rest slot-value-pairs)
+                     (assert (divides? (length slot-value-pairs) 2))
+                     `(progn
+                        ,@(iter
+                            (for (slot value &rest rest) :on slot-value-pairs
+                                                         :by #'cddr)
+                            (collecting
+                             `(setf (slot-value ,',call-information ',slot)
+                                    ,value)))))))
+             ,@body))
+         (defmacro ,keyword (&whole ,whole ,@arguments)
+           ,(let ((maybe-docstring (car body)))
+              (if (stringp maybe-docstring)
+                  maybe-docstring
+                  "LB binding form."))
+           (declare (ignore ,@(let-plus::lambda-list-variables arguments)))
+           ,whole)))))
 
-(defmethod lb-process-binding% ((keyword (eql :lapack)) specification
-                                value-forms call-information)
-  (let+ (((procedure-name lla-type 
-              &key (layout :row-major) (status (gensym "status"))
-              (condition 'lapack-failure))
-          specification))
-    (assert (null value-forms))
-    (lb-set-procedure call-information :lapack lla-type procedure-name layout
-                      status condition)))
+(defmacro define-lb-binding (binding &body body)
+  `(define-lb-binding* ,(gensym "call-information") ,binding ,@body))
 
-(defmethod lb-process-binding% ((keyword (eql :blas)) specification
-                                value-forms call-information)
-  (let+ (((procedure-name lla-type &key (layout :row-major) status condition)
-          specification))
-    (assert (null value-forms))
-    (lb-set-procedure call-information :blas lla-type procedure-name layout
-                      status condition)))
+(define-lb-binding* call-information
+    ((&lapack procedure-name lla-type &key (layout :row-major)
+              (status (gensym "status")) (condition 'lapack-failure)))
+  (lb-set-procedure call-information :lapack lla-type procedure-name layout
+                    status condition))
 
-;; (defmethod lb-process-binding% ((keyword (eql :atom))
-;;                                 specification value-forms bindings)
-;;   ;; syntax: ((:atom pointer-name lla-type) value)
-;;   (bind (((pointer-name lla-type-value) specification)
-;;          (lla-type-name (gensym+ '#:lla-type- pointer-name))
-;;          (value-name (gensym+ '#:atom- pointer-name)))
-;;     (lb-collect (bindings)
-;;       bindings `(,value-name ,@value-forms)
-;;       bindings `(,lla-type-name ,lla-type-value)
-;;       atoms `(,pointer-name ,lla-type-name ,value-name))))
+(define-lb-binding* call-information
+    ((&blas procedure-name lla-type
+            &key (layout :row-major) status condition))
+  (lb-set-procedure call-information :blas lla-type procedure-name layout
+                    status condition))
 
-(defmethod lb-process-binding% ((keyword (eql :array))
-                                specification value-forms call-information)
-  ;; syntax: ((:matrix pointer lla-type dimensions &key
-  ;;             (set-restricted? t) output) matrix)
-  (let+ (((pointer-name lla-type-value &key dimensions output 
-                        output-dimensions rank)
-          specification)
-         (lla-type-name (gensym+ '#:lla-type- pointer-name))
-         ((value-form) value-forms)
-         (value-name (gensym+ '#:value- pointer-name))
-         (output-dimensions-name
-          (gensym+ '#:output-dimensions- pointer-name)))
-    (lb-collect (call-information)
-      bindings `(,value-name ,value-form)
-      bindings `(,lla-type-name ,lla-type-value))
+(define-lb-binding ((&array pointer-var lla-type-value 
+                            &key dimensions output output-dimensions rank)
+                    value)
+  (let+ ((lla-type-var (gensym+ '#:lla-type- pointer-var))
+         (value-var (gensym+ '#:value- pointer-var))
+         (output-dimensions-var (gensym+ '#:output-dimensions- pointer-var)))
+    (lb-collect bindings `(,value-var ,value)
+                bindings `(,lla-type-var ,lla-type-value))
     (when output-dimensions
-      (lb-collect (call-information)
-        bindings `(,output-dimensions-name ,output-dimensions)))
-    (lb-collect (call-information)
-      arrays `(,value-name ,pointer-name ,lla-type-name :output ,output
-                           ,@(when output-dimensions
-                               `(:output-dimensions ,output-dimensions-name))))
+      (lb-collect
+        bindings `(,output-dimensions-var ,output-dimensions)))
+    (lb-collect
+        arrays `(,value-var ,pointer-var ,lla-type-var :output ,output
+                            ,@(when output-dimensions
+                                `(:output-dimensions 
+                                  ,output-dimensions-var))))
     (when dimensions
-      (lb-collect (call-information)
-        bindings `(,(ensure-list dimensions) (array-dimensions ,value-name))))
+      (lb-collect
+        bindings `(,(ensure-list dimensions) (array-dimensions ,value-var))))
     (when rank
-      (lb-collect (call-information)
-        preamble `(assert (= (array-rank ,value-name) ,rank) ()
-                          "Rank of ~A is not ~A." ',value-form ,rank)))
+      (lb-collect
+        preamble `(assert (= (array-rank ,value-var) ,rank) ()
+                          "Rank of ~A is not ~A." ',value ,rank)))
     (awhen (and (not (eq output :copy)) output)
       (check-type it symbol*)
-      (lb-collect (call-information) bindings it))))
+      (lb-collect bindings it))))
 
 ;; (defmethod lb-process-binding% ((keyword (eql :vector))
-;;                                 specification value-forms bindings)
+;;                                 arguments value-forms bindings)
 ;;   ;; syntax: ((:vector pointer-name lla-type length-spec 
-;;   ;;   &optional copy-or-output) vector)
+q;;   ;;   &optional copy-or-output) vector)
 ;;   (bind (((pointer-name lla-type-value length-spec &optional
-;;                         output) specification)
+;;                         output) arguments)
 ;;          (lla-type-name (gensym+ '#:lla-type- pointer-name))
 ;;          (value-name (gensym+ '#:vector- pointer-name)))
 ;;     (check-type pointer-name symbol*)
@@ -634,61 +631,57 @@ CONDITION is used, with INFO."
 ;;       (check-type it symbol*)
 ;;       (lb-collect (bindings) bindings it))))
 
-(defmethod lb-process-binding% ((keyword (eql :output))
-                                specification value-forms call-information)
-  ;; syntax: ((:output pointer-name lla-type output) dimensions)
-  (let+ (((pointer-name lla-type-value output-name)
-          specification)
-         (lla-type-name (gensym+ '#:lla-type- pointer-name))
-         (dimensions-name (gensym+ '#:dimensions- pointer-name)))
-    (check-type pointer-name symbol*)
-    (check-type output-name symbol*)
-    (lb-collect (call-information)
-      bindings `(,dimensions-name ,@value-forms)
-      bindings `(,lla-type-name ,lla-type-value)
-      outputs `(,output-name ,pointer-name ,lla-type-name ,dimensions-name)
-      bindings output-name)))
+(define-lb-binding ((&output (pointer output-var) lla-type-value dimensions))
+  (let+ ((lla-type-var (gensym+ '#:lla-type- pointer))
+         (dimensions-var (gensym+ '#:dimensions- pointer)))
+    (check-type pointer symbol*)
+    (check-type output-var symbol*)
+    (lb-collect
+      bindings `(,dimensions-var ,dimensions)
+      bindings `(,lla-type-var ,lla-type-value)
+      outputs `(,output-var ,pointer ,lla-type-var ,dimensions-var)
+      bindings output-var)))
 
 ;; (defmethod lb-process-binding% ((keyword (eql :dimension))
-;;                                 specification value-forms bindings)  
+;;                                 arguments value-forms bindings)  
 ;;   ;; syntax: ((:dimension &optional var pointer) value)
 ;;   ;; dim-spec: NIL (not processed), VAR, (VAR), or (VAR POINTER).
-;;   (when specification
-;;     (bind (((variable-name &optional pointer-name) specification))
+;;   (when arguments
+;;     (bind (((variable-var &optional pointer-var) arguments))
 ;;       (lb-collect (bindings)
-;;         bindings `(,variable-name ,@value-forms))
-;;       (when pointer-name
+;;         bindings `(,variable-var ,@value-forms))
+;;       (when pointer-var
 ;;         (lb-collect (bindings)
-;;           atoms `(,pointer-name :integer ,variable-name))))))
+;;           atoms `(,pointer-var :integer ,variable-var))))))
 
 
 ;; (defmethod lb-process-binding% ((keyword (eql :matrix))
-;;                                 specification value-forms bindings)
+;;                                 arguments value-forms bindings)
 ;;   ;; syntax: ((:matrix pointer lla-type nrow-spec ncol-spec &key
 ;;   ;;             (set-restricted? t) output) matrix)
 ;;   ;; nrow/ncol-spec: see (:dimension ...)
-;;   (bind (((pointer-name lla-type-value nrow-spec ncol-spec
+;;   (bind (((pointer-var lla-type-value nrow-spec ncol-spec
 ;;                         &key (set-restricted? t)
-;;                         output) specification)
-;;          (value-name (gensym+ '#:value- pointer-name)))
+;;                         output) arguments)
+;;          (value-var (gensym+ '#:value- pointer-var)))
 ;;     (lb-collect (bindings)
-;;       bindings `(,value-name ,@value-forms)
-;;       process `((:vector ,pointer-name ,lla-type-value nil
-;;                          ,output) (elements ,value-name))
+;;       bindings `(,value-var ,@value-forms)
+;;       process `((:vector ,pointer-var ,lla-type-value nil
+;;                          ,output) (elements ,value-var))
 ;;       process `((:dimension ,@(mklist nrow-spec))
-;;                 (nrow ,value-name))
+;;                 (nrow ,value-var))
 ;;       process `((:dimension ,@(mklist ncol-spec))
-;;                 (ncol ,value-name)))
+;;                 (ncol ,value-var)))
 ;;     (when set-restricted?
 ;;       (lb-collect (bindings)
-;;         set-restricted? `(,value-name ,set-restricted?)))))
+;;         set-restricted? `(,value-var ,set-restricted?)))))
 
 ;; (defmethod lb-process-binding% ((keyword (eql :check))
-;;                                 specification value-forms bindings)
+;;                                 arguments value-forms bindings)
 ;;   ;; syntax: ((:check info-pointer &optional (condition lapack-failure)))
 ;;   (bind (((:slots info) bindings)
 ;;          ((info-pointer &optional (condition 'lapack-failure))
-;;           specification))
+;;           arguments))
 ;;     (assert (not info) () ":CHECK already specified.")
 ;;     (check-type info-pointer symbol*)
 ;;     (check-type value-forms null)
@@ -696,41 +689,36 @@ CONDITION is used, with INFO."
 ;;       info `(,info-pointer ,condition))))
 
 ;; (defmethod lb-process-binding% ((keyword (eql :work-queries))
-;;                                 specification value-forms bindings)
+;;                                 arguments value-forms bindings)
 ;;   ;; syntax: ((:work-queries lwork% (work% type) ...)), where lwork% is the
 ;;   ;; pointer to the size of the work area, work% to the work area, and type is
-;;   ;; their LLA type. !!! specifications is not expanded, just don't use any side
+;;   ;; their LLA type. !!! argumentss is not expanded, just don't use any side
 ;;   ;; effects or depend on the order.
 ;;   (bind (((:slots work-queries) bindings))
 ;;     (assert (not work-queries) () ":WORK-QUERIES already specified.")
-;;     (assert specification () ":WORK-QUERIES needs a non-empty specification.")
+;;     (assert arguments () ":WORK-QUERIES needs a non-empty arguments.")
 ;;     (assert (not value-forms) () ":WORK-QUERIES does not take value forms.")
-;;     (setf work-queries specification)))
+;;     (setf work-queries arguments)))
 
-(defmethod lb-process-binding% ((keyword (eql :work))
-                                specification value-forms call-information)
-  ;; syntax: ((:work pointer lla-type) size)
-  (let+ (((pointer-name lla-type-value) specification)
-         (lla-type-name (gensym+ '#:lla-type- pointer-name))
-         (size-name (gensym+ '#:lla-type- pointer-name)))
-    (check-type pointer-name symbol*)
-    (lb-collect (call-information)
-      bindings `(,lla-type-name ,lla-type-value)
-      bindings `(,size-name ,@value-forms)
-      work-areas `(,pointer-name ,lla-type-name ,size-name))))
-
+(define-lb-binding ((&work pointer lla-type size))
+  (let+ ((lla-type-var (gensym+ '#:lla-type- pointer))
+         (size-var (gensym+ '#:size- pointer)))
+    (check-type pointer symbol*)
+    (lb-collect
+      bindings `(,lla-type-var ,lla-type)
+      bindings `(,size-var ,size)
+      work-areas `(,pointer ,lla-type-var ,size-var))))
 
 (defmacro lb-call (binding-forms &body body)
-  "The BINDING-FORMs below are captured, the rest are passed to BIND
-as is.  See the comments in the corresponding LB-PROCESS-BINDING%
-method.
+  "The BINDING-FORMs below are captured, the rest are passed to LET+ as is.
+See the comments in the corresponding LB-PROCESS-BINDING% method.
 
 !! todo rewrite doc here when done with reorganization
 
 "
   (let+ ((call-information (make-instance 'lb-call-information))
-         ((&flet expand (slot-name)
-            (nreverse (slot-value call-information slot-name)))))
+         ((&flet expand (slot-var)
+            (nreverse (slot-value call-information slot-var)))))
     (dolist (binding-form binding-forms)
       (lb-process-binding binding-form call-information))
     `(let+ ,(nreverse (slot-value call-information 'bindings))
