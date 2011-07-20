@@ -1,37 +1,12 @@
-* Lisp Linear Algebra --- a linear algebra library for Common Lisp
+#+TITLE: Lisp Linear Algebra --- a linear algebra library for Common Lisp
 
-The library is currently undergoind a reorganizaton.  Documentation
-will appear here when the reorganization is finished and I have time.
+LLA is a high-level Common Lisp library built on on [[http://www.netlib.org/blas/][BLAS]] and [[http://www.netlib.org/lapack/][LAPACK]], but providing a much more abstract interface with the purpose of freeing the user from low-level concerns and reducing the number of bugs in numerical code.
 
-** Things to do (roughly in order of priority)
-   [ ] decide whether hermitian matrices use upper or lower triangle
-   (look at functions that use hermitian matrices, in principle this
-   should not matter much) NOTE: currently it is lower, but not
-   hardcoded, I wrote some query functions
+Documentation is mostly in docstrings at the moment, but I plan to write a decent tutorial at some point.  In the meantime, please look at the unit tests.
 
-   [ ] clean up linear algebra operations, finish missing methods; in
-   particular: svd, eigen, trace, rank
+* Reporting bugs
 
-   [ ] write SBCL and ECL pinning interfaces
-
-   [ ] write hermitian factorization methods, inverse
-   
-   [ ] write documentation
-
-   [ ] write more tests
-   
-** Wishlist
-   [ ] foreign-atoms is no longer needed now that we are using a C
-   interface: move it into array/vector copying code (see point below)
-   
-   [ ] make array copying code faster, specializing on array element
-   types, profile and benchmark
-   
-   [ ] maybe LLA types are not needed at all?  CL types could work
-   just as well, then all functions could use CL types (not a high
-   priority at the moment)
-   
-
+Please report bugs using [[https://github.com/tpapp/lla/issues][Github's issue tracker]].
 
 * Libraries
 
@@ -101,3 +76,10 @@ should work.
 
 
 
+
+* Things to do (roughly in order of priority)
+- finish missing methods; in particular =eigen=
+- write optimized SBCL and ECL pinning interfaces
+- write documentation (probably w/ [[http://common-lisp.net/project/docudown/][docudown]], decide)
+- write more tests (especially randomized ones, develop macros for that)
+- make array copying code faster, specializing on array element types, profile and benchmark
