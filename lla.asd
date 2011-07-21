@@ -8,7 +8,7 @@
 
 (defsystem lla
   :description "Lisp Linear Algebra"
-  :version "beta"
+  :version "0.1"
   :author "Tamas K Papp <tkpapp@gmail.com>"
   :license "Boost Software License - Version 1.0"
   :serial t
@@ -19,6 +19,7 @@
     :serial t
     :components
     ((:file "package")
+     (:file "configuration-interface")
      (:file "configuration")
      (:file "libraries")))
    (:module 
@@ -54,7 +55,6 @@
 
 (defsystem lla-tests
   :description "Unit tests for LLA."
-  :version "alpha"
   :author "Tamas K Papp <tkpapp@gmail.com"
   :license "Same as LLA--this is part of the LLA library."
   :serial t

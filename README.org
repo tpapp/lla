@@ -71,15 +71,19 @@ Then the configuration
 should work.
 
 
+* Configuration
 
+Certain features of LLA can be configured before loading using the plist =*lla-configuration*= in the =CL-USER= package.  The following properties are supported:
 
+- =:libraries= :: A list of objects, passed directly to =cffi:load-foreign-library=.  You can use strings, paths, or even symbols if you have defined these libraries using =cffi:define-foreign-library=.  If you don't define this, a reasonable platform-dependent default will be used.
 
-
-
+- =:int64:= :: This makes LLA use 64-bit integers for array dimensions, pivot indices and other integer values passed to BLAS/LAPACK functions.  *Only use this if you are sure that your libraries have been compiled with 64-bit integers*.  The fact that you have a 64-bit platform does not necessarily mean that this is the case, in fact, it is still quite rare.
 
 * Things to do (roughly in order of priority)
+
 - finish missing methods; in particular =eigen=
 - write optimized SBCL and ECL pinning interfaces
 - write documentation (probably w/ [[http://common-lisp.net/project/docudown/][docudown]], decide)
 - write more tests (especially randomized ones, develop macros for that)
 - make array copying code faster, specializing on array element types, profile and benchmark
+

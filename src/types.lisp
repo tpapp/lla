@@ -21,7 +21,7 @@ invalid LLA types."
       (:double 'double-float)
       (:complex-single '(complex single-float))
       (:complex-double '(complex double-float))
-      (:integer '(signed-byte #-lla-int64 32 #+lla-int64 64))
+      (:integer '(signed-byte #-lla::int64 32 #+lla::int64 64))
       (otherwise (error 'invalid-lla-type))))
   (defun atom-lla-type (atom)
     "If atom is a subtype of a Lisp type corresponding to an LLA type, return that,
@@ -31,7 +31,7 @@ otherwise NIL."
       (double-float :double)
       ((complex single-float) :complex-single)
       ((complex double-float) :complex-double)
-      ((signed-byte #-lla-int64 32 #+lla-int64 64) :integer))))
+      ((signed-byte #-lla::int64 32 #+lla::int64 64) :integer))))
 
 (defun lla-to-lisp-type* (lla-or-lisp-type)
   "Like LLA-TO-LISP-TYPE, but pass through invalid LLA types unchanged."
@@ -342,7 +342,7 @@ representabel in the LLA framework, return NIL."
 ;; ;;   "If the (upgraded) type of atom is supported by the implementation,
 ;; ;; return the corresponding LLA type, otherwise NIL."
 ;; ;;   (typecase atom
-;; ;;     #+lla-vector-integer ((signed-byte #-lla-int64 32 #+lla-int64 64) :integer)
+;; ;;     #+lla-vector-integer ((signed-byte #-lla::int64 32 #+lla::int64 64) :integer)
 ;; ;;     #+lla-vector-single (single-float :single)
 ;; ;;     #+lla-vector-double (double-float :double)
 ;; ;;     #+lla-vector-complex-single ((complex single-float) :complex-single)
