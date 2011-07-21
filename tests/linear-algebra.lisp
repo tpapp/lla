@@ -341,6 +341,19 @@
     (ensure-same (invert c) a\1)))
 
 (addtest (linear-algebra-tests)
+  spectral-factorization
+  (let+ ((a (mm t (clo :double 1 2 :/ 3 4)))
+         (w-true (clo :double :diagonal 0.1339313 29.8660687))
+         (z-true (clo :double
+                      -0.8174156 0.5760484 :/
+                      0.5760484  0.8174156))
+         ((&structure-r/o spectral-factorization- z w)
+         (spectral-factorization a))
+         (*lift-equality-test* #'==))
+    (ensure-same w w-true)
+    (ensure-same z z-true)))
+
+(addtest (linear-algebra-tests)
   svd
   (let+ ((a (clo :double
                  0 1 :/

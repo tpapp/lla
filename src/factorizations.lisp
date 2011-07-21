@@ -126,6 +126,13 @@
   (:documentation "Factorization for an indefinite hermitian matrix with
   pivoting."))
 
+;;; spectral factorization
+
+(defstruct spectral-factorization
+  "Z W Z^T factorization of a Hermitian matrix, where the columns of Z contain
+  the eigenvectors and W is a diagonal matrix of the eigenvectors."
+  z w)
+
 ;;; svd
 
 (defstruct svd

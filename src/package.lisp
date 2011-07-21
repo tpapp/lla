@@ -40,7 +40,11 @@
    ;; factorizations
 
    reconstruct lu ipiv qr qr-r matrix-square-root left-square-root
-   right-square-root cholesky hermitian-factorization svd svd-u svd-d svd-vt
+   right-square-root cholesky hermitian-factorization 
+   
+   spectral-factorization spectral-factorization-w spectral-factorization-z
+   
+   svd svd-u svd-d svd-vt
    
    ;;    matrix-factorization component reconstruct lu lu-matrix ipiv
    ;;    permutations qr qr-matrix cholesky factor hermitian

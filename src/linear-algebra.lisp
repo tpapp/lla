@@ -632,6 +632,65 @@ to generate random draws, etc."))
 (defmethod left-square-root ((hermitian-matrix hermitian-matrix))
   (left-square-root (cholesky hermitian-matrix)))
 
+;;; spectral factorization
+
+(defun spectral-factorization (a &key (vectors? t) (abstol 0))
+  "Return a spectral factorization of Z, or just the eigenvalues if VECTORS?
+is NIL.  The LAPACK manual says the following about ABSTOL:
+
+The absolute error tolerance for the eigenvalues.  An approximate eigenvalue
+is accepted as converged when it is determined to lie in an interval [a,b] of
+width less than or equal to
+
+                  ABSTOL + EPS *   max( |a|,|b| ) ,
+
+where EPS is the machine precision.  If ABSTOL is less than or equal to zero,
+then EPS*|T| will be used in its place, where |T| is the 1-norm of the
+tridiagonal matrix obtained by reducing A to tridiagonal form.
+
+See \"Computing Small Singular Values of Bidiagonal Matrices with Guaranteed
+High Relative Accuracy,\" by Demmel and Kahan, LAPACK Working Note #3.
+
+If high relative accuracy is important, set ABSTOL to DLAMCH( 'Safe minimum').
+Doing so will guarantee that eigenvalues are computed to high relative
+accuracy when possible in future releases.  The current code does not make any
+guarantees about high relative accuracy, but furutre releases will. See
+J. Barlow and J. Demmel, \"Computing Accurate Eigensystems of Scaled
+Diagonally Dominant Matrices\", LAPACK Working Note #7, for a discussion of
+which matrices define their eigenvalues to high relative accuracy."
+  (declare (optimize debug))
+  (check-type a hermitian-matrix)
+  (let+ ((a (elements a))
+         (type (common-float-type a))
+         (real-type (real-lla-type type))
+         ((a0 a1) (array-dimensions a)))
+    (assert (= a0 a1))
+    (with-lapack-traps-masked
+      (if (lla-complex? type)
+          (error "needs to be written, report this as an issue")
+          (if vectors?
+              (lapack-call-w/query (("syevr" "heevr") type
+                                    (make-spectral-factorization
+                                     :z z :w (make-diagonal w)))
+                #\V #\A #\U (&integer a0) (&array a :output :copy)
+                (&integer a0) nil nil nil nil (&atom* abstol :type real-type)
+                (&work 1 :integer) (&output w a0 :type real-type)
+                (&output z (list a0 a1)) (&integer a0)
+                (&work (* 2 (max 1 a0))) (&work-query) (&work-query :integer)
+                &info)
+              (lapack-call-w/query (("syevr" "heevr") type
+                                    (make-diagonal w))
+                #\N #\A #\U (&integer a0) (&array a :output :copy)
+                (&integer a0) nil nil nil nil (&atom* abstol :type real-type)
+                (&work 1 :integer) (&output w a0 :type real-type)
+                nil (&integer a0) (&work (* 2 (max 1 a0))) (&work-query)
+                (&work-query :integer) &info))))))
+
+(defmethod reconstruct ((sf spectral-factorization))
+  (let+ (((&structure-r/o spectral-factorization- z w) sf))
+    (assert z)
+    (mm (mm z (esqrt w)) t)))
+
 ;;; SVD
 
 (defgeneric svd (a &optional vectors)
