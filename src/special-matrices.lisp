@@ -236,7 +236,7 @@
 
 (defmacro define-elementwise-with-constant (type
                                             &optional (functions '(e2* e2/)))
-  "Define elementwise operations for FUNCTION for all subclasses of
+  "Define binary elementwise operations for FUNCTION for all subclasses of
 wrapped-elements."
   (let ((make (symbolicate '#:make- type)))
     `(progn
@@ -250,6 +250,8 @@ wrapped-elements."
   
 (defmacro define-elementwise-same-class (type
                                          &optional (functions '(e2+ e2- e2*)))
+  "Define binary elementwise operations for FUNCTION for two arguments of the
+same class."
   `(progn
      ,@(loop for function in functions collect
              `(defmethod ,function ((a ,type) (b ,type))
@@ -257,10 +259,10 @@ wrapped-elements."
                                :elements 
                                (,function (elements a) (elements b)))))))
 
-(defmacro define-elementwise-univariate (type
-                                         &optional (functions '(e1- e1/)))
-  "Define elementwise operations for FUNCTION for all subclasses of
-wrapped-elements.  "
+(defmacro define-elementwise-univariate 
+    (type &optional (functions '(e1- e1/ eexp elog esqrt)))
+  "Define unary elementwise operations for FUNCTION for all subclasses of
+wrapped-elements."
   `(progn
      ,@(loop :for function :in functions
              :collect
