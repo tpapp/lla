@@ -389,4 +389,25 @@ complex)."
                  ,(wrap-arguments arguments 'call parameters call-form)))
             ,value)))))
 
+;;; floating point traps
+;;;
+;;; Apparently, the only trap that we need to mask is division by zero, and
+;;; that only for a few operations.  Non-numerical floating points values are
+;;; used internally (eg in SVD calculations), but only reals are returned.
 
+#-(or sbcl cmu)
+(defmacro with-lapack-traps-masked (&body body)
+  (warn "No with-lapack-traps-masked macro provided for your ~
+  implementation -- some operations may signal an error.")
+  `(progn
+     ,@body))
+
+#+sbcl
+(defmacro with-lapack-traps-masked (&body body)
+  `(sb-int:with-float-traps-masked (:divide-by-zero :invalid)
+     ,@body))
+
+#+cmu
+(defmacro with-lapack-traps-masked (&body body)
+  `(extensions:with-float-traps-masked (:divide-by-zero :invalid)
+     ,@body))
