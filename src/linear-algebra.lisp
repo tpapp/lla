@@ -645,7 +645,7 @@ to generate random draws, etc."))
     of the singular vectors are calculates, and saves computational time when
     A is far from square."))
 
-(defmethod svd ((a array) &optional vectors)
+(defmethod svd ((a array) &optional (vectors :thin))
   (let+ (((a0 a1) (array-dimensions a))
          (min (min a0 a1))
          (type (common-float-type a)))
