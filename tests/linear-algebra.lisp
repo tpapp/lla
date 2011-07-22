@@ -289,7 +289,7 @@
          ;; ((:values beta1 ss1 nu1 other1) (least-squares y x :method :svd-d))
          ((&values beta2 ss2 nu2 qr) (least-squares y x :method :qr))
          (raw-var (invert-xx qr))
-         (variance (e* (reconstruct raw-var) (/ ss2 nu2)))
+         (variance (e* (as-array raw-var) (/ ss2 nu2)))
          (*==-tolerance* 1e-5))
     ;; (ensure-same beta1 beta)
     (ensure-same beta2 beta)
@@ -371,7 +371,7 @@
          (svd2 (svd a :all))
          (*lift-equality-test* #'==)
          ((&flet svd-rec (a &optional (vectors :thin))
-            (reconstruct (svd a vectors)))))
+            (as-array (svd a vectors)))))
     (ensure-same (svd-d svd1) d)
     (ensure-same (svd-d svd2) d)
     (ensure-same (sub (svd-u svd2) t (cons 0 2)) u)
@@ -381,8 +381,8 @@
              (a1 (+ 2 (random 3)))
              (a (filled-array (list a0 a1) (lambda () (random 1d0))
                               'double-float)))
-        (ensure-same (reconstruct (svd a :thin)) a)
-        (ensure-same (reconstruct (svd a :all)) a)))))
+        (ensure-same (as-array (svd a :thin)) a)
+        (ensure-same (as-array (svd a :all)) a)))))
 
 ;; ;; (addtest (linear-algebra-tests)
 ;; ;;   svd-rectangular

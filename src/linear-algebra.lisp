@@ -51,6 +51,9 @@ vectors as conforming matrices (eg see MM)."
   (:documentation
    "multiply A and B, also by the scalar alpha (defaults to 1)."))
 
+(defmethod as-array ((matrix-square-root matrix-square-root) &key)
+  (mm (left-square-root matrix-square-root) t))
+
 (defun mmm (&rest matrices)
   (reduce #'mm matrices))
 
@@ -686,7 +689,7 @@ which matrices define their eigenvalues to high relative accuracy."
                 nil (&integer a0) (&work (* 2 (max 1 a0))) (&work-query)
                 (&work-query :integer) &info))))))
 
-(defmethod reconstruct ((sf spectral-factorization))
+(defmethod as-array ((sf spectral-factorization) &key)
   (let+ (((&structure-r/o spectral-factorization- z w) sf))
     (assert z)
     (mm (mm z (esqrt w)) t)))
@@ -726,7 +729,16 @@ which matrices define their eigenvalues to high relative accuracy."
             (&integer (max u1 1)) (&work-query) (&work (* 8 min) :integer)
             &info)))))
 
-
+(defmethod as-array ((svd svd) &key)
+  (let+ (((&structure-r/o svd- u d vt) svd)
+         (n (nrow d)))
+    (mmm (if (= (ncol u) n)
+             u
+             (sub u t (cons 0 n)))
+         d
+         (if (= (nrow vt) n)
+             vt
+             (sub vt (cons 0 n) t)))))
 ;;; trace
 
 (defun sum-diagonal% (array)

@@ -16,16 +16,12 @@
    array-manifest-lla-type make-array* convert-lla-array common-lla-type
    pack packf
    
-   ;; printing -- nothing is exported
-
    ;; special-matrices
    
    wrapped-matrix elements make-matrix convert-matrix mref
    lower-triangular-matrix upper-triangular-matrix hermitian-matrix
    diagonal-matrix make-lower-triangular-matrix make-upper-triangular-matrix
    make-hermitian-matrix make-diagonal-matrix
-   
-   ;; fortran-atoms -- nothing is exported
    
    ;; printing
    
@@ -35,20 +31,15 @@
    
    clo
 
-   ;; pinned-vector -- nothing is exported
-
    ;; factorizations
 
-   reconstruct lu ipiv qr qr-r matrix-square-root left-square-root
-   right-square-root cholesky hermitian-factorization 
+   lu ipiv qr qr-r matrix-square-root left-square-root right-square-root
+   cholesky hermitian-factorization 
    
    spectral-factorization spectral-factorization-w spectral-factorization-z
    
    svd svd-u svd-d svd-vt
    
-   ;;    matrix-factorization component reconstruct lu lu-matrix ipiv
-   ;;    permutations qr qr-matrix cholesky factor hermitian
-
    ;; linear-algebra
    
    mm mmm lu solve invert least-squares invert-xx logdet det

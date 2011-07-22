@@ -2,16 +2,12 @@
 
 (in-package #:lla)
 
-(defgeneric reconstruct (factorization)
-  (:documentation "Reconstruct a matrix from a factorization.  Always return a
-  freshly created object."))
-
 (defclass lu ()
   ((lu :type matrix :initarg :lu :reader lu
-       :documentation "matrix storing the transpose of the LU decomposition.")
+       :documentation "matrix storing the transpose of the LU factorization.")
    (ipiv :type vector :initarg :ipiv :reader ipiv
 	 :documentation "pivot indices"))
-  (:documentation "LU decomposition of a matrix with pivoting."))
+  (:documentation "LU factorization of a matrix with pivoting."))
 
 (defun lu-u (lu)
   (make-upper-triangular-matrix (lu lu)))
@@ -31,10 +27,10 @@
 
 (defclass qr ()
   ((qr :type matrix :initarg :qr :reader qr
-       :documentation "matrix storing the QR decomposition.")
+       :documentation "matrix storing the QR factorization.")
    (tau :accessor tau :initarg :tau :documentation "complex scalar for
    elementary reflectors (see documentation of xGEQRF)."))
-  (:documentation "QR decomposition of a matrix."))
+  (:documentation "QR factorization of a matrix."))
 
 (defun qr-r (qr &key copy?)
   (let+ (((&slots-r/o qr) qr)
@@ -43,7 +39,7 @@
     (make-upper-triangular-matrix
      (clnu::maybe-copy-array (partition qr 0 ncol) copy?))))
 
-;;; generic interface for square root-like decompositions
+;;; generic interface for square root-like factorizations
 
 (defclass matrix-square-root ()
   ((left-square-root :reader left-square-root :initarg :left-square-root
@@ -70,13 +66,6 @@
   (:method (object)
     (transpose* (left-square-root object))))
 
-(defmethod reconstruct ((matrix-square-root matrix-square-root))
-  (mm (left-square-root matrix-square-root) t))
-
-(defmethod as-array ((matrix-square-root matrix-square-root)
-                     &key &allow-other-keys)
-  (as-array (reconstruct matrix-square-root)))
-
 (defmethod e2* ((a matrix-square-root) (b number))
   (make-instance (class-of a)
                  :left-square-root (e2* (left-square-root a) (sqrt b))))
@@ -87,14 +76,13 @@
                  :left-square-root (e2/ (left-square-root a) (sqrt b))))
 
 
-;;; Cholesky decomposition
+;;; Cholesky factorization
 
 (defclass cholesky (matrix-square-root)
   ()
-  (:documentation "Cholesky decomposition a matrix."))
+  (:documentation "Cholesky factorization a matrix."))
 
-(defmethod initialize-instance :after ((instance cholesky)
-                                       &key &allow-other-keys)
+(defmethod initialize-instance :after ((instance cholesky) &key)
   (assert (typep (left-square-root instance) 
                  '(and lower-triangular-matrix (satisfies square?)))))
 
@@ -140,13 +128,3 @@
 order.  U and VT may be NIL in case they are not computed."
   (u nil) d (vt nil))
 
-(defmethod reconstruct ((svd svd))
-  (let+ (((&structure-r/o svd- u d vt) svd)
-         (n (nrow d)))
-    (mmm (if (= (ncol u) n)
-             u
-             (sub u t (cons 0 n)))
-         d
-         (if (= (nrow vt) n)
-             vt
-             (sub vt (cons 0 n) t)))))
