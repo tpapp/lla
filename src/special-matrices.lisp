@@ -14,6 +14,9 @@
 (defmethod emap-dimensions ((wrapped-matrix wrapped-matrix))
   (array-dimensions (elements wrapped-matrix)))
 
+(defmethod emap-next ((wrapped-matrix wrapped-matrix) dimensions)
+  (emap-next (as-array wrapped-matrix) dimensions))
+
 (defmethod stack-into ((wrapped-matrix wrapped-matrix)
                        h? result cumulative-index)
   (stack-into (as-array wrapped-matrix) h? result cumulative-index))
