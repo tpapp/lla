@@ -255,9 +255,8 @@ same class."
   `(progn
      ,@(loop for function in functions collect
              `(defmethod ,function ((a ,type) (b ,type))
-                (make-instance ',(symbolicate '#:make- type)
-                               :elements 
-                               (,function (elements a) (elements b)))))))
+                (,(symbolicate '#:make- type)
+                 (,function (elements a) (elements b)))))))
 
 (defmacro define-elementwise-univariate 
     (type &optional (functions '(e1- e1/ eexp elog esqrt)))

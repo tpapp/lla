@@ -113,6 +113,24 @@
     (ensure-same (e+ (clo :upper 2 :/)) (clo :upper 2 :/))))
 
 (addtest (basic-tests)
+  special-bivariate-operation
+  (let+ ((*lift-equality-test* #'==)
+         (a (clo 1 2 :/ 3 4))
+         (b (clo 5 7 :/ 11 13))
+         ((&macrolet test (kind op)
+            (check-type kind keyword)
+            `(ensure-same (,op (convert-matrix ,kind a)
+                               (convert-matrix ,kind b))
+                          (convert-matrix ,kind (,op a b)))))
+         ((&macrolet tests (kind &optional (ops '(e+ e- e*)))
+            (check-type kind keyword)
+            `(progn
+              ,@(mapcar (lambda (op) `(test ,kind ,op)) ops)))))
+    (tests :hermitian)
+    (tests :lower)
+    (tests :upper)))
+
+(addtest (basic-tests)
   special-mean
   (let ((a (clo :upper :double
                 2 4 :/
