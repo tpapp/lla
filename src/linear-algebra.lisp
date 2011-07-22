@@ -635,7 +635,7 @@ to generate random draws, etc."))
 ;;; spectral factorization
 
 (defun spectral-factorization (a &key (vectors? t) (abstol 0))
-  "Return a spectral factorization of Z, or just the eigenvalues if VECTORS?
+  "Return a spectral factorization of A, or just the eigenvalues if VECTORS?
 is NIL.  The LAPACK manual says the following about ABSTOL:
 
 The absolute error tolerance for the eigenvalues.  An approximate eigenvalue
