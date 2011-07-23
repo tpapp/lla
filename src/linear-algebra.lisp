@@ -47,12 +47,21 @@ vectors as conforming matrices (eg see MM)."
     (2 (let+ (((d0 d1) (array-dimensions array)))
          (values d0 d1 nil)))))
 
+(defun maybe-hermitian (array hermitian?)
+  "May return a hermitian matrix if HERMITIAN?, otherwise a Common Lisp
+array."
+  (if (and hermitian? (hermitian-matrix-p array))
+      array
+      (elements array)))
+
 (defgeneric mm (a b &optional alpha)
   (:documentation
    "multiply A and B, also by the scalar alpha (defaults to 1)."))
 
-(defmethod as-array ((matrix-square-root matrix-square-root) &key)
-  (mm (left-square-root matrix-square-root) t))
+(defmethod as-array ((matrix-square-root matrix-square-root)
+                     &key hermitian?)
+  (maybe-hermitian (mm (left-square-root matrix-square-root) t)
+                   hermitian?))
 
 (defun mmm (&rest matrices)
   (reduce #'mm matrices))
@@ -586,7 +595,7 @@ to generate random draws, etc."))
   ;; orthogonal, also (X^T X)^-1 = R^-1 (R^T)-1
   (let+ ((r (qr-r qr)))
     (assert (<= (ncol r) (nrow r)))
-    (make-instance 'matrix-square-root :left-square-root (invert r))))
+    (xx (invert r))))
 
 ;;;; constrained-least-squares
 
@@ -628,8 +637,7 @@ to generate random draws, etc."))
          ((a0 a1) (array-dimensions a)))
     (assert (= a0 a1))
     (lapack-call ("potrf" (common-float-type a)
-                          (make-instance 'cholesky :left-square-root 
-                                         (make-lower-triangular-matrix l)))
+                          (make-cholesky (make-lower-triangular-matrix l)))
                  #\U (&integer a0) (&array a :output l) (&integer a0) &info)))
 
 (defmethod left-square-root ((hermitian-matrix hermitian-matrix))
@@ -689,10 +697,10 @@ which matrices define their eigenvalues to high relative accuracy."
                 nil (&integer a0) (&work (* 2 (max 1 a0))) (&work-query)
                 (&work-query :integer) &info))))))
 
-(defmethod as-array ((sf spectral-factorization) &key)
+(defmethod as-array ((sf spectral-factorization) &key hermitian?)
   (let+ (((&structure-r/o spectral-factorization- z w) sf))
     (assert z)
-    (mm (mm z (esqrt w)) t)))
+    (maybe-hermitian (mm (mm z (esqrt w)) t) hermitian?)))
 
 ;;; SVD
 

@@ -33,7 +33,7 @@
 
    ;; factorizations
 
-   lu ipiv qr qr-r matrix-square-root left-square-root right-square-root
+   lu ipiv qr qr-r matrix-square-root xx left-square-root right-square-root
    cholesky hermitian-factorization 
    
    spectral-factorization spectral-factorization-w spectral-factorization-z

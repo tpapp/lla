@@ -41,50 +41,50 @@
 
 ;;; generic interface for square root-like factorizations
 
-(defclass matrix-square-root ()
-  ((left-square-root :reader left-square-root :initarg :left-square-root
-                     :documentation "Matrix L such that LL^* is equal to the
-                     original (decomposed) matrix.  This method should be
-                     defined for other classes that can yield something
-                     similar."))
-  (:documentation "General class for representing all kinds of matrix square
-  roots, regardless of how they were computed.  The convention is to store the
-  left square root."))
+(defstruct (matrix-square-root (:constructor make-matrix-square-root (left)))
+  "General class for representing XX^T decompositions of matrices, regardless
+  of how they were computed.  The convention is to store X, the left square
+  root."
+  left)
 
-(defun matrix-square-root (left-square-root)
-  "Convenience function to create a matrix from a squre root."
-  (make-instance 'matrix-square-root :left-square-root left-square-root))
+(defgeneric left-square-root (a)
+  (:documentation "Return X such that XX^T=A.")
+  (:method ((a matrix-square-root))
+    (matrix-square-root-left a)))
 
-(defmethod print-object ((matrix-square-root matrix-square-root) stream)
-  (print-unreadable-object (matrix-square-root stream :type t)
-    (format stream " LL^* with L=~A" (left-square-root matrix-square-root))))
+(defgeneric right-square-root (a)
+  (:documentation "Return Y such that Y^T Y=A.  Efficiency note:
+  decompositions should store the left square root X, and compute Y=X^T on
+  demand, so getting X directly might be more efficient.")
+  (:method ((a matrix-square-root))
+    (transpose (matrix-square-root-left a))))
 
-(defgeneric right-square-root (object)
-  (:documentation "Matrix L such that LL^* is equal to the
-   original (decomposed) matrix.  Efficiency note: may be calculated on
-   demand.")
-  (:method (object)
-    (transpose* (left-square-root object))))
+(declaim (inline xx))
+(defun xx (left-square-root)
+  "Convenience function to create a matrix from a left square root."
+  (make-matrix-square-root left-square-root))
 
-(defmethod e2* ((a matrix-square-root) (b number))
-  (make-instance (class-of a)
-                 :left-square-root (e2* (left-square-root a) (sqrt b))))
-(defmethod e2* ((a number) (b matrix-square-root))
-  (e2* b a))
-(defmethod e2/ ((a matrix-square-root) (b number))
-  (make-instance (class-of a)
-                 :left-square-root (e2/ (left-square-root a) (sqrt b))))
+(defmacro define-matrix-square-root-scalar-multiplication
+    (type &key (make (symbolicate '#:make- type)))
+  `(progn
+     (defmethod e2* ((a ,type) (b number))
+       (,make (e2* (left-square-root a) (sqrt b))))
+     (defmethod e2* ((a number) (b ,type))
+       (,make (e2* (sqrt a) (left-square-root b))))
+     (defmethod e2/ ((a ,type) (b number))
+       (,make (e2/ (left-square-root a) (sqrt b))))))
 
+(define-matrix-square-root-scalar-multiplication matrix-square-root)
 
 ;;; Cholesky factorization
 
-(defclass cholesky (matrix-square-root)
-  ()
-  (:documentation "Cholesky factorization a matrix."))
+(defstruct (cholesky (:include matrix-square-root)
+                     (:constructor make-cholesky% (left)))
+  "Cholesky factorization a matrix.")
 
-(defmethod initialize-instance :after ((instance cholesky) &key)
-  (assert (typep (left-square-root instance) 
-                 '(and lower-triangular-matrix (satisfies square?)))))
+(defun make-cholesky (left)
+  (assert (typep left '(and lower-triangular-matrix (satisfies square?))))
+  (make-cholesky% left))
 
 ;;; permutations (pivoting)
 
@@ -119,7 +119,7 @@
 (defstruct spectral-factorization
   "Z W Z^T factorization of a Hermitian matrix, where the columns of Z contain
   the eigenvectors and W is a diagonal matrix of the eigenvalues.  Z is a
-  unitary matrix."  z w)
+  unitary matrix." z w)
 
 ;;; svd
 
@@ -127,4 +127,3 @@
   "Singular value decomposition.  Singular values are in S, in descending
 order.  U and VT may be NIL in case they are not computed."
   (u nil) d (vt nil))
-
