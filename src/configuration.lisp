@@ -20,6 +20,7 @@ configured by the user, see the documentation on how to do that."
           configuration."))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (if (query-configuration :int64 nil)
-      (pushnew 'lla::int64 *features*)
-      (alexandria:removef *features* 'lla::int64)))
+  (set-feature 'lla::int64 (query-configuration :int64 nil))
+  ;; only defaults to T during development
+  (set-feature 'lla::cffi-pinning (query-configuration :cffi-pinning t))
+  (set-feature 'lla::debug (query-configuration :debug nil)))

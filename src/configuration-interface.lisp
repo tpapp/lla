@@ -20,3 +20,10 @@ function (called on demand)."
             (funcall default)
             default)
         configuration)))
+
+(defun set-feature (symbol set?)
+  "Ensure that symbol is in *FEATURES* iff SET?.  Returns no values."
+  (if set?
+      (pushnew symbol *features*)
+      (alexandria:removef *features* symbol))
+  (values))

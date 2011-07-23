@@ -1,19 +1,5 @@
 (in-package :lla)
 
-;;; The WITH-PINNED-ARRAY macro maps an array to a memory area of values with
-;;; specified LLA-TYPE, either for input, input-output or output, converting the
-;;; input if required.
-
-;;; If :PINNED-ARRAY-COPY is in *features*, the macros will use copying to
-;;; emulate pinned vectors regardless of the implementation.
-
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  ;; #-sbcl 
-  (pushnew :pinned-array-copy *features*))
-
-;;; All-in-one wrapper macro for numeric vectors.  Call one of the
-;;; implementation-specific macros below, should be extended accordingly.
-
 (defmacro with-pinned-array ((pointer array lla-type transpose? 
                               output output-dimensions output-transpose?)
                              &body body)
@@ -36,8 +22,8 @@
   transposed result is saved.
 
   The value of the expression is always the value of body."
-  `(#+pinned-array-copy with-pinned-array-copy%
-    #+(and sbcl (not pinned-array-copy)) with-pinned-array-sbcl%
+  `(#+lla::cffi-pinning with-pinned-array-copy%
+    #+(and sbcl (not lla::cffi-pinning)) with-pinned-array-sbcl%
     (,pointer ,array ,lla-type ,transpose? 
               ,output ,output-dimensions ,output-transpose?)
     ,@body))
@@ -48,8 +34,8 @@
   address to POINTER, and copy the contents to OUTPUT after BODY.  When the
   implied total size is 0, the implementation is allowed to assign the null
   pointer to POINTER.  When TRANSPOSE?, matrices are transposed."
-  `(#+pinned-array-copy with-array-output-copy%
-    #+(and sbcl (not pinned-array-copy)) with-array-output-sbcl%
+  `(#+lla::cffi-pinning with-array-output-copy%
+    #+(and sbcl (not lla::cffi-pinning)) with-array-output-sbcl%
     (,pointer ,output ,lla-type ,dimensions ,transpose?)
     ,@body))
 
