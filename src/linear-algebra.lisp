@@ -56,7 +56,9 @@ array."
 
 (defgeneric mm (a b &optional alpha)
   (:documentation
-   "multiply A and B, also by the scalar alpha (defaults to 1)."))
+   "multiply A and B, also by the scalar alpha (defaults to 1).")
+  (:method (a b &optional (alpha 1))
+    (mm (as-array a) (as-array b) alpha)))
 
 (defmethod as-array ((matrix-square-root matrix-square-root)
                      &key hermitian?)
@@ -373,19 +375,22 @@ matrix, UNIT-DIAG? indicates whether the diagonal is supposed to consist of
                           (make-hermitian-matrix inverse))
       #\U (&integer a0) (&array a :output inverse) (&integer a0) &info)))
 
-;; (defmethod invert ((diagonal diagonal) &key (tolerance 0))
-;;   "For pseudoinverse, suppressing diagonal elements below TOLERANCE
-;; \(if given, otherwise / is just used without any checking."
-;;   (make-diagonal% (emap (cond
-;;                           ((null tolerance) #'/)
-;;                           ((and (numberp tolerance) (<= 0 tolerance))
-;;                            (lambda (x)
-;;                              (if (<= (abs x) tolerance) 0 (/ x))))
-;;                           ((and (numberp tolerance) (zerop tolerance))
-;;                            (lambda (x)
-;;                              (if (zerop x) 0 (/ x))))
-;;                           (t (error "Invalid tolerance argument.")))
-;;                         (elements diagonal))))
+(defmethod invert ((diagonal diagonal) &key (tolerance 0))
+  "For pseudoinverse, suppressing diagonal elements below TOLERANCE
+\(if given, otherwise / is just used without any checking."
+  (let ((elements (elements diagonal)))
+    (make-diagonal (map `(simple-array
+                          ,(clnu::emap-common-type elements) (*))
+                        (cond
+                          ((null tolerance) #'/)
+                          ((and (numberp tolerance) (<= 0 tolerance))
+                           (lambda (x)
+                             (if (<= (abs x) tolerance) 0 (/ x))))
+                          ((and (numberp tolerance) (zerop tolerance))
+                           (lambda (x)
+                             (if (zerop x) 0 (/ x))))
+                          (t (error "Invalid tolerance argument.")))
+                        elements))))
 
 ;; (defgeneric eigen (a &key vectors? check-real? &allow-other-keys)
 ;;   (:documentation "Calculate the eigenvalues and optionally the right
