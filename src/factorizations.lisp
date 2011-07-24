@@ -55,9 +55,12 @@
 (defgeneric right-square-root (a)
   (:documentation "Return Y such that Y^T Y=A.  Efficiency note:
   decompositions should store the left square root X, and compute Y=X^T on
-  demand, so getting X directly might be more efficient.")
+  demand, so getting X directly might be more efficient if you don't need
+  X^T.")
   (:method ((a matrix-square-root))
-    (transpose (matrix-square-root-left a))))
+    (transpose (matrix-square-root-left a)))
+  (:method (a)
+    (transpose (left-square-root a))))
 
 (declaim (inline xx))
 (defun xx (left-square-root)
