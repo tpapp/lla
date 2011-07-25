@@ -396,18 +396,18 @@ complex)."
 ;;; used internally (eg in SVD calculations), but only reals are returned.
 
 #-(or sbcl cmu)
-(defmacro with-lapack-traps-masked (&body body)
+(defmacro with-fp-traps-masked (&body body)
   (warn "No with-lapack-traps-masked macro provided for your ~
   implementation -- some operations may signal an error.")
   `(progn
      ,@body))
 
 #+sbcl
-(defmacro with-lapack-traps-masked (&body body)
+(defmacro with-fp-traps-masked (&body body)
   `(sb-int:with-float-traps-masked (:divide-by-zero :invalid)
      ,@body))
 
 #+cmu
-(defmacro with-lapack-traps-masked (&body body)
+(defmacro with-fp-traps-masked (&body body)
   `(extensions:with-float-traps-masked (:divide-by-zero :invalid)
      ,@body))
