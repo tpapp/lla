@@ -648,6 +648,9 @@ to generate random draws, etc."))
 (defmethod left-square-root ((hermitian-matrix hermitian-matrix))
   (left-square-root (cholesky hermitian-matrix)))
 
+(defmethod left-square-root ((a diagonal))
+  (esqrt a))
+
 ;;; spectral factorization
 
 (defun spectral-factorization (a &key (vectors? t) (abstol 0))
@@ -681,7 +684,7 @@ which matrices define their eigenvalues to high relative accuracy."
          (real-type (real-lla-type type))
          ((a0 a1) (array-dimensions a)))
     (assert (= a0 a1))
-    (with-lapack-traps-masked
+    (with-fp-traps-masked
       (if (lla-complex? type)
           (error "needs to be written, report this as an issue")
           (if vectors?

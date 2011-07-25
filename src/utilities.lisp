@@ -6,6 +6,25 @@
 ;;;; this is missing from CFFI at the moment
 (define-with-multiple-bindings with-foreign-pointer)
 
+(defun ensure-vector (object)
+  "Return object as a vector if possible, otherwise raise an error."
+  (etypecase object
+    (vector object)
+    (number (vector object))))
+
+(defun ensure-matrix (object &optional direction)
+  "Return object as a matrix if possible, otherwise raise an error.  For
+vectors, you need to specify the direction (:ROW or :COLUMN)."
+  (etypecase object
+    (number (make-array '(1 1) :initial-element object))
+    (vector (displace-array object
+                            (let ((l (length object)))
+                              (ecase direction
+                                (:row (list 1 l))
+                                (:column (list l 1))))))
+    ((array * (* *)) object)))
+
+
 ;; ;; #+sbcl (eval-when (:compile-toplevel :load-toplevel :execute)
 ;; ;;          (pushnew :muffle-notes cl:*features*))
 

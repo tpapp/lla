@@ -99,8 +99,7 @@
 (defmacro define-special-matrix (type documentation designator
                                  represented-element? non-represented-element
                                  masked-element-string
-                                 &key bindings make-matrix-check
-                                      convert-matrix-check)
+                                 &key bindings elements-check)
   "Define a special matrix class and methods for represents elements in
  wrapped-matrix object, using a 2d array.  ROW, COL and ELEMENTS are bound to
  row/column indexes and the 2d array for REPRESENTED-ELEMENT? (should evaluate
@@ -108,22 +107,27 @@
  MASKED-ELEMENT-STRING should contain the string used for printing
  non-represented elements."
   (check-type designator keyword)
-  (let ((make (symbolicate '#:make- type)))
+  (let* ((make (symbolicate '#:make- type))
+         (make-internal (if elements-check
+                            (symbolicate make #\%)
+                            make)))
     `(progn
        (defstruct (,type (:include wrapped-matrix)
-                         (:constructor ,make (elements)))
+                         (:constructor ,make-internal (elements)))
          ,documentation)
+       ,@(when elements-check
+           `((defun ,make (elements)
+               ,elements-check
+               (,make-internal elements))))
        (defmethod make-matrix ((kind (eql ,designator)) nrow ncol
                                &key (element-type t)
                                     (initial-element (zero* element-type)))
-         ,make-matrix-check
          (,make (make-matrix% nrow ncol element-type initial-element)))
        (defmethod matrix-kind ((matrix ,type))
          ,designator)
        (defmethod represented-element? ((kind (eql ,designator)) row col)
          ,represented-element?)
        (defmethod convert-matrix ((kind (eql ,designator)) object &key copy?)
-         ,convert-matrix-check
          (,make (as-array object :copy? copy?)))
        (defmethod nrow ((matrix ,type))
          (array-dimension (elements matrix) 0))
@@ -191,8 +195,15 @@
   (>= row col)
   (conjugate (aref elements col row))
   "*"
-  :make-matrix-check (assert (= nrow ncol))
-  :convert-matrix-check (assert (square? object)))
+  :elements-check (assert (square? elements) () "Hermitian matrices have to be
+  square."))
+
+(defun ensure-hermitian (object)
+  "Return object converted to a hermitian-matrix if it isn't, otherwise the
+original object.  May share structure."
+  (if (typep object 'hermitian-matrix)
+      object
+      (make-hermitian-matrix (ensure-matrix object))))
 
 ;;; Diagonal matrices
 

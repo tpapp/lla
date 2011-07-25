@@ -51,11 +51,28 @@
 
 
 ;;; utilities
-;;;
-;;; !! nothing tested at the moment, all functions are very basic
 
-
-
+(addtest (basic-tests)
+  ensure
+  (let* ((*lift-equality-test* #'==)
+         (v #(1 2))
+         (m #2A((0 1)
+                (2 3)))
+         (h (convert-matrix :hermitian m)))
+    ;; vector
+    (ensure-same (ensure-vector 1) #(1))
+    (ensure-same (ensure-vector v) v)
+    (ensure-error (ensure-vector m))
+    ;; matrix
+    (ensure-same (ensure-matrix 1) #2A((1)))
+    (ensure-same (ensure-matrix v :row) #2A((1 2)))
+    (ensure-same (ensure-matrix v :column) #2A((1) (2)))
+    (ensure-error (ensure-matrix v))
+    ;; hermitian
+    (ensure-same (ensure-hermitian 1) (clo :hermitian 1 :/))
+    (ensure-error (ensure-hermitian v))
+    (ensure-same (ensure-hermitian m) h)
+    (ensure-same (ensure-hermitian h) h)))
 
 ;; ;;; copy-elements
 

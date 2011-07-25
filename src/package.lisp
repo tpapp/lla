@@ -8,6 +8,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
    ;; utilities
+
+   ensure-vector ensure-matrix
    
    ;; types
 
@@ -20,8 +22,8 @@
    
    wrapped-matrix elements make-matrix convert-matrix mref
    lower-triangular-matrix upper-triangular-matrix hermitian-matrix
-   diagonal-matrix make-lower-triangular-matrix make-upper-triangular-matrix
-   make-hermitian-matrix make-diagonal-matrix
+   ensure-hermitian diagonal-matrix make-lower-triangular-matrix
+   make-upper-triangular-matrix make-hermitian-matrix make-diagonal-matrix
    
    ;; printing
    
@@ -39,6 +41,10 @@
    spectral-factorization spectral-factorization-w spectral-factorization-z
    
    svd svd-u svd-d svd-vt
+   
+   ;; fortran-call
+   
+   with-fp-traps-masked
    
    ;; linear-algebra
    
