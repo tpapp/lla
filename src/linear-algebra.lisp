@@ -52,7 +52,7 @@ vectors as conforming matrices (eg see MM)."
 array."
   (if (and hermitian? (hermitian-matrix-p array))
       array
-      (elements array)))
+      (as-array array)))
 
 (defgeneric mm (a b &optional alpha)
   (:documentation
