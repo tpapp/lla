@@ -198,13 +198,6 @@
   :elements-check (assert (square? elements) () "Hermitian matrices have to be
   square."))
 
-(defun ensure-hermitian (object)
-  "Return object converted to a hermitian-matrix if it isn't, otherwise the
-original object.  May share structure."
-  (if (typep object 'hermitian-matrix)
-      object
-      (make-hermitian-matrix (ensure-matrix object))))
-
 ;;; Diagonal matrices
 
 (defstruct (diagonal (:constructor make-diagonal (elements)))
