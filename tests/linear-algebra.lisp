@@ -400,33 +400,33 @@
 ;; ;;                          0.6196295 0.7848945 :/
 ;; ;;                          -0.7848945 0.6196295))))
 
-;; ;; (addtest (linear-algebra-tests)
-;; ;;   tr
-;; ;;   (let ((*lift-equality-test* #'=))
-;; ;;    (ensure-same (tr (clo :double
-;; ;;                          1 2 :/
-;; ;;                          3 4)) 5d0)
-;; ;;     (ensure-same (tr (clo :hermitian
-;; ;;                           :double
-;; ;;                           1 2 :/
-;; ;;                           0 9)) 10d0)
-;; ;;     (ensure-same (tr (clo :double
-;; ;;                           1 2 :/
-;; ;;                           3 4)) 5d0)
-;; ;;     (ensure-same (tr (clo :upper
-;; ;;                           :double
-;; ;;                           1 2 :/
-;; ;;                           3 4)) 5d0)
-;; ;;     (ensure-same (tr (clo :double :diagonal 2 15)) 17d0)))
+(addtest (linear-algebra-tests)
+  tr
+  (let ((*lift-equality-test* #'=))
+   (ensure-same (tr (clo :double
+                         1 2 :/
+                         3 4)) 5d0)
+    (ensure-same (tr (clo :hermitian
+                          :double
+                          1 2 :/
+                          0 9)) 10d0)
+    (ensure-same (tr (clo :double
+                          1 2 :/
+                          3 4)) 5d0)
+    (ensure-same (tr (clo :upper
+                          :double
+                          1 2 :/
+                          3 4)) 5d0)
+    (ensure-same (tr (clo :double :diagonal 2 15)) 17d0)))
 
-;; ;; (addtest (linear-algebra-tests)
-;; ;;   rank
-;; ;;   (let ((*lift-equality-test* #'=))
-;; ;;     (ensure-same (rank (clo 1 1 :/ 1 1)) 1)
-;; ;;     (ensure-same (rank (clo 2 4 1 3 :/
-;; ;;                             -1 -2 1 0
-;; ;;                             0 0 2 2
-;; ;;                             3 6 2 5)) 2)))
+;; (addtest (linear-algebra-tests)
+;;   rank
+;;   (let ((*lift-equality-test* #'=))
+;;     (ensure-same (rank (clo 1 1 :/ 1 1)) 1)
+;;     (ensure-same (rank (clo 2 4 1 3 :/
+;;                             -1 -2 1 0
+;;                             0 0 2 2
+;;                             3 6 2 5)) 2)))
 
 ;; (addtest (linear-algebra-tests)
 ;;   det
