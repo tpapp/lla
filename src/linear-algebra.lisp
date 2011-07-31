@@ -47,23 +47,17 @@ vectors as conforming matrices (eg see MM)."
     (2 (let+ (((d0 d1) (array-dimensions array)))
          (values d0 d1 nil)))))
 
-(defun maybe-hermitian (array hermitian?)
-  "May return a hermitian matrix if HERMITIAN?, otherwise a Common Lisp
-array."
-  (if (and hermitian? (hermitian-matrix-p array))
-      array
-      (as-array array)))
-
 (defgeneric mm (a b &optional alpha)
   (:documentation
    "multiply A and B, also by the scalar alpha (defaults to 1).")
   (:method (a b &optional (alpha 1))
     (mm (as-array a) (as-array b) alpha)))
 
-(defmethod as-array ((matrix-square-root matrix-square-root)
-                     &key hermitian?)
-  (maybe-hermitian (mm (left-square-root matrix-square-root) t)
-                   hermitian?))
+(defmethod as-matrix ((matrix-square-root matrix-square-root))
+  (mm (left-square-root matrix-square-root) t))
+
+(defmethod as-array ((matrix-square-root matrix-square-root) &key)
+  (as-array (as-matrix matrix-square-root)))
 
 (defun mmm (&rest matrices)
   (reduce #'mm matrices))
@@ -705,10 +699,13 @@ which matrices define their eigenvalues to high relative accuracy."
                 nil (&integer a0) (&work (* 2 (max 1 a0))) (&work-query)
                 (&work-query :integer) &info))))))
 
-(defmethod as-array ((sf spectral-factorization) &key hermitian?)
+(defmethod as-matrix ((sf spectral-factorization))
   (let+ (((&structure-r/o spectral-factorization- z w) sf))
     (assert z)
-    (maybe-hermitian (mm (mm z (esqrt w)) t) hermitian?)))
+    (mm (mm z (esqrt w)) t)))
+
+(defmethod as-array ((sf spectral-factorization) &key)
+  (as-array (as-matrix sf)))
 
 ;;; SVD
 
@@ -745,7 +742,7 @@ which matrices define their eigenvalues to high relative accuracy."
             (&integer (max u1 1)) (&work-query) (&work (* 8 min) :integer)
             &info)))))
 
-(defmethod as-array ((svd svd) &key)
+(defmethod as-matrix ((svd svd))
   (let+ (((&structure-r/o svd- u d vt) svd)
          (n (nrow d)))
     (mmm (if (= (ncol u) n)
@@ -755,6 +752,10 @@ which matrices define their eigenvalues to high relative accuracy."
          (if (= (nrow vt) n)
              vt
              (sub vt (cons 0 n) t)))))
+
+(defmethod as-array ((svd svd) &key)
+  (as-matrix svd))
+
 ;;; trace
 
 (defun sum-diagonal% (array)

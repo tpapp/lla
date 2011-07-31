@@ -341,3 +341,14 @@ wrapped-elements."
 (defmethod == ((a diagonal) (b diagonal)
                &optional (tolerance *==-tolerance*))
     (== (elements a) (elements b) tolerance))
+
+(defgeneric as-matrix (object)
+  (:documentation "Return OBJECT as an ARRAY if it has rank 2, a
+  wrapped-matrix or a diagonal.")
+  (:method ((array array))
+    (assert (= 2 (array-rank array)))
+    array)
+  (:method ((matrix wrapped-matrix))
+    matrix)
+  (:method ((diagonal diagonal))
+    diagonal))
