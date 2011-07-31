@@ -67,12 +67,7 @@
     (ensure-same (ensure-matrix 1) #2A((1)))
     (ensure-same (ensure-matrix v :row) #2A((1 2)))
     (ensure-same (ensure-matrix v :column) #2A((1) (2)))
-    (ensure-error (ensure-matrix v))
-    ;; hermitian
-    (ensure-same (ensure-hermitian 1) (clo :hermitian 1 :/))
-    (ensure-error (ensure-hermitian v))
-    (ensure-same (ensure-hermitian m) h)
-    (ensure-same (ensure-hermitian h) h)))
+    (ensure-error (ensure-matrix v))))
 
 ;; ;;; copy-elements
 

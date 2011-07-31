@@ -28,11 +28,53 @@
     (ensure-same (mm a b2) (clo :double 5 11 17))
     (ensure-same (mm b3 a) (clo :double 22 28))
     (ensure-error (mm a b3))
-    (ensure-error (mm b3 b3))
+    ;; (ensure-error (mm b3 b3))
     (ensure-error (mm b2 b3))))
 
 (addtest (linear-algebra-tests)
-  mm
+  mm-dot
+  (let+ ((a (clo :double 2 3 5))
+         (b (clo :complex-double 1 #C(2 1) 3))
+         ((&flet mm-vec (a b)
+            (sum (map 'vector (lambda (a b)
+                                (* a (conjugate b)))
+                      a b))))
+         ((&macrolet test (a1 b1 a2 b2 &optional (alpha 1))
+            (alexandria:once-only (alpha)
+              `(ensure-same (mm ,a1 ,b1 ,alpha)
+                            (* ,alpha (mm-vec ,a2 ,b2)))))))
+    (test a b a b)
+    (test b a b a 9)
+    (test a t a a 7)
+    (test b t b b 7)
+    (test t a a a 7)
+    (test t b b b 7)))
+
+(addtest (linear-algebra-tests)
+  outer
+  (let+ ((a (clo :double 2 3))
+         (b (clo :complex-double 1 #C(2 1) 9))
+         ((&flet outer2 (a b &optional hermitian?)
+            (let ((result (mm (as-column a)
+                              (as-row (map1 #'conjugate b)))))
+              (if hermitian?
+                  (convert-matrix :hermitian result)
+                  result))))
+         (*lift-equality-test* #'==))
+    (ensure-same (outer a b) (outer2 a b))
+    (ensure-same (outer a t) (outer2 a a t))
+    (ensure-same (outer t a) (outer2 a a t))
+    ;; (ensure-same (outer b a) (outer2 b a))
+    ;; (ensure-same (outer b t) (outer2 b b t))
+    ;; (ensure-same (outer t b) (outer2 b b t))
+))
+
+;;; !!!! this gives invalid-pointer, investigate
+;; (outer (clo :complex-double 1 #C(2 1) 9) t)
+
+
+(addtest (linear-algebra-tests)
+  mm-diagonal
   (let ((a (clo :double
                 1 2 :/
                 3 4
@@ -53,7 +95,10 @@
     (ensure-same (mm a d2 9) (e* a*d2 9))
     (ensure-same (mm d3 a 7) (e* d3*a 7))
     (ensure-error (mm a d3))
-    (ensure-error (mm d2 a))))
+    (ensure-error (mm d2 a))
+    (ensure-same (mm d3 d3) (e* d3 d3))
+    (ensure-same (mm d3 t) (e* d3 d3))  
+    (ensure-same (mm t d3) (e* d3 d3))))
 
 (addtest (linear-algebra-tests)
   mm-solve-lu

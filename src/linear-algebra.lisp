@@ -123,8 +123,46 @@ vectors as conforming matrices (eg see MM)."
 (defmethod mm (a (b wrapped-matrix) &optional (alpha 1))
   (mm a (as-array b) alpha))
 
+;;;; (mm vector t) is the dot product
+
+(defun sum-of-conjugate-squares (vector)
+  (reduce #'+ vector :key (lambda (x) (* x (conjugate x)))))
+
+(defmethod mm ((a vector) (b vector) &optional (alpha 1))
+  (assert (= (length a) (length b)))
+  (* alpha
+     (loop for a-elt :across a
+           for b-elt :across b
+           summing (* a-elt (conjugate b-elt)))))
+
 (defmethod mm ((a vector) (b (eql t)) &optional (alpha 1))
-  (mm (as-column a) t alpha))
+  (* alpha (sum-of-conjugate-squares a)))
+
+(defmethod mm ((a (eql t)) (b vector) &optional (alpha 1))
+  (* alpha (sum-of-conjugate-squares b)))
+
+;;; outer product
+
+(defgeneric outer (a b &optional alpha)
+  (:documentation "Return the outer product column(a) row(b)^H * alpha.  If
+  either A or B is T, they are taken to be conjugate transposes of the other
+  argument.")
+  (:method ((a vector) (b (eql t)) &optional (alpha 1))
+    (mm (as-column a) t alpha))
+  (:method ((a (eql t)) (b vector) &optional (alpha 1))
+    (mm (as-column b) t alpha))
+  (:method ((a vector) (b vector) &optional (alpha 1))
+    (let* ((a0 (length a))
+           (b0 (length b))
+           (result (make-array* (list a0 b0) (common-float-type a b alpha)))
+           (index 0))
+      (dotimes (a-index a0)
+        (let ((a-elt (aref a a-index)))
+          (dotimes (b-index b0)
+            (setf (row-major-aref result index)
+                  (* a-elt (conjugate (aref b b-index))))
+            (incf index))))
+      result)))
 
 ;;; mm for diagonal matrices
 
@@ -161,6 +199,27 @@ vectors as conforming matrices (eg see MM)."
 
 (defmethod mm ((a diagonal) (b vector) &optional (alpha 1))
   (e* (elements a) b alpha))
+
+(defmethod mm ((a diagonal) (b diagonal) &optional (alpha 1))
+  (let+ ((a (elements a))
+         (b (elements b))
+         (n (length a))
+         (result (make-array* n (common-float-type a b alpha))))
+    (assert (= n (length b)))
+    (dotimes (i n)
+      (setf (aref result i) (* alpha (aref a i) (aref b i))))
+    (make-diagonal result)))
+
+(defmethod mm ((a diagonal) (b (eql t)) &optional (alpha 1))
+  (let ((a (elements a)))
+    (make-diagonal
+     (map `(simple-array ,(lla-to-lisp-type (common-float-type a alpha)) (*))
+          (lambda (a) (* alpha a (conjugate a)))
+          a))))
+
+(defmethod mm ((a (eql t)) (b diagonal) &optional (alpha 1))
+  (mm b a alpha))
+
 
 ;;; hermitian (symmetric) updates
 

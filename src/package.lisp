@@ -48,7 +48,7 @@
    
    ;; linear-algebra
    
-   mm mmm lu solve invert least-squares invert-xx logdet det tr
+   mm mmm outer lu solve invert least-squares invert-xx logdet det tr
 
    ;;    dot norm1 norm2 normsup outer update-hermitian update-hermitian2
    ;;    hermitian eigen 
