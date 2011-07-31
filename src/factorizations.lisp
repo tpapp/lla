@@ -130,3 +130,13 @@
   "Singular value decomposition.  Singular values are in S, in descending
 order.  U and VT may be NIL in case they are not computed."
   (u nil) d (vt nil))
+
+;;; elementwise operations
+
+(defmacro define-factorization-eops (type conversion)
+  (check-types (type conversion) symbol)
+  `(progn
+     (defmethod e2+ ((a ,type) b) (e2+ (,conversion a) b))
+     (defmethod e2+ (a (b ,type)) (e2+ a (,conversion b)))))
+
+(define-factorization-eops matrix-square-root as-matrix)
