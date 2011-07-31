@@ -23,7 +23,7 @@
    wrapped-matrix elements make-matrix convert-matrix mref
    lower-triangular-matrix upper-triangular-matrix hermitian-matrix
    diagonal-matrix make-lower-triangular-matrix make-upper-triangular-matrix
-   make-hermitian-matrix make-diagonal-matrix
+   make-hermitian-matrix make-diagonal
    
    ;; printing
    
