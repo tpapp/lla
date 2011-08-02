@@ -30,6 +30,7 @@
     :components
     ((:file "utilities")
      (:file "types")
+     (:file "conditions")
      (:file "fortran-atom")
      (:file "printing")
      (:file "special-matrices")

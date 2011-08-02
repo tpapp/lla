@@ -179,14 +179,21 @@ representabel in the LLA framework, return NIL."
   ;; implementation note: + takes care of type determination via contagion.  Crude,
   ;; but works fine and is fast.
   (let ((float-type (if double? :double :single))
-        (sum (reduce #'+
-                     (mapcar (lambda (object)
-                               (etypecase object
-                                 (array (if (array-manifest-lla-type object)
-                                            (row-major-aref object 0)
-                                            (reduce #'+ (flatten-array object))))
-                                 (number object)))
-                             objects))))
+        (sum 
+          (reduce 
+           #'+
+           (mapcar (lambda (object)
+                     (etypecase object
+                       (array (if (array-manifest-lla-type object)
+                                  (row-major-aref object 0)
+                                  (progn
+                                    #+lla::efficiency-warning-array-type
+                                    (when *lla-efficiency-warning-array-type*
+                                      (warn 'lla-efficiency-warning-array-type
+                                            :array object))
+                                    (reduce #'+ (flatten-array object)))))
+                       (number object)))
+                   objects))))
     (typecase sum
       (single-float :single)
       (double-float :double)

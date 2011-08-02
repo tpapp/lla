@@ -218,30 +218,6 @@ form (OUTPUT &KEY DIMENSIONS TRANSPOSE?)."
     `(with-work-area (,pointer ,(maybe-default-type type parameters) ,size)
        ,body)))
 
-;;; error handling
-
-(define-condition lapack-error (error)
-  ;; !! write method for formatting the error message
-  ((lapack-procedure :initarg :lapack-procedure :type symbol*
-		     :documentation "The name of the procedure."))
-  (:documentation "The LAPACK procedure returned a nonzero info
-  code."))
-
-(define-condition lapack-invalid-argument (lapack-error)
-  ((position :initarg :position :type fixnum
-             :documentation "Position of the illegal argument"))
-  (:documentation "An argument to a LAPACK procedure had an illegal
-  value.  Generally, this indicates a bug in LLA and should not
-  happen."))
-
-(define-condition lapack-failure (lapack-error)
-  ((info :initarg :info :type fixnum
-          :documentation "INFO corresponding to error message."))
-  (:documentation "Superclass of all LAPACK errors with a positive INFO"))
-
-(define-condition lapack-singular-matrix (lapack-failure) ())
-
-(define-condition lla-incompatible-dimensions (error) ())
 
 (defstruct (lapack-info (:include fortran-argument))
   (variable (gensym))
