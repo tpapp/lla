@@ -130,6 +130,33 @@ TRANSPOSE?, matrices are transposed, otherwise an error is raised."
 ;;; SBCL specific code
 
 ;; #+sbcl
+;; (defun ensure-sharable-array (array lla-type copy?)
+;;   ""
+;;   (if (and (equal (lla-to-lisp-type lla-type) (array-element-type array))
+;;            (typep array 'simple-array)
+;;            (not copy?))
+;;       array
+;;       (convert-array* array lla-type)))
+
+;; #+sbcl
+;; (defmacro with-pinned-array-sbcl% (pointer array lla-type transpose? output
+;;                                    output-dimensions output-transpose?
+;;                                    &body body)
+;;   (let ((array-var (gensym))
+;;         (copy? (when output t)))
+;;     `(let ((,array-var (ensure-sharable-array ,array ,lla-type ,copy?)))
+;;        (sb-sys:with-pinned-objects (,array-var)
+;;          (let ((,pointer (sb-sys:vector-sap
+;;                           (sb-ext:array-storage-vector ,array-var))))
+;;            ,@body
+;;            ,@(when (and output (not (eq output :copy)))
+;;                `((setf ,output ,array-var))))))))
+
+
+
+
+
+;; #+sbcl
 ;; (defmacro pinned-vector-wrapper-sbcl% ((vector pointer) &body body)
 ;;   "Pin the vector and bind pointer to its data during body.  This is a
 ;; utility function for implementations with pinning, and should not be

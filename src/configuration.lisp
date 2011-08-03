@@ -21,8 +21,9 @@ configured by the user, see the documentation on how to do that."
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (set-feature 'lla::int64 (query-configuration :int64 nil))
-  ;; only defaults to T during development
-  (set-feature 'lla::cffi-pinning (query-configuration :cffi-pinning t))
+  (set-feature 'lla::cffi-pinning
+               (query-configuration :cffi-pinning #+sbcl nil
+                                                  #-sbcl t))
   (set-feature 'lla::debug (query-configuration :debug nil))
   (let+ ((efficiency-warnings (query-configuration :efficiency-warnings nil))
          ((&flet enable-efficiency-warning (feature keyword)
