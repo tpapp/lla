@@ -10,29 +10,6 @@
   "Determine common float type for OBJECTS.  For use in LAPACK/BLAS calls."
   (common-lla-type objects :force-float? t :double? *lla-double?*))
 
-(defun lookup-function (name)
-  "Lookup pointer for NAME, asserting that it was found."
-  (aprog1 (foreign-symbol-pointer name)
-    (assert it () "~A not found." name)))
-
-(defmacro lookup-procedure (lla-type name &optional (complex-name name))
-  "Return an expression that returns a string for the LAPACK/BLAS procedure
-name.  LLA-TYPE has to evaluate to a symbol denoting a float LLA type.  If you
-need conditionals etc for the function name, do that outside this macro.  For
-some functions (usually those involving Hermitian matrices), the names
-actually differ based on whether the matrix is real or complex, use
-COMPLEX-NAME in that case."
-  ;; (check-type name symbol*)
-  ;; (check-type complex-name symbol*)
-  (flet ((lookup (letter name)
-           `(load-time-value
-             (lookup-function ,(format nil "~(~A~A_~)" letter name)))))
-    `(ecase ,lla-type
-       (:single ,(lookup "s" name))
-       (:double ,(lookup "D" name))
-       (:complex-single ,(lookup "C" complex-name))
-       (:complex-double ,(lookup "Z" complex-name)))))
-
 ;;; interface
 
 (defgeneric process-form (form environment)
@@ -297,24 +274,37 @@ form (OUTPUT &KEY DIMENSIONS TRANSPOSE?)."
 
 ;;; various call interfaces
 
-(defun function-names (name)
-  "Parse LAPACK/BLAC fuction names, return a list of two strings (real and
-complex)."
-  (let+ (((name &optional (complex-name name)) (ensure-list name)))
-    (check-types (name complex-name) string)
-    (list name complex-name)))
+(defun blas-lapack-function-name (type name)
+  "Return the BLAS/LAPACK foreign function name.  TYPE is the LLA type, NAME
+is one of the following: NAME, (NAME), which are used for both complex and
+real names, or (REAL-NAME COMPLEX-NAME)."
+  (let+ (((real-name &optional (complex-name name)) (ensure-list name))
+         (letter (ecase type
+                   (:single "S")
+                   (:double "D")
+                   (:complex-single "C")
+                   (:complex-double "Z")))
+         (name (if (lla-complex? type)
+                   complex-name
+                   real-name)))
+    (format nil "~(~A~A_~)" letter name)))
 
-(defun fortran-call-form (function-pointer arguments)
-  "Return a form that calls FUNCTION-POINTER with given arguments."
-  `(foreign-funcall-pointer ,function-pointer ()
-                            ,@(loop for arg in arguments
-                                    appending
-                                    `(:pointer ,(argument-pointer arg)))
-                            :void))
+(defun arguments-for-cffi (arguments)
+  "Return a list that can be use in a CFFI call."
+  (loop for arg in arguments appending `(:pointer ,(argument-pointer arg))))
 
-(defun named-call-form (name type-var arguments)
-  (fortran-call-form `(lookup-procedure ,type-var ,@(function-names name))
-                     arguments))
+(defun blas-lapack-call-form (type-var name arguments)
+  "Return a form BLAS/LAPACK calls, conditioning on TYPE-VAR.  See
+BLAS-LAPACK-FUNCTION-NAME for the interpretation of "
+  (let ((arguments (arguments-for-cffi arguments)))
+    `(ecase ,type-var
+       ,@(loop for type in '(:single :double :complex-single :complex-double)
+               collect
+               `(,type
+                 (cffi:foreign-funcall 
+                  ,(blas-lapack-function-name type name)
+                  ,@arguments
+                  :void))))))
 
 (defmacro blas-call ((name type value) &body forms &environment env)
   "!!"
@@ -322,12 +312,12 @@ complex)."
          (arguments (process-forms forms env))
          (parameters `(:default-type ,type-var)))
     `(let ((,type-var ,type))
-       ,(wrap-arguments arguments 'bindings parameters
-                        `(progn
-                           ,(wrap-arguments arguments 'main parameters
-                                            (named-call-form name type-var
-                                                             arguments))
-                           ,value)))))
+       ,(wrap-arguments
+         arguments 'bindings parameters
+         `(progn
+            ,(wrap-arguments arguments 'main parameters
+                             (blas-lapack-call-form type-var name arguments))
+            ,value)))))
 
 (defmacro lapack-call ((name type value) &body forms &environment env)
   "!!"
@@ -341,10 +331,9 @@ complex)."
          `(progn
             ,(wrap-arguments
               arguments 'main parameters
-              (wrap-arguments
-               arguments 'call parameters
-               (named-call-form name type-var
-                                arguments)))
+              (wrap-arguments arguments 'call parameters
+                              (blas-lapack-call-form type-var name
+                                                     arguments)))
             ,value)))))
 
 (defmacro lapack-call-w/query ((name type value) &body forms &environment env)
@@ -352,7 +341,7 @@ complex)."
   (let* ((type-var (gensym "TYPE"))
          (arguments (process-forms forms env))
          (parameters `(:default-type ,type-var :query? t))
-         (call-form (named-call-form name type-var arguments)))
+         (call-form (blas-lapack-call-form type-var name arguments)))
     (assert (<= (count-if #'lapack-info-p arguments) 1))
     `(let ((,type-var ,type))
        ,(wrap-arguments
