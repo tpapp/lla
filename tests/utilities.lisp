@@ -6,6 +6,21 @@
 
 ;; support functions
 
+(defun random-array (type &rest dimensions)
+  "Random array for testing."
+  (filled-array dimensions (if (subtypep type 'complex)
+                               (lambda () (coerce (complex (random 100)
+                                                           (random 100))
+                                                  type))
+                               (lambda () (coerce (random 100) type))) type))
+
+(defmacro with-foreign-temporary-buffer ((pointer size) &body body)
+    "Allocate a buffer for SIZE complex doubles."
+    `(with-foreign-pointer (,pointer (* ,size (foreign-type-size :double) 2))
+       ,@body))
+
+;;; !! following 2 functions are redundant, should be phased out
+	
 (defun array-at-pointer= (array pointer lla-type &key (test #'=) (report? nil))
   "Return non-nil if the elements of array are not equal (using test) to the data at
 pointer, which can be of a different type, specified by lla-type.  If REPORT?,
@@ -19,7 +34,7 @@ the first discrepancy is reported to *ERROR-OUTPUT*, before returning NIL."
                   "at index ~a, ~a /= ~a~%" index array-element pointer-element))
         (return-from array-at-pointer= nil))))
   t)
-	
+
 (defun make-random-array (dimensions lla-type &optional (random-arg 100))
   "Make a vector of the given LLA type, filled with random elements.
 Random is called with random-arg, the default is an integer int order

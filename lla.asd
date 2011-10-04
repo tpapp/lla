@@ -41,7 +41,8 @@
     :depends-on ("basics")
     :serial t
     :components
-    ((:file "pinned-array")))
+    ((:file "copy-array")
+     (:file "pinned-array")))
    (:module
     "linear-algebra"
     :pathname #P"src/"

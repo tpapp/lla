@@ -54,4 +54,8 @@
    ;;    hermitian eigen 
    ;;    constrained-least-squares svd tr rank matrix-cond
    
-   ))
+   #:lla-integer
+   #:lla-single
+   #:lla-double
+   #:lla-complex-single
+   #:lla-complex-double))

@@ -7,7 +7,8 @@
   of BODY (see below for details of semantics).  POINTER is bound to the start
   of the memory address.  The representation of values in the memory is
   determined by LLA-TYPE.  When TRANSPOSE?, transpose the array before
-  BODY (only works for matrices, otherwise signal an error).
+  BODY (only works for matrices, otherwise signal an error).  TRANSPOSE? has
+  to be fixed at compile-time.
 
   The semantics of memory access is determined by OUTPUT.
 
@@ -45,68 +46,43 @@
 ;;; We effectively simulate pinning by copying the array to and from the
 ;;; memory area.
 
-(defun copy-array-to-memory% (pointer array lla-type transpose?)
-  "Copy ARRAY to memory at POINTER.  When TRANSPOSE?, matrices are transposed,
-otherwise an error is raised."
-  (if (or (not transpose?) (vectorp array))
-      (dotimes (index (array-total-size array))
-             (setf (mem-aref* pointer lla-type index)
-                   (coerce* (row-major-aref array index) lla-type)))
-      (let+ (((nrow ncol) (array-dimensions array))
-             (index 0))
-        (dotimes (col ncol)
-          (dotimes (row nrow)
-            (setf (mem-aref* pointer lla-type index)
-                  (coerce* (aref array row col) lla-type))
-            (incf index))))))
-
 (defmacro with-copied-elements% ((pointer array lla-type transpose?)
                                  &body body)
   "Allocate memory and copy elements of ARRAY to POINTER for the scope of
 BODY.  When TRANSPOSE?, matrices are transposed."
   (check-type pointer symbol)
+  (check-type transpose? boolean)
   (once-only (array lla-type)
     (with-unique-names (length size)
       `(let ((,length (array-total-size ,array))
              (,size (foreign-size* ,lla-type)))
          (with-foreign-pointer (,pointer (* ,size ,length))
-           (copy-array-to-memory% ,pointer ,array ,lla-type ,transpose?)
+           ,(if transpose?
+                `(transpose-matrix-to-memory ,array ,pointer ,lla-type)
+                `(copy-array-to-memory ,array ,pointer ,lla-type))
            ,@body)))))
-
-(defun copy-array-from-memory% (pointer lla-type dimensions transpose?)
-  "Return array at POINTER with given LLA type and dimensions.  When
-TRANSPOSE?, matrices are transposed, otherwise an error is raised."
-  ;; !! this could be speeded up by conditioning on lla-type
-  (let ((array (make-array* dimensions lla-type)))
-    (if (or (not transpose?) (vectorp array))
-        (dotimes (index (array-total-size array))
-          (setf (row-major-aref array index)
-                (mem-aref* pointer lla-type index)))
-        (let+ (((nrow ncol) dimensions)
-               (index 0))
-          (dotimes (col ncol)
-            (dotimes (row nrow)
-              (setf (aref array row col) (mem-aref* pointer lla-type index))
-            (incf index)))))
-    array))
 
 (defmacro with-pinned-array-copy% ((pointer array lla-type transpose? output
                                     output-dimensions output-transpose?)
                                    &body body)
   ;; note: OUTPUT-DIMENSIONS used only once, and thus not wrapped in ONCE-ONLY
   (check-type pointer symbol)
+  (check-type output-transpose? boolean)
   (once-only (array lla-type)
     `(with-copied-elements% (,pointer ,array ,lla-type ,transpose?)
        (multiple-value-prog1
            (progn ,@body)
          ,@(unless (or (not output) (eq output :copy))
-             `((setf ,output 
-                     (copy-array-from-memory% ,pointer ,lla-type
-                                              ,(aif output-dimensions
-                                                    output-dimensions
-                                                    `(array-dimensions
-                                                      ,array))
-                                              ,output-transpose?))))))))
+             `((setf ,output
+                     ,(let ((output-dimensions
+                              (aif output-dimensions
+                                   it
+                                   `(array-dimensions ,array))))
+                        (if output-transpose?
+                            `(create-transposed-matrix-from-memory
+                              ,pointer ,lla-type ,output-dimensions)
+                            `(create-array-from-memory
+                              ,pointer ,lla-type ,output-dimensions))))))))))
 
 (defmacro with-array-output-copy% ((pointer output lla-type dimensions
                                     transpose?)
@@ -119,8 +95,11 @@ TRANSPOSE?, matrices are transposed, otherwise an error is raised."
        (multiple-value-prog1
            (progn ,@body)
          (setf ,output
-               (copy-array-from-memory% ,pointer ,lla-type ,dimensions
-                                        ,transpose?))))))
+               ,(if transpose?
+                    `(create-transposed-matrix-from-memory ,pointer ,lla-type
+                                                           ,dimensions)
+                    `(create-array-from-memory ,pointer ,lla-type
+                                               ,dimensions)))))))
 
 (defmacro with-work-area ((pointer lla-type size) &body body)
   (check-type pointer symbol)

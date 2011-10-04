@@ -9,6 +9,17 @@
   ()
   (:documentation "The given type is not a valid LLA type."))
 
+(deftype lla-integer ()
+  '(signed-byte #-lla::int64 32 #+lla::int64 64))
+(deftype lla-single ()
+  'single-float)
+(deftype lla-double ()
+  'double-float)
+(deftype lla-complex-single ()
+  '(complex single-float))
+(deftype lla-complex-double ()
+  '(complex double-float))
+
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun lla-types ()
     "Return a list of valid LLA types."
