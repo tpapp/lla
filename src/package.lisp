@@ -3,59 +3,54 @@
   (:shadowing-import-from cl-num-utils mean variance)
   (:export 
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; basics
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; package-init - no exports
 
-   ;; utilities
+;;;; basics
 
-   ensure-vector ensure-matrix
+;;; types
+
+   lla-integer lla-single lla-double lla-complex-single lla-complex-double
+
+;;; conditions
    
-   ;; types
+   lla-internal-error lla-unhandled-type lapack-error lapack-invalid-argument
+   lapack-failure lapack-singular-matrix lla-incompatible-dimensions
 
-   lla-types lla-to-lisp-type atom-lla-type lla-complex? lla-double?
-   real-lla-type complex-lla-type zero* coerce* epsilon* lla-array-element-type
-   array-manifest-lla-type make-array* convert-lla-array common-lla-type
-   pack packf
+   lla-efficiency-warning *lla-efficiency-warning-array-type*
+   lla-efficiency-warning-array-type *lla-efficiency-warning-array-conversion*
+   lla-efficiency-warning-array-conversion
    
-   ;; special-matrices
+;;; special-matrices
    
    wrapped-matrix elements make-matrix convert-matrix mref
    lower-triangular-matrix upper-triangular-matrix hermitian-matrix
    diagonal-matrix make-lower-triangular-matrix make-upper-triangular-matrix
-   make-hermitian-matrix make-diagonal
+   make-hermitian-matrix make-diagonal dense lower hermitian upper vec diag
+   as-matrix
    
-   ;; printing
+;;; printing
    
    *print-lla-precision* *pring-matrix-aligned* *print-matrix-padding*
-   
-   ;; clo
-   
-   clo
 
-   ;; factorizations
+;;;; pinned-array - no exports
 
-   as-matrix lu ipiv qr qr-r matrix-square-root xx left-square-root
+;;;; linear-algebra
+   
+;;; factorizations
+
+   lu ipiv qr qr-r matrix-square-root xx left-square-root
    right-square-root cholesky hermitian-factorization 
    
    spectral-factorization spectral-factorization-w spectral-factorization-z
    
    svd svd-u svd-d svd-vt
    
-   ;; fortran-call
+;;; fortran-call
    
    with-fp-traps-masked
    
-   ;; linear-algebra
+;;; linear-algebra (note: some symbols already exported from factorizations)
    
-   mm mmm outer lu solve invert least-squares invert-xx logdet det tr
+   mm mmm outer solve invert least-squares invert-xx eigenvalues logdet det tr
 
-   ;;    dot norm1 norm2 normsup outer update-hermitian update-hermitian2
-   ;;    hermitian eigen 
-   ;;    constrained-least-squares svd tr rank matrix-cond
-   
-   #:lla-integer
-   #:lla-single
-   #:lla-double
-   #:lla-complex-single
-   #:lla-complex-double))
+   ))

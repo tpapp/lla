@@ -1,75 +1,90 @@
 (in-package :lla)
 
-(defmacro with-pinned-array ((pointer array lla-type transpose? 
+;;;; Interface
+;;;
+;;; The following three macros provide the abstract interface used by the rest
+;;; of LLA.  When implementation-specific speedups (eg shared arrays) are not
+;;; available, they should fall back to copying.
+
+(defmacro with-pinned-array ((pointer array internal-type transpose? 
                               output output-dimensions output-transpose?)
                              &body body)
   "Ensure that ARRAY is mapped to a corresponding memory area for the duration
-  of BODY (see below for details of semantics).  POINTER is bound to the start
-  of the memory address.  The representation of values in the memory is
-  determined by LLA-TYPE.  When TRANSPOSE?, transpose the array before
-  BODY (only works for matrices, otherwise signal an error).  TRANSPOSE? has
-  to be fixed at compile-time.
+of BODY (see below for details of semantics).  POINTER is bound to the start
+of the memory address.  The representation of values in the memory is
+determined by INTERNAL-TYPE.  When TRANSPOSE?, transpose the array before
+BODY (only works for matrices, otherwise signal an error).  TRANSPOSE? has to
+be fixed at compile-time.
 
-  The semantics of memory access is determined by OUTPUT.
+The semantics of memory access is determined by OUTPUT.
 
   1. If OUTPUT is NIL, the memory area is NOT expected to be modified by BODY.
 
   2. If OUTPUT is :COPY, the memory area may be modified by BODY.
 
   3. If OUTPUT is anything else, the memory area may be modifed by BODY, and
-  the result will be available after that while BODY is executed, assigned to
-  the place referred to by OUTPUT, with the given OUTPUT-DIMENSIONS (which
-  default to the dimensions of ARRAY when NIL).  When OUTPUT-TRANSPOSE?, a
-  transposed result is saved.
+     the result will be available after BODY is executed, assigned to the
+     place referred to by OUTPUT, with the given OUTPUT-DIMENSIONS (which
+     default to the dimensions of ARRAY when NIL).  When OUTPUT-TRANSPOSE?, a
+     transposed result is saved.
 
-  The value of the expression is always the value of body."
+The value of the expression is always the value of body."
   `(#+lla::cffi-pinning with-pinned-array-copy%
     #+(and sbcl (not lla::cffi-pinning)) with-pinned-array-sbcl%
-    (,pointer ,array ,lla-type ,transpose? 
+    (,pointer ,array ,internal-type ,transpose? 
               ,output ,output-dimensions ,output-transpose?)
     ,@body))
 
-(defmacro with-array-output ((pointer output lla-type dimensions transpose?)
+(defmacro with-array-output ((pointer output internal-type dimensions
+                              transpose?)
                              &body body)
-  "Allocate a memory area of the given LLA-TYPE and DIMENSIONS, bind its
-  address to POINTER, and copy the contents to OUTPUT after BODY.  When the
-  implied total size is 0, the implementation is allowed to assign the null
-  pointer to POINTER.  When TRANSPOSE?, matrices are transposed."
+  "Allocate a memory area of the given INTERNAL-TYPE and DIMENSIONS, bind its
+address to POINTER, and copy the contents to OUTPUT after BODY.  When the
+implied total size is 0, the implementation is allowed to assign the null
+pointer to POINTER.  When TRANSPOSE?, matrices are transposed."
   `(#+lla::cffi-pinning with-array-output-copy%
     #+(and sbcl (not lla::cffi-pinning)) with-array-output-sbcl%
-    (,pointer ,output ,lla-type ,dimensions ,transpose?)
+    (,pointer ,output ,internal-type ,dimensions ,transpose?)
     ,@body))
 
+(defmacro with-work-area ((pointer internal-type size) &body body)
+  "Allocate a work area of SIZE and INTERNAL-TYPE, and bind the POINTER to its
+start during BODY."
+  (check-type pointer symbol)
+  `(with-foreign-pointer (,pointer (* (foreign-size ,internal-type) ,size))
+     ,@body))
 
-;;; Pinning implemented by copying.
+;;;; Pinning implemented by copying.
 ;;;
 ;;; We effectively simulate pinning by copying the array to and from the
 ;;; memory area.
 
-(defmacro with-copied-elements% ((pointer array lla-type transpose?)
+(defmacro with-copied-elements% ((pointer array internal-type transpose?)
                                  &body body)
   "Allocate memory and copy elements of ARRAY to POINTER for the scope of
 BODY.  When TRANSPOSE?, matrices are transposed."
   (check-type pointer symbol)
   (check-type transpose? boolean)
-  (once-only (array lla-type)
+  (once-only (array internal-type)
     (with-unique-names (length size)
       `(let ((,length (array-total-size ,array))
-             (,size (foreign-size* ,lla-type)))
+             (,size (foreign-size ,internal-type)))
          (with-foreign-pointer (,pointer (* ,size ,length))
            ,(if transpose?
-                `(transpose-matrix-to-memory ,array ,pointer ,lla-type)
-                `(copy-array-to-memory ,array ,pointer ,lla-type))
+                `(transpose-matrix-to-memory ,array ,pointer ,internal-type)
+                `(copy-array-to-memory ,array ,pointer ,internal-type))
            ,@body)))))
 
-(defmacro with-pinned-array-copy% ((pointer array lla-type transpose? output
-                                    output-dimensions output-transpose?)
+(defmacro with-pinned-array-copy% ((pointer array internal-type transpose?
+                                    output output-dimensions
+                                    output-transpose?)
                                    &body body)
+  "Implementation of with-pinned-array by copying."
   ;; note: OUTPUT-DIMENSIONS used only once, and thus not wrapped in ONCE-ONLY
   (check-type pointer symbol)
   (check-type output-transpose? boolean)
-  (once-only (array lla-type)
-    `(with-copied-elements% (,pointer ,array ,lla-type ,transpose?)
+  (once-only (array internal-type)
+    `(with-copied-elements% (,pointer ,array ,internal-type ,transpose?)
        (multiple-value-prog1
            (progn ,@body)
          ,@(unless (or (not output) (eq output :copy))
@@ -80,50 +95,49 @@ BODY.  When TRANSPOSE?, matrices are transposed."
                                    `(array-dimensions ,array))))
                         (if output-transpose?
                             `(create-transposed-matrix-from-memory
-                              ,pointer ,lla-type ,output-dimensions)
+                              ,pointer ,internal-type ,output-dimensions)
                             `(create-array-from-memory
-                              ,pointer ,lla-type ,output-dimensions))))))))))
+                              ,pointer ,internal-type
+                              ,output-dimensions))))))))))
 
-(defmacro with-array-output-copy% ((pointer output lla-type dimensions
+(defmacro with-array-output-copy% ((pointer output internal-type dimensions
                                     transpose?)
                                    &body body)
+  "Implementation of WITH-ARRAY-OUTPUT by copying."
   (check-type pointer symbol)
-  (once-only (lla-type dimensions)
+  (once-only (internal-type dimensions)
     `(with-foreign-pointer (,pointer
-                            (* (foreign-size* ,lla-type)
+                            (* (foreign-size ,internal-type)
                                (reduce #'* (ensure-list ,dimensions))))
        (multiple-value-prog1
            (progn ,@body)
          (setf ,output
                ,(if transpose?
-                    `(create-transposed-matrix-from-memory ,pointer ,lla-type
-                                                           ,dimensions)
-                    `(create-array-from-memory ,pointer ,lla-type
+                    `(create-transposed-matrix-from-memory
+                      ,pointer ,internal-type ,dimensions)
+                    `(create-array-from-memory ,pointer ,internal-type
                                                ,dimensions)))))))
 
-(defmacro with-work-area ((pointer lla-type size) &body body)
-  (check-type pointer symbol)
-  `(with-foreign-pointer (,pointer (* (foreign-size* ,lla-type) ,size))
-     ,@body))
+
 
 ;;; SBCL specific code
 
 ;; #+sbcl
-;; (defun ensure-sharable-array (array lla-type copy?)
+;; (defun ensure-sharable-array (array internal-type copy?)
 ;;   ""
-;;   (if (and (equal (lla-to-lisp-type lla-type) (array-element-type array))
+;;   (if (and (equal (lla-to-lisp-type internal-type) (array-element-type array))
 ;;            (typep array 'simple-array)
 ;;            (not copy?))
 ;;       array
-;;       (convert-array* array lla-type)))
+;;       (convert-array* array internal-type)))
 
 ;; #+sbcl
-;; (defmacro with-pinned-array-sbcl% (pointer array lla-type transpose? output
+;; (defmacro with-pinned-array-sbcl% (pointer array internal-type transpose? output
 ;;                                    output-dimensions output-transpose?
 ;;                                    &body body)
 ;;   (let ((array-var (gensym))
 ;;         (copy? (when output t)))
-;;     `(let ((,array-var (ensure-sharable-array ,array ,lla-type ,copy?)))
+;;     `(let ((,array-var (ensure-sharable-array ,array ,internal-type ,copy?)))
 ;;        (sb-sys:with-pinned-objects (,array-var)
 ;;          (let ((,pointer (sb-sys:vector-sap
 ;;                           (sb-ext:array-storage-vector ,array-var))))

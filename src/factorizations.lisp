@@ -2,6 +2,8 @@
 
 (in-package #:lla)
 
+;;;; LU factorization
+
 (defclass lu ()
   ((lu :type matrix :initarg :lu :reader lu
        :documentation "matrix storing the transpose of the LU factorization.")
@@ -16,7 +18,7 @@
   (aprog1 (make-lower-triangular-matrix (copy-array (lu lu)))
     (let+ (((&slots-r/o elements) it)
            ((nrow ncol) (array-dimensions elements))
-           (one (one* elements)))
+           (one (coerce 1 (array-element-type elements))))
       (dotimes (index (min nrow ncol))
         (setf (aref elements index index) one)))))
 
@@ -24,6 +26,8 @@
   (print-unreadable-object (lu stream :type t)
     (with-slots (l u ipiv) lu
       (format stream "~2& L=~A~2& U=~A~2&  pivot indices=~A" l u ipiv))))
+
+;;;; QR factorization
 
 (defclass qr ()
   ((qr :type matrix :initarg :qr :reader qr
@@ -39,7 +43,7 @@
     (make-upper-triangular-matrix
      (clnu::maybe-copy-array (partition qr 0 ncol) copy?))))
 
-;;; generic interface for square root-like factorizations
+;;;; generic interface for square root-like factorizations
 
 (defstruct (matrix-square-root (:constructor make-matrix-square-root (left)))
   "General class for representing XX^T decompositions of matrices, regardless
@@ -79,7 +83,7 @@
 
 (define-matrix-square-root-scalar-multiplication matrix-square-root)
 
-;;; Cholesky factorization
+;;;; Cholesky factorization
 
 (defstruct (cholesky (:include matrix-square-root)
                      (:constructor make-cholesky% (left)))
@@ -89,7 +93,7 @@
   (assert (typep left '(and lower-triangular-matrix (satisfies square?))))
   (make-cholesky% left))
 
-;;; permutations (pivoting)
+;;;; permutations (pivoting)
 
 (defgeneric permutations (object)
   (:documentation "Return the number of permutations in object (which is
@@ -105,7 +109,7 @@
 (defmethod permutations ((lu lu))
   (count-permutations% (ipiv lu)))
 
-;;; hermitian factorization
+;;;; hermitian factorization
 
 (defclass hermitian-factorization ()
   ((factor :type matrix :initarg :factor :reader factor
@@ -117,26 +121,26 @@
   (:documentation "Factorization for an indefinite hermitian matrix with
   pivoting."))
 
-;;; spectral factorization
+;;;; spectral factorization
 
 (defstruct spectral-factorization
   "Z W Z^T factorization of a Hermitian matrix, where the columns of Z contain
   the eigenvectors and W is a diagonal matrix of the eigenvalues.  Z is a
   unitary matrix." z w)
 
-;;; svd
+;;;; svd
 
 (defstruct svd
   "Singular value decomposition.  Singular values are in S, in descending
 order.  U and VT may be NIL in case they are not computed."
   (u nil) d (vt nil))
 
-;;; elementwise operations
+;;;; elementwise operations for factorizations
 
-(defmacro define-factorization-eops (type conversion)
+(defmacro define-factorization-eops% (type conversion)
   (check-types (type conversion) symbol)
   `(progn
      (defmethod e2+ ((a ,type) b) (e2+ (,conversion a) b))
      (defmethod e2+ (a (b ,type)) (e2+ a (,conversion b)))))
 
-(define-factorization-eops matrix-square-root as-matrix)
+(define-factorization-eops% matrix-square-root as-matrix)

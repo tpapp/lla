@@ -31,154 +31,156 @@ as VALUES.  VALUES should be flattened if complex."
                      cffi-type index value-in-memory value))
              same?)))
 
-(defun check-memory-contents2 (pointer lla-type values)
+(defun check-memory-contents2 (pointer internal-type values)
   "Like CHECK-MEMORY-CONTENTS, with autoconversion of values and calculation
-of LLA-TYPE."
+of INTERNAL-TYPE."
   (check-memory-contents pointer
-                         (ecase lla-type
-                           ((:single :complex-single) :float)
-                           ((:double :complex-double) :double)
-                           (:integer #-lla::int64 :int32
-                                     #+lla::int64 :int64))
+                         (alexandria:eswitch (internal-type)
+                           (lla::+single+ :float)
+                           (lla::+double+ :double)
+                           (lla::+complex-single+ :float)
+                           (lla::+complex-double+ :double)
+                           (lla::+integer+ #-lla::int64 :int32
+                                           #+lla::int64 :int64))
                          (let ((vector (aetypecase values
                                          (vector it)
                                          (array (flatten-array it))
                                          (t (coerce it 'vector)))))
-                           (case lla-type
-                             ((:complex-single :complex-double)
-                              (flatten-complex-vector vector))
-                             (t vector)))))
+                           (if (lla::complex? internal-type)
+                               (flatten-complex-vector vector)
+                               vector))))
 
 (addtest (pinned-array-tests)
   copy-to-memory
   (with-foreign-temporary-buffer (pointer 100)
-    (let+ (((&flet check-copy (array lla-type)
-              (lla::copy-array-to-memory array pointer lla-type)
-              (check-memory-contents2 pointer lla-type array)))
-           ((&macrolet ensure-copy (element-type lla-type)
+    (let+ (((&flet check-copy (array internal-type)
+              (lla::copy-array-to-memory array pointer internal-type)
+              (check-memory-contents2 pointer internal-type array)))
+           ((&macrolet ensure-copy (element-type internal-type)
               `(ensure (check-copy (random-array ,element-type 5 7)
-                                   ,lla-type))))
-           ((&macrolet ensure-copy-error (element-type lla-type)
+                                   ,internal-type))))
+           ((&macrolet ensure-copy-error (element-type internal-type)
               `(ensure-error
                  (lla::copy-array-to-memory (random-array ,element-type 19)
-                                            pointer ,lla-type)))))
+                                            pointer ,internal-type)))))
       ;; single float
-      (ensure-copy t :single)
-      (ensure-copy 'lla-integer :single)
-      (ensure-copy 'lla-single :single)
-      (ensure-copy 'lla-double :single)
-      (ensure-copy-error 'lla-complex-single :single)
+      (ensure-copy t lla::+single+)
+      (ensure-copy 'lla-integer lla::+single+)
+      (ensure-copy 'lla-single lla::+single+)
+      (ensure-copy 'lla-double lla::+single+)
+      (ensure-copy-error 'lla-complex-single lla::+single+)
       ;; double float
-      (ensure-copy t :double)
-      (ensure-copy 'lla-integer :double)
-      (ensure-copy 'lla-single :double)
-      (ensure-copy 'lla-double :double)
-      (ensure-copy-error 'lla-complex-single :double)
+      (ensure-copy t lla::+double+)
+      (ensure-copy 'lla-integer lla::+double+)
+      (ensure-copy 'lla-single lla::+double+)
+      (ensure-copy 'lla-double lla::+double+)
+      (ensure-copy-error 'lla-complex-single lla::+double+)
       ;; complex single
-      (ensure-copy t :complex-single)
-      (ensure-copy 'lla-integer :complex-single)
-      (ensure-copy 'lla-single :complex-single)
-      (ensure-copy 'lla-double :complex-single)
-      (ensure-copy 'lla-complex-single :complex-single)
-      (ensure-copy 'lla-complex-double :complex-single)
+      (ensure-copy t lla::+complex-single+)
+      (ensure-copy 'lla-integer lla::+complex-single+)
+      (ensure-copy 'lla-single lla::+complex-single+)
+      (ensure-copy 'lla-double lla::+complex-single+)
+      (ensure-copy 'lla-complex-single lla::+complex-single+)
+      (ensure-copy 'lla-complex-double lla::+complex-single+)
       ;; complex double
-      (ensure-copy t :complex-double)
-      (ensure-copy 'lla-integer :complex-double)
-      (ensure-copy 'lla-single :complex-double)
-      (ensure-copy 'lla-double :complex-double)
-      (ensure-copy 'lla-complex-single :complex-double)
-      (ensure-copy 'lla-complex-double :complex-double))))
+      (ensure-copy t lla::+complex-double+)
+      (ensure-copy 'lla-integer lla::+complex-double+)
+      (ensure-copy 'lla-single lla::+complex-double+)
+      (ensure-copy 'lla-double lla::+complex-double+)
+      (ensure-copy 'lla-complex-single lla::+complex-double+)
+      (ensure-copy 'lla-complex-double lla::+complex-double+))))
 
 (addtest (pinned-array-tests)
   transpose-to-memory
   (with-foreign-temporary-buffer (pointer 100)
-    (let+ (((&flet check-transpose (matrix lla-type)
-              (lla::transpose-matrix-to-memory matrix pointer lla-type)
-              (check-memory-contents2 pointer lla-type (transpose matrix))))
-           ((&macrolet ensure-transpose (element-type lla-type)
+    (let+ (((&flet check-transpose (matrix internal-type)
+              (lla::transpose-matrix-to-memory matrix pointer internal-type)
+              (check-memory-contents2 pointer internal-type (transpose matrix))))
+           ((&macrolet ensure-transpose (element-type internal-type)
               `(ensure (check-transpose (random-array ,element-type 5 6)
-                                        ,lla-type))))
-           ((&macrolet ensure-transpose-error (element-type lla-type)
+                                        ,internal-type))))
+           ((&macrolet ensure-transpose-error (element-type internal-type)
               `(ensure-error 
                  (lla::transpose-matrix-to-memory 
-                  (random-array ,element-type 7 5) pointer ,lla-type)))))
+                  (random-array ,element-type 7 5) pointer ,internal-type)))))
       ;; single float
-      (ensure-transpose t :single)
-      (ensure-transpose 'lla-integer :single)
-      (ensure-transpose 'lla-single :single)
-      (ensure-transpose 'lla-double :single)
-      (ensure-transpose-error 'lla-complex-single :single)
+      (ensure-transpose t lla::+single+)
+      (ensure-transpose 'lla-integer lla::+single+)
+      (ensure-transpose 'lla-single lla::+single+)
+      (ensure-transpose 'lla-double lla::+single+)
+      (ensure-transpose-error 'lla-complex-single lla::+single+)
       ;; ;; double float
-      (ensure-transpose t :double)
-      (ensure-transpose 'lla-integer :double)
-      (ensure-transpose 'lla-single :double)
-      (ensure-transpose 'lla-double :double)
-      (ensure-transpose-error 'lla-complex-single :double)
+      (ensure-transpose t lla::+double+)
+      (ensure-transpose 'lla-integer lla::+double+)
+      (ensure-transpose 'lla-single lla::+double+)
+      (ensure-transpose 'lla-double lla::+double+)
+      (ensure-transpose-error 'lla-complex-single lla::+double+)
       ;; complex single
-      (ensure-transpose t :complex-single)
-      (ensure-transpose 'lla-integer :complex-single)
-      (ensure-transpose 'lla-single :complex-single)
-      (ensure-transpose 'lla-double :complex-single)
-      (ensure-transpose 'lla-complex-single :complex-single)
-      (ensure-transpose 'lla-complex-double :complex-single)
+      (ensure-transpose t lla::+complex-single+)
+      (ensure-transpose 'lla-integer lla::+complex-single+)
+      (ensure-transpose 'lla-single lla::+complex-single+)
+      (ensure-transpose 'lla-double lla::+complex-single+)
+      (ensure-transpose 'lla-complex-single lla::+complex-single+)
+      (ensure-transpose 'lla-complex-double lla::+complex-single+)
       ;; complex double
-      (ensure-transpose t :complex-double)
-      (ensure-transpose 'lla-integer :complex-double)
-      (ensure-transpose 'lla-single :complex-double)
-      (ensure-transpose 'lla-double :complex-double)
-      (ensure-transpose 'lla-complex-single :complex-double)
-      (ensure-transpose 'lla-complex-double :complex-double))))
+      (ensure-transpose t lla::+complex-double+)
+      (ensure-transpose 'lla-integer lla::+complex-double+)
+      (ensure-transpose 'lla-single lla::+complex-double+)
+      (ensure-transpose 'lla-double lla::+complex-double+)
+      (ensure-transpose 'lla-complex-single lla::+complex-double+)
+      (ensure-transpose 'lla-complex-double lla::+complex-double+))))
 
 (addtest (pinned-array-tests)
   copy-from-memory
   (with-foreign-temporary-buffer (pointer 100)
-    (let+ (((&flet check-copy-to-and-from (element-type lla-type)
+    (let+ (((&flet check-copy-to-and-from (element-type internal-type)
               (let ((array (random-array element-type 5 8)))
-                (lla::copy-array-to-memory array pointer lla-type)
+                (lla::copy-array-to-memory array pointer internal-type)
                 (equalp array (lla::create-array-from-memory
-                               pointer lla-type (array-dimensions array))))))
-           ((&macrolet ensure-to-and-from (element-type lla-type)
-              `(ensure (check-copy-to-and-from ,element-type ,lla-type)))))
-      (ensure-to-and-from 'lla-single :single)
-      (ensure-to-and-from 'lla-double :double)
-      (ensure-to-and-from 'lla-complex-single :complex-single)
-      (ensure-to-and-from 'lla-complex-double :complex-double)
-      (ensure-to-and-from 'lla-integer :integer))))
+                               pointer internal-type (array-dimensions array))))))
+           ((&macrolet ensure-to-and-from (element-type internal-type)
+              `(ensure (check-copy-to-and-from ,element-type ,internal-type)))))
+      (ensure-to-and-from 'lla-single lla::+single+)
+      (ensure-to-and-from 'lla-double lla::+double+)
+      (ensure-to-and-from 'lla-complex-single lla::+complex-single+)
+      (ensure-to-and-from 'lla-complex-double lla::+complex-double+)
+      (ensure-to-and-from 'lla-integer lla::+integer+))))
 
 (addtest (pinned-array-tests)
   transpose-from-memory
   (with-foreign-temporary-buffer (pointer 100)
-    (let+ (((&flet check-transpose-to-and-from (element-type lla-type)
+    (let+ (((&flet check-transpose-to-and-from (element-type internal-type)
               (let ((matrix (random-array element-type 5 8)))
-                (lla::transpose-matrix-to-memory matrix pointer lla-type)
+                (lla::transpose-matrix-to-memory matrix pointer internal-type)
                 (equalp matrix (lla::create-transposed-matrix-from-memory
-                                pointer lla-type (array-dimensions matrix))))))
-           ((&macrolet ensure-to-and-from (element-type lla-type)
-              `(ensure (check-transpose-to-and-from ,element-type ,lla-type)))))
-      (ensure-to-and-from 'lla-single :single)
-      (ensure-to-and-from 'lla-double :double)
-      (ensure-to-and-from 'lla-complex-single :complex-single)
-      (ensure-to-and-from 'lla-complex-double :complex-double)
-      (ensure-to-and-from 'lla-integer :integer))))
+                                pointer internal-type (array-dimensions matrix))))))
+           ((&macrolet ensure-to-and-from (element-type internal-type)
+              `(ensure (check-transpose-to-and-from ,element-type ,internal-type)))))
+      (ensure-to-and-from 'lla-single lla::+single+)
+      (ensure-to-and-from 'lla-double lla::+double+)
+      (ensure-to-and-from 'lla-complex-single lla::+complex-single+)
+      (ensure-to-and-from 'lla-complex-double lla::+complex-double+)
+      (ensure-to-and-from 'lla-integer lla::+integer+))))
 
 ;;;; Pinning tests
 ;;; 
 ;;; Test the pinning framework, regardless of its implementation (copying,
 ;;; sharing, etc).
 
-(defun coercible? (lla-source-type lla-target-type)
-  "Permitted coercions for LLA types.  It is guaranteed that CL:COERCE can perform
-these coercions on the corresponding lisp types. Basic summary: (1) integers can be
-coerced to anything, (2) single<->double precision coercions are possible both
-ways, (3) real floats can be upgraded to complex."
+(defun coercible? (source-type target-type)
+  "Permitted coercions for internal LLA types.  It is guaranteed that
+CL:COERCE can perform these coercions on the corresponding lisp types. Basic
+summary: (1) integers can be coerced to anything, (2) single<->double
+precision coercions are possible both ways, (3) real floats can be upgraded to
+complex."
   (cond
     ;; always valid
-    ((eq lla-source-type :integer) t)
+    ((eq source-type lla::+integer+) t)
     ;; nothing else can be converted to integer
-    ((eq lla-target-type :integer) nil)
+    ((eq target-type lla::+integer+) nil)
     ;; no complex->real
-    ((and (lla-complex? lla-source-type)
-          (not (lla-complex? lla-target-type)))
+    ((and (lla::complex? source-type)
+          (not (lla::complex? target-type)))
      nil)
     ;; all the rest should be possible
     (t t)))
@@ -187,64 +189,67 @@ ways, (3) real floats can be upgraded to complex."
   ;;   "Generate the list of all LLA (source target) pairs for which
   ;; coercible? holds.  For internal use only, NOT EXPORTED."
   (let (coercible)
-    (dolist (source (lla-types))
-      (dolist (target (lla-types))
+    (dolist (source lla::+internal-types+)
+      (dolist (target lla::+internal-types+)
         (when (coercible? source target)
           (push (list source target) coercible))))
     ;; reverse only for cosmetic purposes (debugging)
     (nreverse coercible)))
 
-(defun test-pinning-readonly (source-type destination-type &key
-                              (report? t) (length 50))
-  (let ((vector (make-random-array length source-type 100)))
+(defun test-pinning-readonly (source-type destination-type
+                              &key (length 50))
+  "Test array pinning (input only)."
+  (let ((vector (random-array (lla::lisp-type source-type) length)))
     (lla::with-pinned-array (pointer vector destination-type nil nil nil nil)
-      (array-at-pointer= vector pointer destination-type :report? report?))))
+      (check-memory-contents2 pointer destination-type vector))))
 
-(defun test-pinning-copy (source-type destination-type &key
-                          (report? t) (length 50))
-  (let* ((vector (make-random-array length source-type 100))
+(defun test-pinning-copy (source-type destination-type
+                          &key (length 50))
+  "Test array pinning (copy requested).  The memory is modified, compared
+again, and the original vector is checked to ensure that it remains constant."
+  (let* ((vector (random-array (lla::lisp-type source-type) length))
          (copy (copy-seq vector))
          (copy-inc (map 'vector #'1+ copy)))
     (lla::with-pinned-array (pointer vector destination-type nil
                                      :copy nil nil)
       ;; check equality
-      (unless (array-at-pointer= copy pointer destination-type
-                                 :report? report?)
+      (unless (check-memory-contents2 pointer destination-type copy)
         (return-from test-pinning-copy nil))
       ;; increment memory area, check equality, and that original is intact
       (dotimes (i length)
-        (incf (lla::mem-aref* pointer destination-type i) 1))
-      (and (array-at-pointer= copy-inc pointer destination-type
-                              :report? report?)
+        (incf (lla::foreign-aref pointer destination-type i) 1))
+      (and (check-memory-contents2 pointer destination-type copy-inc)
            (equalp vector copy)))))
 
-(defun test-pinning-output (source-type destination-type &key
-                            (report? t) (length 50))
-  (let* ((vector (make-random-array length source-type 100))
+(defun test-pinning-output (source-type destination-type
+                            &key (length 50))
+  "Test array pinning (with output).  Procedure is similar to
+test-pinning-copy, except that the output is also checked."
+  (let* ((vector (random-array (lla::lisp-type source-type) length))
          vector-inc
          (copy (copy-seq vector))
          (copy-inc (map 'vector #'1+ copy)))
     (lla::with-pinned-array (pointer vector destination-type nil
-                                    vector-inc nil nil)
+                                     vector-inc nil nil)
       ;; check equality
-      (unless (array-at-pointer= copy pointer destination-type :report? report?)
+      (unless (check-memory-contents2 pointer destination-type copy)
         (return-from test-pinning-output nil))
       ;; increment memory area, check equality, and that original is intact
       (dotimes (i length)
-        (incf (lla::mem-aref* pointer destination-type i) 1))
-      (unless (and (array-at-pointer= copy-inc pointer destination-type
-                                      :report? report?)
+        (incf (lla::foreign-aref pointer destination-type i) 1))
+      (unless (and (check-memory-contents2 pointer destination-type copy-inc)
                    (equalp vector copy))
         (return-from test-pinning-output nil)))
     ;; check output
     (every #'= vector-inc copy-inc)))
 
-(defun test-vector-output (lla-type &key (length 50))
-  (let ((vector (make-random-array length lla-type 100))
+(defun test-vector-output (internal-type &key (length 50))
+  (let ((vector (random-array (lla::lisp-type internal-type) length))
         output)
-    (lla::with-array-output (pointer output lla-type length nil)
+    (lla::with-array-output (pointer output internal-type length nil)
       (dotimes (index length)
-        (setf (lla::mem-aref* pointer lla-type index) (aref vector index))))
+        (setf (lla::foreign-aref pointer internal-type index)
+              (aref vector index))))
     (equalp vector output)))
 
 
@@ -279,10 +284,8 @@ ways, (3) real floats can be upgraded to complex."
 
 (addtest (pinned-array-tests)
   vector-output
-  (ensure (test-vector-output :integer))
-  (ensure (test-vector-output :single))
-  (ensure (test-vector-output :double))
-  (ensure (test-vector-output :complex-single))
-  (ensure (test-vector-output :complex-double)))
-
-
+  (ensure (test-vector-output lla::+integer+))
+  (ensure (test-vector-output lla::+single+))
+  (ensure (test-vector-output lla::+double+))
+  (ensure (test-vector-output lla::+complex-single+))
+  (ensure (test-vector-output lla::+complex-double+)))

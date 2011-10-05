@@ -1,21 +1,12 @@
 (in-package :lla)
 
-;;; Higher level linear algebra functions defined here.
+;;;; Higher level linear algebra functions defined here.
 ;;;
 ;;; General convention for vectors in places of matrices: should be
 ;;; interpreted as a conforming vector.  If the result is an 1xn or nx1
 ;;; matrix, it should be converted to a vector iff some related argument was a
 ;;; vector.  For example, (solve a b) should be a vector iff b is a vector,
-;;; otherwise it should be a matrix.  In case of ambiguity (eg (mm a b) could
-;;; be both (dot a b) or (outer a b) when a and b are vectors) signal an
-;;; error.
-
-;;; General notes about LAPACKE/CBLAS:
-;;; 
-;;; The leading dimension for row-major matrices is the SECOND dimension
-;;; (number of columns).
-
-;;; Helper functions
+;;; otherwise it should be a matrix.
 
 ;;;;  matrix multiplication
 ;;; 
@@ -33,7 +24,6 @@
 ;;; - mmm could detect and collect scalars
 ;;; - methods for triangular matrices
 
-
 (defun dimensions-as-matrix (array orientation)
   "If ARRAY is a vector, return its dimensions as a matrix with given
 ORIENTATION (:ROW or :COLUMN) as multiple values, and T as the third value.
@@ -47,11 +37,9 @@ vectors as conforming matrices (eg see MM)."
     (2 (let+ (((d0 d1) (array-dimensions array)))
          (values d0 d1 nil)))))
 
-(defgeneric mm (a b &optional alpha)
-  (:documentation
-   "multiply A and B, also by the scalar alpha (defaults to 1).")
-  (:method (a b &optional (alpha 1))
-    (mm (as-array a) (as-array b) alpha)))
+(defgeneric mm (a b)
+  (:documentation  "Matrix multiplication of A and B.")
+  (:method (a b) (mm (as-array a) (as-array b))))
 
 (defmethod as-matrix ((matrix-square-root matrix-square-root))
   (mm (left-square-root matrix-square-root) t))
@@ -60,10 +48,11 @@ vectors as conforming matrices (eg see MM)."
   (as-array (as-matrix matrix-square-root)))
 
 (defun mmm (&rest matrices)
+  "Multiply arguments from left to right using MM."
   (reduce #'mm matrices))
 
-(defmethod mm ((a array) (b array) &optional (alpha 1))
-  (let+ ((common-type (common-float-type a b alpha))
+(defmethod mm ((a array) (b array))
+  (let+ ((common-type (common-float-type a b))
          ((&values a0 a1 av) (dimensions-as-matrix a :row))
          ((&values b0 b1 bv) (dimensions-as-matrix b :column))
          (c-dimensions (cond
@@ -74,9 +63,8 @@ vectors as conforming matrices (eg see MM)."
     ;; here C=AB <=> C^T=B^T A^T, so in the argument list, A and B are
     ;; interchanged
     (blas-call ("gemm" common-type c)
-      #\N #\N (&integers b1 a0 b0) (&atom* alpha) (&array b)
-      (&integer b1) (&array a) (&integer a1) 0
-      (&output c c-dimensions) (&integer b1))))
+      #\N #\N (&integers b1 a0 b0) 1 (&array b) (&integer b1)
+      (&array a) (&integer a1) 0 (&output c c-dimensions) (&integer b1))))
 
 ;;; !! this is how we could speed things up with compiler macros: have a
 ;;; !! compiler macro transform (MM (TRANSPOSE FOO) BAR) to (MM-TN FOO BAR),
@@ -84,12 +72,11 @@ vectors as conforming matrices (eg see MM)."
 ;;; !! we could have (lazy-transpose* FOO) explicitly, and have MM dispatch on
 ;;; !! that.  Will investigate.
 
-(defun mm-hermitian% (a transpose-left? &optional (alpha 1))
-  "Calculate alpha*A*op(A) if TRANSPOSE-LEFT? is NIL, and alpha*op(A)*A
-  otherwise.  ALPHA defaults to 1.  op() is always conjugate transpose, but
-  may be implemented as a transpose if A is real, in which case the two are
-  equivalent.  This function is meant to be used internally, and is not
-  exported."
+(defun mm-hermitian% (a transpose-left?)
+  "Calculate A*op(A) if TRANSPOSE-LEFT? is NIL, and op(A)*A otherwise.  op()
+  is always conjugate transpose, but may be implemented as a transpose if A is
+  real, in which case the two are equivalent.  This function is meant to be
+  used internally, and is not exported."
   ;; implementation note: no transpose is necessary
   (let+ (((a0 a1) (array-dimensions a))
          ((&values dim-c other-dim-a)
@@ -97,64 +84,63 @@ vectors as conforming matrices (eg see MM)."
               (values a1 a0)
               (values a0 a1)))
          (type (common-float-type a))
-         (real-type (real-lla-type type)))
+         (real-type (absolute-square-type type)))
     (blas-call (("syrk" "herk") type 
                 (make-hermitian-matrix c))
       #\U (&char (if transpose-left? #\N #\C))
-      (&integers dim-c other-dim-a) (&atom* alpha)
+      (&integers dim-c other-dim-a) 1
       (&array a) (&integer a1) 0
       (&output c (list dim-c dim-c) :type real-type)
       (&integer dim-c))))
 
-(defmethod mm ((a array) (b (eql t)) &optional (alpha 1))
+(defmethod mm ((a array) (b (eql t)))
   ;; A A^T
-  (mm-hermitian% a nil alpha))
+  (mm-hermitian% a nil))
 
-(defmethod mm ((a (eql t)) (b array) &optional (alpha 1))
+(defmethod mm ((a (eql t)) (b array))
   ;; A^T A
-  (mm-hermitian% b t alpha))
+  (mm-hermitian% b t))
 
-(defmethod mm ((a wrapped-matrix) (b wrapped-matrix) &optional (alpha 1))
-  (mm (as-array a) (as-array b) alpha))
+(defmethod mm ((a wrapped-matrix) (b wrapped-matrix))
+  (mm (as-array a) (as-array b)))
 
-(defmethod mm ((a wrapped-matrix) b &optional (alpha 1))
-  (mm (as-array a) b alpha))
+(defmethod mm ((a wrapped-matrix) b)
+  (mm (as-array a) b))
 
-(defmethod mm (a (b wrapped-matrix) &optional (alpha 1))
-  (mm a (as-array b) alpha))
+(defmethod mm (a (b wrapped-matrix))
+  (mm a (as-array b)))
 
-;;;; (mm vector t) is the dot product
+;;; (mm vector t) is the dot product
 
-(defun sum-of-conjugate-squares (vector)
-  (reduce #'+ vector :key (lambda (x) (* x (conjugate x)))))
-
-(defmethod mm ((a vector) (b vector) &optional (alpha 1))
+(defmethod mm ((a vector) (b vector))
   (assert (= (length a) (length b)))
-  (* alpha
-     (loop for a-elt :across a
-           for b-elt :across b
-           summing (* a-elt (conjugate b-elt)))))
+  (loop for a-elt :across a
+        for b-elt :across b
+        summing (* a-elt (conjugate b-elt))))
 
-(defmethod mm ((a vector) (b (eql t)) &optional (alpha 1))
-  (* alpha (sum-of-conjugate-squares a)))
+(defmethod mm ((a vector) (b (eql t)))
+  (declare (inline absolute-square))
+  (reduce #'+ a :key #'absolute-square))
 
-(defmethod mm ((a (eql t)) (b vector) &optional (alpha 1))
-  (* alpha (sum-of-conjugate-squares b)))
+(defmethod mm ((a (eql t)) (b vector))
+  (declare (inline absolute-square))
+  (reduce #'+ b :key #'absolute-square))
 
 ;;; outer product
 
-(defgeneric outer (a b &optional alpha)
-  (:documentation "Return the outer product column(a) row(b)^H * alpha.  If
-  either A or B is T, they are taken to be conjugate transposes of the other
+(defgeneric outer (a b)
+  (:documentation "Return the outer product column(a) row(b)^H.  If either A
+  or B is T, they are taken to be conjugate transposes of the other
   argument.")
-  (:method ((a vector) (b (eql t)) &optional (alpha 1))
-    (mm (as-column a) t alpha))
-  (:method ((a (eql t)) (b vector) &optional (alpha 1))
-    (mm (as-column b) t alpha))
-  (:method ((a vector) (b vector) &optional (alpha 1))
+  (:method ((a vector) (b (eql t)))
+    (mm (as-column a) t))
+  (:method ((a (eql t)) (b vector))
+    (mm (as-column b) t))
+  (:method ((a vector) (b vector))
     (let* ((a0 (length a))
            (b0 (length b))
-           (result (make-array* (list a0 b0) (common-float-type a b alpha)))
+           ;; !!! currently we are not using the narrowest element type
+           (result (make-array (list a0 b0)))
            (index 0))
       (dotimes (a-index a0)
         (let ((a-elt (aref a a-index)))
@@ -166,59 +152,49 @@ vectors as conforming matrices (eg see MM)."
 
 ;;; mm for diagonal matrices
 
-(defmethod mm ((a diagonal) (b array) &optional (alpha 1))
+(defmethod mm ((a diagonal) (b array))
   (let+ (((b0 b1) (array-dimensions b))
          (a (elements a))
-         (c (make-array (list b0 b1)
-                        :element-type (clnu::emap-common-type a b alpha)))
+         ;; !!! currently we are not using the narrowest element type
+         (c (make-array (list b0 b1)))
          (i 0))
     (assert (= (length a) b0) () 'lla-incompatible-dimensions)
     (dotimes (row b0)
-      (let ((a*alpha (* (row-major-aref a row) alpha)))
+      (let ((a (row-major-aref a row)))
         (dotimes (col b1)
-          (setf (row-major-aref c i) (* (row-major-aref b i) a*alpha))
+          (setf (row-major-aref c i) (* (row-major-aref b i) a))
           (incf i))))
     c))
 
-(defmethod mm ((a array) (b diagonal) &optional (alpha 1))
+(defmethod mm ((a array) (b diagonal))
   (let+ (((a0 a1) (array-dimensions a))
          (b (elements b))
-         (c (make-array (list a0 a1)
-                        :element-type (clnu::emap-common-type a b alpha)))
+         ;; !!! currently we are not using the narrowest element type
+         (c (make-array (list a0 a1)))
          (i 0))
     (assert (= a1 (length b)) () 'lla-incompatible-dimensions)
     (dotimes (row a0)
       (dotimes (col a1)
         (setf (row-major-aref c i)
-              (* (row-major-aref a i) (row-major-aref b col) alpha))
+              (* (row-major-aref a i) (row-major-aref b col)))
         (incf i)))
     c))
 
-(defmethod mm ((a vector) (b diagonal) &optional (alpha 1))
-  (e* a (elements b) alpha))
+(defmethod mm ((a vector) (b diagonal))
+  (e* a (elements b)))
 
-(defmethod mm ((a diagonal) (b vector) &optional (alpha 1))
-  (e* (elements a) b alpha))
+(defmethod mm ((a diagonal) (b vector))
+  (e* (elements a) b))
 
-(defmethod mm ((a diagonal) (b diagonal) &optional (alpha 1))
-  (let+ ((a (elements a))
-         (b (elements b))
-         (n (length a))
-         (result (make-array* n (common-float-type a b alpha))))
-    (assert (= n (length b)))
-    (dotimes (i n)
-      (setf (aref result i) (* alpha (aref a i) (aref b i))))
-    (make-diagonal result)))
+(defmethod mm ((a diagonal) (b diagonal))
+  (make-diagonal (e* (elements a) (elements b))))
 
-(defmethod mm ((a diagonal) (b (eql t)) &optional (alpha 1))
-  (let ((a (elements a)))
-    (make-diagonal
-     (map `(simple-array ,(lla-to-lisp-type (common-float-type a alpha)) (*))
-          (lambda (a) (* alpha a (conjugate a)))
-          a))))
+(defmethod mm ((a diagonal) (b (eql t)))
+  ;; !!! currently we are not using the narrowest element type
+  (make-diagonal (map1 #'absolute-square (elements a))))
 
-(defmethod mm ((a (eql t)) (b diagonal) &optional (alpha 1))
-  (mm b a alpha))
+(defmethod mm ((a (eql t)) (b diagonal))
+  (mm b a))
 
 
 ;;; hermitian (symmetric) updates
@@ -228,13 +204,13 @@ vectors as conforming matrices (eg see MM)."
 ;;   (check-type a hermitian-matrix)
 ;;   (check-type x vector)
 ;;   (lb-call ((common-type (lb-target-type a x alpha))
-;;             (real-type (real-lla-type common-type))
+;;             (real-type (absolute-square-type common-type))
 ;;             (procedure (lb-procedure-name common-type syr her))
 ;;             ((:matrix a% common-type (n n%) n2 :output c) a)
 ;;             ((:vector x% common-type n3) x)
 ;;             ((:atom alpha% real-type) (coerce* alpha real-type))
 ;;             ((:char u%) #\U)
-;;             ((:integer one%) 1))
+;;             ((+integer+ one%) 1))
 ;;     (assert (= n n2 n3))
 ;;     (call procedure u% n% alpha% x% one% a% n%)
 ;;     (make-matrix% n n c :kind :hermitian)))
@@ -251,7 +227,7 @@ vectors as conforming matrices (eg see MM)."
 ;;             ((:vector y% common-type n4) y)
 ;;             ((:atom alpha% common-type) (coerce* alpha common-type))
 ;;             ((:char u%) #\U)
-;;             ((:integer one%) 1))
+;;             ((+integer+ one%) 1))
 ;;     (assert (= n n2 n3 n4))
 ;;     (call procedure u% n% alpha% x% one% y% one% a% n%)
 ;;     (make-matrix% n n c :kind :hermitian)))
@@ -268,9 +244,8 @@ vectors as conforming matrices (eg see MM)."
                           (make-instance 'lu :lu lu :ipiv ipiv))
       (&integers a0 a1)
       (&array a :transpose? t :output (lu :transpose? t))
-      (&integer a0) (&output ipiv (min a0 a1) :type :integer)
+      (&integer a0) (&output ipiv (min a0 a1) :type +integer+)
       &info)))
-
 
 ;;;; Hermitian factorization
 
@@ -285,7 +260,7 @@ vectors as conforming matrices (eg see MM)."
                           (make-instance 'hermitian-factorization
                                          :factor factor :ipiv ipiv))
       #\U (&integers a0) (&array a :output factor) (&integer a0)
-      (&output ipiv a0 :type :integer) (&work-query) (&info))))
+      (&output ipiv a0 :type +integer+) (&work-query) (&info))))
 
 ;;;; solving linear equations
 
@@ -303,7 +278,7 @@ vectors as conforming matrices (eg see MM)."
     (assert (= lu0 lu1 b0) () 'lla-incompatible-dimensions)
     (lapack-call ("getrs" (common-float-type lu b) x)
       #\N (&integer lu0) (&integer b1) (&array lu :transpose? t)
-      (&integer lu0) (&array ipiv :type :integer)
+      (&integer lu0) (&array ipiv :type +integer+)
       (&array b :transpose? t :output (x :transpose? t)) (&integer lu0)
       &info)))
 
@@ -313,7 +288,7 @@ vectors as conforming matrices (eg see MM)."
     (assert (= a0 a1 b0) () 'lla-incompatible-dimensions)
     (lapack-call ("gesv" (common-float-type a b) x)
       (&integer a0) (&integer b1) (&array a :transpose? t) (&integer a0)
-      (&work a0 :integer) (&array b :transpose? t :output (x :transpose? t))
+      (&work a0 +integer+) (&array b :transpose? t :output (x :transpose? t))
       (&integer a0) &info)))
 
 (defmethod solve ((cholesky cholesky) b)
@@ -343,7 +318,7 @@ vectors as conforming matrices (eg see MM)."
     (assert (= a0 a1 b0) () 'lla-incompatible-dimensions)
     (lapack-call (("sytrs" "hetrs") (common-float-type factor b) x)
       #\U (&integers a0 b1) (&array factor) (&integer a0)
-      (&array ipiv :type :integer)
+      (&array ipiv :type +integer+)
       (&array b :transpose? t :output (x :transpose? t)) (&integer b0)
       &info)))
 
@@ -384,7 +359,7 @@ vectors as conforming matrices (eg see MM)."
     (assert (= lu0 lu1 (length ipiv)))
     (lapack-call-w/query ("getri" (common-float-type lu) inverse)
       (&integer lu0) (&array lu :transpose? t :output (inverse :transpose? t))
-      (&integer lu0) (&array ipiv :type :integer) (&work-query) &info)))
+      (&integer lu0) (&array ipiv :type +integer+) (&work-query) &info)))
 
 (defmethod invert ((a hermitian-factorization) &key)
   (let+ (((&slots-r/o factor ipiv) a)
@@ -393,7 +368,7 @@ vectors as conforming matrices (eg see MM)."
     (lapack-call (("sytri" "hetri") (common-float-type factor)
                   (make-hermitian-matrix inverse))
       #\U (&integer a0) (&array factor :output inverse) (&integer a0)
-      (&array ipiv :type :integer) (&work a0) &info)))
+      (&array ipiv :type +integer+) (&work a0) &info)))
 
 (defmethod invert ((a hermitian-matrix) &key)
   (invert (hermitian-factorization a)))
@@ -415,10 +390,10 @@ matrix, UNIT-DIAG? indicates whether the diagonal is supposed to consist of
                  &info)))
   
 (defmethod invert ((a upper-triangular-matrix) &key)
-  (invert-triangular% (elements a) t nil :upper))
+  (invert-triangular% (elements a) t nil 'upper))
 
 (defmethod invert ((a lower-triangular-matrix) &key)
-  (invert-triangular% (elements a) nil nil :lower))
+  (invert-triangular% (elements a) nil nil 'lower))
 
 (defmethod invert ((a cholesky) &key)
   (let+ ((a (elements (left-square-root a)))
@@ -508,7 +483,7 @@ matrix, UNIT-DIAG? indicates whether the diagonal is supposed to consist of
 ;;   (declare (ignore check-real?))        ; eigenvalues are always real
 ;;   (lb-call ((common-type (common-float-type a))
 ;;             (complex? (lla-complex? common-type))
-;;             (real-type (real-lla-type common-type))
+;;             (real-type (absolute-square-type common-type))
 ;;             (procedure (lb-procedure-name common-type syev heev))
 ;;             ((:char nv-char%) (if vectors? #\V #\N))
 ;;             ((:char u-char%) #\U)       ; upper triangle
@@ -538,23 +513,21 @@ matrix, UNIT-DIAG? indicates whether the diagonal is supposed to consist of
   (ecase method
     (:qr (apply #'least-squares-qr y x rest))))
 
-(define-condition not-enough-columns (error)
-  ())
-
 (defun last-rows-ss (matrix nrhs common-type)
   "Calculate the sum of squares of the last rows of MATRIX columnwise,
 omitting the first NRHS rows.  If MATRIX is a vector, just do this for the
 last elements.  Used for interfacing with xGELS."
   (ecase (array-rank matrix)
-    (1 (reduce #'+ matrix :key #'conjugate-square :start nrhs))
+    (1 (reduce #'+ matrix :key #'absolute-square :start nrhs))
     (2 (let+ (((m n) (array-dimensions matrix))
-              (real-type (real-lla-type common-type))
-              (sum (make-array* n real-type (zero* real-type)))
+              (element-type (lisp-type (absolute-square-type common-type)))
+              (sum (make-array n :element-type element-type
+                               :initial-element (coerce 0 element-type)))
               (matrix-index (array-row-major-index matrix nrhs 0)))
          (loop repeat (- m nrhs) do
            (dotimes (sum-index n)
              (incf (aref sum sum-index)
-                   (conjugate-square (row-major-aref matrix matrix-index)))
+                   (absolute-square (row-major-aref matrix matrix-index)))
              (incf matrix-index)))
          sum))))
 
@@ -570,7 +543,6 @@ well-conditioned."
   ;; implementation note: there is no point in transposing the last rows of
   ;; b-and-ss, we could just sum them as is, would even be better for
   ;; linearity of memory access
-  (declare (optimize debug (speed 0)))
   (let+ (((&values y0 y1) (dimensions-as-matrix y :column))
          ((x0 x1) (array-dimensions x))
          (df (- x0 x1))
@@ -605,7 +577,7 @@ well-conditioned."
 
 ;; (defun least-squares-svd-d (y x &key (rcond -1))
 ;;   (lb-call ((common-type (common-float-type x y))
-;;             (real-type (real-lla-type common-type))
+;;             (real-type (absolute-square-type common-type))
 ;;             (procedure (lb-procedure-name common-type gelsd))
 ;;             ((:matrix x% common-type (m m%) (n n%) :output :copy) x)
 ;;             ((:matrix y% common-type m2 (nrhs nrhs%) :output b) y)
@@ -614,16 +586,16 @@ well-conditioned."
 ;;             ;; !!! SMLSIZ=0.
 ;;             (minmn (min m n))
 ;;             (nlvl (max 0 (1+ (ceiling (log minmn 2)))))
-;;             ((:work iwork% :integer) (* minmn (+ 11 (* 3 nlvl))))
+;;             ((:work iwork% +integer+) (* minmn (+ 11 (* 3 nlvl))))
 ;;             ;; !!! end of fix, comment out iwork% below when removed.
 ;;             ((:work-queries lwork% 
 ;;                             (work% common-type)
 ;;                             (rwork% real-type t)
-;;                             ;; (iwork% :integer)
+;;                             ;; (iwork% +integer+)
 ;;                             ))
 ;;             ((:check info%))
 ;;             ((:output s% real-type s) (min m n))
-;;             ((:output rank% :integer rank) 1)
+;;             ((:output rank% +integer+ rank) 1)
 ;;             ((:atom rcond% real-type) (coerce* rcond real-type)))
 ;;     (assert (= m m2))
 ;;     (unless (<= n m)
@@ -706,9 +678,29 @@ to generate random draws, etc."))
 
 ;;; spectral factorization
 
-(defun spectral-factorization (a &key (vectors? t) (abstol 0))
-  "Return a spectral factorization of A, or just the eigenvalues if VECTORS?
-is NIL.  The LAPACK manual says the following about ABSTOL:
+(defun eigenvalues (a &key (abstol 0))
+  "Return the eigenvalues of A.  See the documentation of
+SPECTRAL-FACTORIZATION about ABSTOL."
+  (check-type a hermitian-matrix)
+  (let+ ((a (elements a))
+         (type (common-float-type a))
+         (real-type (absolute-square-type type))
+         ((a0 a1) (array-dimensions a)))
+    (assert (= a0 a1))
+    (with-fp-traps-masked
+      (if (complex? type)
+          (error "needs to be written, report this as an issue")
+          (lapack-call-w/query (("syevr" "heevr") type w)
+            #\N #\A #\U (&integer a0) (&array a :output :copy)
+            (&integer a0) nil nil nil nil (&atom abstol :type real-type)
+            (&work 1 +integer+) (&output w a0 :type real-type)
+            nil (&integer a0) (&work (* 2 (max 1 a0))) (&work-query)
+            (&work-query +integer+) &info)))))
+
+(defun spectral-factorization (a &key (abstol 0))
+  "Return a spectral factorization of A.
+
+The LAPACK manual says the following about ABSTOL:
 
 The absolute error tolerance for the eigenvalues.  An approximate eigenvalue
 is accepted as converged when it is determined to lie in an interval [a,b] of
@@ -730,33 +722,24 @@ guarantees about high relative accuracy, but furutre releases will. See
 J. Barlow and J. Demmel, \"Computing Accurate Eigensystems of Scaled
 Diagonally Dominant Matrices\", LAPACK Working Note #7, for a discussion of
 which matrices define their eigenvalues to high relative accuracy."
-  (declare (optimize debug))
   (check-type a hermitian-matrix)
   (let+ ((a (elements a))
          (type (common-float-type a))
-         (real-type (real-lla-type type))
+         (real-type (absolute-square-type type))
          ((a0 a1) (array-dimensions a)))
     (assert (= a0 a1))
     (with-fp-traps-masked
-      (if (lla-complex? type)
+      (if (complex? type)
           (error "needs to be written, report this as an issue")
-          (if vectors?
-              (lapack-call-w/query (("syevr" "heevr") type
-                                    (make-spectral-factorization
-                                     :z z :w (make-diagonal w)))
-                #\V #\A #\U (&integer a0) (&array a :output :copy)
-                (&integer a0) nil nil nil nil (&atom* abstol :type real-type)
-                (&work 1 :integer) (&output w a0 :type real-type)
-                (&output z (list a0 a1)) (&integer a0)
-                (&work (* 2 (max 1 a0))) (&work-query) (&work-query :integer)
-                &info)
-              (lapack-call-w/query (("syevr" "heevr") type
-                                    (make-diagonal w))
-                #\N #\A #\U (&integer a0) (&array a :output :copy)
-                (&integer a0) nil nil nil nil (&atom* abstol :type real-type)
-                (&work 1 :integer) (&output w a0 :type real-type)
-                nil (&integer a0) (&work (* 2 (max 1 a0))) (&work-query)
-                (&work-query :integer) &info))))))
+          (lapack-call-w/query (("syevr" "heevr") type
+                                (make-spectral-factorization
+                                 :z z :w (make-diagonal w)))
+            #\V #\A #\U (&integer a0) (&array a :output :copy)
+            (&integer a0) nil nil nil nil (&atom abstol :type real-type)
+            (&work 1 +integer+) (&output w a0 :type real-type)
+            (&output z (list a0 a1)) (&integer a0)
+            (&work (* 2 (max 1 a0))) (&work-query) (&work-query +integer+)
+            &info)))))
 
 (defmethod as-matrix ((sf spectral-factorization))
   (let+ (((&structure-r/o spectral-factorization- z w) sf))
@@ -783,7 +766,7 @@ which matrices define their eigenvalues to high relative accuracy."
   (let+ (((a0 a1) (array-dimensions a))
          (min (min a0 a1))
          (type (common-float-type a)))
-    (if (lla-complex? type)
+    (if (complex? type)
         ;; for the complex case, we have to transpose
         (error "not implemented yet, report as a bug")
         ;; for the real case, we don't have to transpose, just exchange order
@@ -798,7 +781,7 @@ which matrices define their eigenvalues to high relative accuracy."
             (&char jobz) (&integers a1 a0) (&array a :output :copy)
             (&integer a1) (&output d min) (&output vt (list vt0 a1))
             (&integer (max a1 1)) (&output u (list a0 u1))
-            (&integer (max u1 1)) (&work-query) (&work (* 8 min) :integer)
+            (&integer (max u1 1)) (&work-query) (&work (* 8 min) +integer+)
             &info)))))
 
 (defmethod as-matrix ((svd svd))

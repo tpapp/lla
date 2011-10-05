@@ -19,32 +19,6 @@
     `(with-foreign-pointer (,pointer (* ,size (foreign-type-size :double) 2))
        ,@body))
 
-;;; !! following 2 functions are redundant, should be phased out
-	
-(defun array-at-pointer= (array pointer lla-type &key (test #'=) (report? nil))
-  "Return non-nil if the elements of array are not equal (using test) to the data at
-pointer, which can be of a different type, specified by lla-type.  If REPORT?,
-the first discrepancy is reported to *ERROR-OUTPUT*, before returning NIL."
-  (dotimes (index (array-total-size array))
-    (let ((array-element (row-major-aref array index))
-          (pointer-element (lla::mem-aref* pointer lla-type index)))
-      (unless (funcall test array-element pointer-element)
-        (when report?
-          (format *error-output*
-                  "at index ~a, ~a /= ~a~%" index array-element pointer-element))
-        (return-from array-at-pointer= nil))))
-  t)
-
-(defun make-random-array (dimensions lla-type &optional (random-arg 100))
-  "Make a vector of the given LLA type, filled with random elements.
-Random is called with random-arg, the default is an integer int order
-to facilitate comparing with = in case of type conversions, or if you
-are using integer for lla-type."
-  (aprog1 (make-array* dimensions lla-type)
-    (dotimes (index (array-total-size it))
-      (setf (row-major-aref it index)
-            (coerce* (random random-arg) lla-type)))))
-
 (defparameter *allowed-difference* 1d-5
   ;; default is for catching major mistakes, use smaller value for fine points
   "Maximum allowed difference used by approx=.")
@@ -72,8 +46,8 @@ are using integer for lla-type."
 (addtest (utilities-tests)
   ==-test
   (let ((*lift-equality-test* #'==))
-    (ensure-same (clo 1 :/) (clo 1 :/))
-    (ensure-different (clo 1 :/) (clo 2 :/))))
+    (ensure-same (dense t 1) (dense t 1))
+    (ensure-different (dense t 1) (dense t 2))))
 
 ;; (addtest (utilities-tests)
 ;;   make-vector-or-matrix-test

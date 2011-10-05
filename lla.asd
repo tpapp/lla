@@ -28,20 +28,17 @@
     :depends-on ("package-init")
     :serial t
     :components
-    ((:file "utilities")
-     (:file "types")
+    ((:file "types")
      (:file "conditions")
-     (:file "fortran-atom")
-     (:file "printing")
      (:file "special-matrices")
-     (:file "clo")))
+     (:file "printing")))
    (:module
     "pinned-array"
     :pathname #P"src/"
     :depends-on ("basics")
     :serial t
     :components
-    ((:file "copy-array")
+    ((:file "foreign-memory")
      (:file "pinned-array")))
    (:module
     "linear-algebra"

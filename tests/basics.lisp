@@ -39,36 +39,6 @@
 ;;     (ensure-same (mem-ref c% :unsigned-char) 67)
 ;;     (ensure-same (mem-ref t% :unsigned-char) 84)))
 
-(addtest (basic-tests)
-  ;; only test corner cases of CLO, since pretty much everything is
-  ;; using it anyway
-  clo
-  (ensure-error (eval '(lla:clo foo 1 2 3))) ; foo undefined
-  (ensure-no-warning (eval '(lla:clo :upper
-                             1 2 :/
-                             * 4)))
-  (ensure-error (eval '(lla:clo 1 2 :/ 3))))
-
-
-;;; utilities
-
-(addtest (basic-tests)
-  ensure
-  (let* ((*lift-equality-test* #'==)
-         (v #(1 2))
-         (m #2A((0 1)
-                (2 3)))
-         (h (convert-matrix :hermitian m)))
-    ;; vector
-    (ensure-same (ensure-vector 1) #(1))
-    (ensure-same (ensure-vector v) v)
-    (ensure-error (ensure-vector m))
-    ;; matrix
-    (ensure-same (ensure-matrix 1) #2A((1)))
-    (ensure-same (ensure-matrix v :row) #2A((1 2)))
-    (ensure-same (ensure-matrix v :column) #2A((1) (2)))
-    (ensure-error (ensure-matrix v))))
-
 ;; ;;; copy-elements
 
 ;; (addtest (basic-tests)
@@ -120,53 +90,57 @@
 (addtest (basic-tests)
   special-univariate-operation
   (let ((*lift-equality-test* #'==))
-    (ensure-same (e- (clo :upper 2 :/)) (clo :upper -2 :/))
-    (ensure-same (e/ (clo :upper 2 :/)) (clo :upper 0.5 :/))
-    (ensure-same (e+ (clo :upper 2 :/)) (clo :upper 2 :/))))
+    (ensure-same (e- (upper t 2)) (upper t -2))
+    (ensure-same (e/ (upper t 2)) (upper t 0.5))
+    (ensure-same (e+ (upper t 2 )) (upper t 2))))
 
 (addtest (basic-tests)
   special-bivariate-operation
   (let+ ((*lift-equality-test* #'==)
-         (a (clo 1 2 :/ 3 4))
-         (b (clo 5 7 :/ 11 13))
+         (a (dense t
+              (1 2)
+              (3 4)))
+         (b (dense t
+              (5 7)
+              (11 13)))
          ((&macrolet test (kind op)
-            (check-type kind keyword)
             `(ensure-same (,op (convert-matrix ,kind a)
                                (convert-matrix ,kind b))
                           (convert-matrix ,kind (,op a b)))))
          ((&macrolet tests (kind &optional (ops '(e+ e- e*)))
-            (check-type kind keyword)
             `(progn
               ,@(mapcar (lambda (op) `(test ,kind ,op)) ops)))))
-    (tests :hermitian)
-    (tests :lower)
-    (tests :upper)))
+    (tests 'hermitian)
+    (tests 'lower)
+    (tests 'upper)))
 
 (addtest (basic-tests)
   special-bivariate-to-array
   (let+ ((*lift-equality-test* #'==)
-         (a (clo 1 2 :/ 3 4))
-         (b (clo 5 7 :/ 11 13))
+         (a (dense t
+              (1 2)
+              (3 4)))
+         (b (dense t
+              (5 7)
+              (11 13)))
          ((&macrolet test (kind op)
-            (check-type kind keyword)
             `(progn
                (ensure-same (,op (convert-matrix ,kind a) b) (,op a b))
                (ensure-same (,op a (convert-matrix ,kind b)) (,op a b)))))
          ((&macrolet tests (kind &optional (ops '(e+ e- e*)))
-            (check-type kind keyword)
             `(progn ,@(mapcar (lambda (op) `(test ,kind ,op)) ops)))))
-    (tests :hermitian)
-    (tests :lower)
-    (tests :upper)))
+    (tests 'hermitian)
+    (tests 'lower)
+    (tests 'upper)))
 
 (addtest (basic-tests)
   special-mean
-  (let ((a (clo :upper :double
-                2 4 :/
-                0 6))
-        (b (clo :lower :double
-                2 0 :/
-                4 6))
+  (let ((a (upper 'lla-double
+             (2 4)
+             (0 6)))
+        (b (lower 'lla-double
+             (2 0)
+             (4 6)))
         (*lift-equality-test* #'==))
     (ensure-same (mean (list (e* 2 a) (e- a))) (e/ a 2)
                  :ignore-multiple-values? t)
@@ -174,67 +148,3 @@
                  :ignore-multiple-values? t)
     (ensure-same (mean (list a b)) (mean (list (as-array a) (as-array b)))
                  :ignore-multiple-values? t)))
-
-;; (addtest (basic-tests)
-;;   matrix-classes
-;;   (let ((m (make-matrix 2 2 :double)))
-;;    (setf (mref m 0 0) 6d0)
-;;    (incf (mref m 0 1) 7d0)
-;;    (decf (mref m 1 0) 6d0)
-;;    (setf (mref m 1 1) 5d0)
-;;    (ensure-same m (clo :double
-;;                        6 7 :/
-;;                        -6 5)
-;;                 :test #'==)
-;;    (let ((l (copy-matrix m :kind :lower))
-;;          (u (copy-matrix m :kind :upper))
-;;          (h (copy-matrix m :kind :hermitian)))
-;;      ;; we didn't call set-restricted, so we are testing mref here
-;;      (ensure-same (mref l 0 1) 0d0)
-;;      (ensure-same (mref u 1 0) 0d0)
-;;      (ensure-same (mref h 1 0) 7d0)
-;;      (let ((*lift-equality-test* #'==))
-;;        ;; set-restricted is called by ==
-;;        (ensure-same l (clo :lower :double
-;;                            6 0 :/
-;;                            -6 5))
-;;        (ensure-same u (clo :upper :double
-;;                            6 7 :/
-;;                            0 5))
-;;        (ensure-same h (clo :hermitian :double
-;;                            6 7 :/
-;;                            7 5))))))
-
-;; ;;; diagonal
-
-;; (addtest (basic-tests)
-;;   diagonal
-;;   (let ((d1 (clo :diagonal :double 1 2 3))
-;;         (d2 (lla::make-diagonal% (clo :double 1 2 3))))
-;;     (ensure-same d1 d2 :test #'==)))
-
-;; ;;; bind-extensions
-
-;; (addtest (basic-tests)
-;;   bind-lla-vector
-;;   (bind (((:lla-vector a :length length) (lla-array 5 :double)))
-;;     (dotimes (i length)
-;;       (setf (a i) (coerce* i :double)))
-;;     (dotimes (i length)
-;;       (incf (a i)))
-;;     (ensure-same a (clo :double 1 2 3 4 5) :test #'==)))
-
-;; (addtest (basic-tests)
-;;   bind-lla-matrix
-;;   (bind (((:lla-matrix a :nrow a-nrow :ncol a-ncol) (make-matrix 3 4 :double)))
-;;     (dotimes (row a-nrow)
-;;       (dotimes (col a-ncol)
-;;         (setf (a (a-index row col)) (+ (* 10d0 row) col))))
-;;     (ensure-same a (clo :double
-;;                         0 1 2 3 :/
-;;                         10 11 12 13
-;;                         20 21 22 23)
-;;                  :test #'==)))
-
-;; ;;; clo
-

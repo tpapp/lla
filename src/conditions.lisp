@@ -2,17 +2,37 @@
 
 (in-package #:lla)
 
-;;; errors
+;;;; Internal errors
+
+(define-condition lla-internal-error (error)
+  ((message :initarg :message :initform ""))
+  (:report (lambda (condition stream)
+             (format stream "~A~&This is a bug in LLA, please see the README~
+                             on how to report it."
+                     (slot-value condition 'message))))
+  (:documentation "Internal error in LLA."))
+
+;;;; Type classification errors
+
+(define-condition lla-unhandled-type (error)
+  ((object :initform :object))
+  (:report (lambda (condition stream)
+             (format stream "Could not classify ~A as a numeric type handled ~
+                             by LLA." (slot-value condition 'object))))
+  (:documentation
+   "Could not classify object as a numeric type handled by LLA."))
+
+;;;; LAPACK errors
 
 (define-condition lapack-error (error) ()
   (:documentation "The LAPACK procedure returned a nonzero info code."))
 
-(define-condition lapack-invalid-argument (lapack-error)
+(define-condition lapack-invalid-argument (lapack-error lla-internal-error)
   ((position :initarg :position :type fixnum
              :documentation "Position of the illegal argument"))
-  (:documentation "An argument to a LAPACK procedure had an illegal
-  value.  Generally, this indicates a bug in LLA and should not
-  happen."))
+  (:documentation
+   "An argument to a LAPACK procedure had an illegal value.  Generally, this
+indicates a bug in LLA and should not happen."))
 
 (define-condition lapack-failure (lapack-error)
   ((info :initarg :info :type fixnum
@@ -23,7 +43,11 @@
 
 (define-condition lla-incompatible-dimensions (lapack-error) ())
 
-;;; efficiency warnings
+;;;; efficiency warnings
+;;; 
+;;; The framework for efficiency warnings has to be enabled before loading
+;;; (compiling) the library, using the configuration interface.  See the
+;;; documentation.
 
 (define-condition lla-efficiency-warning (warning)
   ())
