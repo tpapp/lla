@@ -117,12 +117,16 @@ FOREIGN-AREF)."
        (setf (mem-aref ,pointer :char) (char-code ,character))
        ,@body)))
 
-;;;; Specifications
+;;;; Array copying functions
 ;;; 
 ;;; Macros below define optimized copying for certain pairs of LLA types and
 ;;; Common Lisp array element types.  The functions below return the default
-;;; ones for LLA.  Note that when LLA copies from memory, it always aims for
-;;; the same element type, so the other pairs need not be defined.
+;;; ones for LLA.
+
+;;;; Helper macros and standard specifications lists
+;;; 
+;;; Note that when LLA copies from memory, it always aims for the same element
+;;; type, so the other pairs need not be defined.
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
 
@@ -153,84 +157,59 @@ FOREIGN-AREF)."
       (#.+double+ lla-double *)
       (#.+complex-single+ lla-complex-single *)
       (#.+complex-double+ lla-complex-double *)
-      (#.+integer+ lla-integer *))))
+      (#.+integer+ lla-integer *)))
+
+  (defmacro array-clause% ((array internal-type clause-element-type
+                            clause-internal-type)
+                           &body body)
+    "Macro that generates a lambda form that can bed used in
+EXPAND-SPECIFICATIONS%."
+    (with-gensyms (generic? array-type)
+      `(lambda (,clause-internal-type ,clause-element-type)
+         (let* ((,generic? (eq ,clause-element-type '*))
+                (,array-type `(,(if ,generic? 'array 'simple-array)
+                                ,,clause-element-type *)))
+           `((and (typep ,',array ',,array-type)
+                  (= ,',internal-type ,,clause-internal-type))
+             (locally (declare ,@(unless ,generic?
+                                   '((optimize speed (safety 0))))
+                               (type ,,array-type ,',array))
+               ,,@body)))))))
 
 ;;;; Copying to and from memory
-
-(defmacro copy-to-memory% (array pointer internal-type
-                           &optional (specifications
-                                      (all-to-specifications%)))
-  "Helper function for generating optimized code conditioning on internal-type
-and t-he type of array."
-  `(let ((size (array-total-size ,array)))
-     (with-specifications% (,array ,internal-type)
-         ((internal-type% element-type%) ,specifications)
-       `(loop for index below size do
-         (,(value-to-memory% internal-type%) ,,pointer index
-          (row-major-aref ,array index))))))
-
-(defmacro array-clause% ((array internal-type clause-element-type
-                          clause-internal-type)
-                         &body body)
-  (with-gensyms (generic? array-type)
-    `(lambda (,clause-internal-type ,clause-element-type)
-       (let* ((,generic? (eq ,clause-element-type '*))
-              (,array-type `(,(if ,generic? 'array 'simple-array)
-                              ,,clause-element-type *)))
-         `((and (typep ,,array ',,array-type)
-                (= ,,internal-type ,,clause-internal-type))
-           (locally (declare ,@(unless ,generic?
-                                 '((optimize speed (safety 0))))
-                             (type ,,array-type ,,array))
-             ,,@body))))))
-
-
-(defmacro copy-to-memory% (array pointer internal-type
-                           &optional (specifications
-                                      (all-to-specifications%)))
-  "Helper function for generating optimized code conditioning on internal-type
-and t-he type of array."
-  (let+ (((&once-only array pointer internal-type))
-         ((&with-gensyms index size)))
-    `(let ((,size (array-total-size ,array)))
-       ,(expand-specifications%
-         (array-clause% (array internal-type element-type% internal-type%)
-           `(loop for ,index below ,size do
-             (,(value-to-memory% internal-type%) ,pointer ,index
-              (row-major-aref ,array ,index))))
-         specifications))))
-
-(defmacro copy-from-memory% (array pointer internal-type
-                             &optional (specifications
-                                        (all-from-specifications%)))
-  "Helper function for generating optimized code conditioning on internal-type
-and the type of array."
-  (let+ (((&once-only array pointer internal-type))
-         ((&with-gensyms index size)))
-    `(let ((,size (array-total-size ,array)))
-       ,(expand-specifications%
-         (array-clause% (array internal-type element-type% internal-type%)
-           `(loop for ,index below ,size do
-             (setf (row-major-aref ,array ,index)
-                   (coerce
-                    (,(value-from-memory% internal-type%)
-                      ,pointer ,index)
-                    ',(if (eq element-type% '*)
-                          t
-                          element-type%)))))
-         specifications))))
 
 (defun copy-array-to-memory (array pointer internal-type)
   "Copy the contents of ARRAY to the memory area of type INTERNAL-TYPE at
 POINTER."
   (check-type array array)
-  (copy-to-memory% array pointer internal-type)
+  (let+ ((size (array-total-size array))
+         ((&macrolet expansion ()
+            (expand-specifications%
+             (array-clause% (array internal-type element-type%
+                                   internal-type%)
+               `(loop for index below size do
+                 (,(value-to-memory% internal-type%) pointer index
+                  (row-major-aref array index))))
+             (all-to-specifications%)))))
+    (expansion))
   (values))
 
 (defun copy-array-from-memory (array pointer internal-type)
   "Copy the memory area of type INTERNAL-TYPE at POINTER to ARRAY."
   (check-type array array)
-  (copy-from-memory% array pointer internal-type)
+  (let+ ((size (array-total-size array))
+         ((&macrolet expansion ()
+            (expand-specifications%
+             (array-clause% (array internal-type element-type% internal-type%)
+               `(loop for index below size do
+                 (setf (row-major-aref array index)
+                       (coerce
+                        (,(value-from-memory% internal-type%) pointer index)
+                        ',(if (eq element-type% '*)
+                              t
+                              element-type%)))))
+             (all-from-specifications%)))))
+    (expansion))
   (values))
 
 (defun create-array-from-memory (pointer internal-type dimensions
@@ -242,76 +221,54 @@ POINTER."
 
 ;;;; Transposing matrices to and from memory.
 
-(defmacro transpose-to-memory% (matrix pointer internal-type
-                                &optional (specifications
-                                           (all-to-specifications%)))
-  "Helper function for generating optimized code conditioning on INTERNAL-TYPE
-and the type of the matrix."
-  (let+ (((&once-only matrix pointer internal-type))
-         ((&with-gensyms index nrow ncol row-index col-index))
-         ((&flet clause (internal-type% element-type%)
-            (let* ((simple? (not (eq element-type% '*)))
-                   (array-type% `(,(if simple? 'simple-array 'array)
-                                   ,element-type% (* *))))
-              `((and (typep ,matrix ',array-type%)
-                     (= ,internal-type ,internal-type%))
-                (locally (declare ,@(when simple?
-                                      '((optimize speed (safety 0))))
-                                  (type ,array-type% ,matrix))
-                  (loop for ,col-index fixnum below ,ncol do
-                    (loop for ,row-index fixnum below ,nrow do
-                      (,(value-to-memory% internal-type%) ,pointer ,index
-                       (aref ,matrix ,row-index ,col-index))
-                      (incf ,index)))))))))
-    `(let+ (((,nrow ,ncol) (array-dimensions ,matrix))
-            (,index 0))
-       (declare (type fixnum ,nrow ,ncol ,index))
-       ,(expand-specifications% #'clause specifications))))
-
-(defmacro transpose-from-memory% (matrix pointer internal-type
-                                  &optional (specifications
-                                             (all-from-specifications%)))
-  "Helper function for generating optimized code conditioning on INTERNAL-TYPE
-and the type of the matrix."
-  (let+ (((&once-only matrix pointer internal-type))
-         ((&with-gensyms index nrow ncol row-index col-index))
-         ((&flet clause (internal-type% element-type%)
-            (let* ((simple? (not (eq element-type% '*)))
-                   (array-type% `(,(if simple? 'simple-array 'array)
-                                   ,element-type% (* *))))
-              `((and (typep ,matrix ',array-type%)
-                     (= ,internal-type ,internal-type%))
-                (locally (declare ,@(when simple?
-                                      '((optimize speed (safety 0))))
-                                  (type ,array-type% ,matrix))
-                  (loop for ,col-index fixnum below ,ncol do
-                    (loop for ,row-index fixnum below ,nrow do
-                      (setf (aref ,matrix ,row-index ,col-index)
-                            (coerce
-                             (,(value-from-memory% internal-type%)
-                               ,pointer ,index)
-                             ',(if (eq element-type% '*)
-                                   t
-                                   element-type%)))
-                      (incf ,index)))))))))
-    `(let+ (((,nrow ,ncol) (array-dimensions ,matrix))
-            (,index 0))
-       (declare (type fixnum ,nrow ,ncol ,index))
-       ,(expand-specifications% #'clause specifications))))
-
 (defun transpose-matrix-to-memory (matrix pointer internal-type)
   "Transpose the contents of ARRAY to the memory area of type INTERNAL-TYPE at
 POINTER.  VECTORs are also handled."
   (etypecase matrix
     (vector (copy-array-to-memory matrix pointer internal-type))
-    (matrix (transpose-to-memory% matrix pointer internal-type))))
+    (matrix
+     (let+ (((nrow ncol) (array-dimensions matrix))
+            (index 0)
+            ((&macrolet expansion ()
+               (expand-specifications%
+                (array-clause% (matrix internal-type element-type%
+                                       internal-type%)
+                  `(loop for col-index fixnum below ncol do
+                    (loop for row-index fixnum below nrow do
+                      (,(value-to-memory% internal-type%) pointer index
+                       (aref matrix row-index col-index))
+                      (incf index))))
+                (all-to-specifications%)))))
+       (declare (type fixnum index))
+       (expansion))))
+  (values))
 
 (defun transpose-matrix-from-memory (matrix pointer internal-type)
   "Transpose the contents of ARRAY to the memory area of type INTERNAL-TYPE at
 POINTER.  VECTORs are also handled."
   (etypecase matrix
     (vector (copy-array-from-memory matrix pointer internal-type))
-    (matrix (transpose-from-memory% matrix pointer internal-type))))
+    (matrix
+     (let+ (((nrow ncol) (array-dimensions matrix))
+            (index 0)
+            ((&macrolet expansion ()
+               (expand-specifications%
+                (array-clause% (matrix internal-type element-type%
+                                       internal-type%)
+                  `(loop for col-index fixnum below ncol do
+                    (loop for row-index fixnum below nrow do
+                      (setf (aref matrix row-index col-index)
+                            (coerce
+                             (,(value-from-memory% internal-type%)
+                               pointer index)
+                             ',(if (eq element-type% '*)
+                                   t
+                                   element-type%)))
+                      (incf index))))
+                (all-from-specifications%)))))
+       (declare (type fixnum index))
+       (expansion))))
+  (values))
 
 (defun create-transposed-matrix-from-memory (pointer internal-type dimensions
                                              &optional (element-type
@@ -320,4 +277,3 @@ POINTER.  VECTORs are also handled."
   "Create a matrix from transposed contents at POINTER."
   (aprog1 (make-array dimensions :element-type element-type)
     (transpose-matrix-from-memory it pointer internal-type)))
-
