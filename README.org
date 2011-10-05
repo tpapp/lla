@@ -1,12 +1,106 @@
 #+TITLE: Lisp Linear Algebra --- a linear algebra library for Common Lisp
+#+OPTIONS:   TeX:t LaTeX:t
 
-LLA is a high-level Common Lisp library built on on [[http://www.netlib.org/blas/][BLAS]] and [[http://www.netlib.org/lapack/][LAPACK]], but providing a much more abstract interface with the purpose of freeing the user from low-level concerns and reducing the number of bugs in numerical code.
+LLA is a high-level Common Lisp library built on on [[http://www.netlib.org/blas/][BLAS]] and [[http://www.netlib.org/lapack/][LAPACK]],
+but providing a much more abstract interface with the purpose of
+freeing the user from low-level concerns and reducing the number of
+bugs in numerical code.
 
-Documentation is mostly in docstrings at the moment, but I plan to write a decent tutorial at some point.  In the meantime, please look at the unit tests.
+Documentation is mostly in docstrings at the moment, but I plan to
+write a decent tutorial at some point.  In the meantime, please look
+at the unit tests.
+
+* Objectives
+
+- High-level, user friendly interface that hides the details. ::
+=(solve a b)= should return \( X \) from \( AX=B \), regardless of
+whether \( A \) is a dense matrix, an \( LU \) decomposition, or something
+else; similarly, \( X \) should be a vector/matrix when \( B \) is.
+Users should not need to memorize names like =DGESV=, especially when
+CLOS makes it so easy to deal with these things.  Also, you don't need
+to make sure that all arguments are of the same type (eg
+complex-double): LLA will find the common supertype for elements and
+convert if necessary.
+
+- Stay in Lisp and expose the innards of the objects as much as possible. ::
+
+LLA aims to take advantage of CL's high level facilities such as CLOS
+and memory management.  Data is kept in Lisp arrays instead of foreign
+arrays, so you can access it directly using =aref= etc.  You also
+benefit from garbage collection and all the clever stuff that comes
+with the GC.  If you need more memory, just increase the heap size.
+
+- Keeping it simple. ::
+
+Currently, LLA sources amount to less than 3000 lines of code (not
+including tests).  The small size should make maintainance easier and
+bugs more rare (hopefully).
+
+- Speed is important, but reliability comes first. ::
+
+Only optimize when necessary, and do extensive testing afterwards.
+Most of the speed comes from your LAPACK library anyway --- most
+linear algebra operations are \( O(N^\alpha) \) with \( \alpha > 1 \),
+frequently \( \alpha > 2 \).  That said, copying to memory is
+optimized, and in the long run LLA should make use of your
+implementation's array pinning features (when available).
+/Currently, direct array sharing is disabled, it will be re-enabeld in the near
+future/.
+
 
 * Reporting bugs
 
-Please report bugs using [[https://github.com/tpapp/lla/issues][Github's issue tracker]].
+Please report bugs using [[https://github.com/tpapp/lla/issues][Github's issue tracker]].  Small self-contained
+examples are appreciated when applicable, otherwise please try to
+provide a backtrace.  Feel free to submit efficiency/wishlist bugs
+too: if you need an interface for a particular LAPACK routine I will
+be happy to help with that and then possibly incorporate it into LLA.
+
+* Configuration
+
+Certain features of LLA can be configured before loading using the
+plist =*lla-configuration*= in the =CL-USER= package (for example, on
+SBCL you would do it in your =~/.sbclrc=).  The following properties
+are supported:
+
+- =:libraries= :: A list of objects, passed directly to
+  =cffi:load-foreign-library=.  You can use strings, paths, or even
+  symbols if you have defined these libraries using
+  =cffi:define-foreign-library=.  If you don't define this, a
+  reasonable platform-dependent default will be used.  See the next
+  section for details.
+
+- =:int64= :: This makes LLA use 64-bit integers for array dimensions,
+  pivot indices and other integer values passed to BLAS/LAPACK
+  functions.  *Only use this if you are sure that your libraries have
+  been compiled with 64-bit integers*.  The fact that you have a
+  64-bit platform does not necessarily mean that this is the case, in
+  fact, it is still quite rare.  Unless told otherwise, LLA expectes
+  BLAS/LAPACK to use the [[http://en.wikipedia.org/wiki/64-bit#64-bit_data_models][(L)LP64 model]] for integers -- that is to
+  say, integer types in Fortran are 32 bit.
+
+- =:efficiency-warnings= :: Enable the *possibility* of efficiency
+  warnings at compile time.  You still have to set the appropriate
+  flags, but without this option, they won't even be checked.  There
+  are two properties you can set: =:array-type= and
+  =:array-conversion=.  The first warns whenever an array has to be
+  walked elementwise to determine its type, the second when some
+  arrays need to be converted to a common type.
+
+  Example:
+
+  #+BEGIN_SRC lisp
+  (defparameter cl-user:*lla-configuration*
+    '(:efficiency-warnings (:array-type :array-conversion)))
+  #+END_SRC
+
+  before loading LLA, and
+
+  #+BEGIN_SRC lisp
+  (let ((lla:*lla-efficiency-warning-array-type* t)
+        (lla:*lla-efficiency-warning-array-conversion* t))
+     (code that you want to check))
+  #+END_SRC
 
 * Libraries
 
@@ -22,24 +116,28 @@ You can do this by putting something like this in your startup script (eg =~/.sb
                 "/usr/lib/atlas-base/libatlas.so.3gf")))
 #+END_SRC
 
-
 ** Debian
 
 On Debian-based distributions, it is very likely that LLA will work out of the box if you just install ATLAS, eg
+
 #+BEGIN_EXAMPLE
 apt-get install libatlas3gf-base
 #+END_EXAMPLE
+
 However, you may want to build a version optimized for your architecture.
 
 *** Building ATLAS on Debian
 
 Prepare the build (as root):
+
 #+BEGIN_EXAMPLE
 apt-get build-dep atlas
 apt-get install fakeroot devscripts
 cpufreq-set -g performance -c 0   # do this for all CPUs
 #+END_EXAMPLE
+
 Then as a regular user,
+
 #+BEGIN_EXAMPLE
 apt-get source atlas
 cd atlas-[fill in your version here]/
@@ -61,7 +159,7 @@ In =/etc/ld.so.conf.d/=, create a file that contains the paths, eg
 #+BEGIN_EXAMPLE
 /opt/intel/mkl/lib/intel64
 /opt/intel/composerxe/lib/intel64
-#+END_EXAMPEL
+#+END_EXAMPLE
 
 Then the configuration
 #+BEGIN_SRC lisp
@@ -71,19 +169,16 @@ Then the configuration
 should work.
 
 
-* Configuration
+* Acknowledgements
 
-Certain features of LLA can be configured before loading using the plist =*lla-configuration*= in the =CL-USER= package.  The following properties are supported:
+LLA was inspired by packages written by AJ Rossini, Rif, Mark Hoemmen
+and others.  I have borrowed code (whenever allowed by their licenses)
+and ideas freely from all of them.
 
-- =:libraries= :: A list of objects, passed directly to =cffi:load-foreign-library=.  You can use strings, paths, or even symbols if you have defined these libraries using =cffi:define-foreign-library=.  If you don't define this, a reasonable platform-dependent default will be used.
-
-- =:int64:= :: This makes LLA use 64-bit integers for array dimensions, pivot indices and other integer values passed to BLAS/LAPACK functions.  *Only use this if you are sure that your libraries have been compiled with 64-bit integers*.  The fact that you have a 64-bit platform does not necessarily mean that this is the case, in fact, it is still quite rare.
 
 * Things to do (roughly in order of priority)
 
-- finish missing methods; in particular =eigen=
 - write optimized SBCL and ECL pinning interfaces
 - write documentation (probably w/ [[http://common-lisp.net/project/docudown/][docudown]], decide)
 - write more tests (especially randomized ones, develop macros for that)
-- make array copying code faster, specializing on array element types, profile and benchmark
-
+- write a tutorial
