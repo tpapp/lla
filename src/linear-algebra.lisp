@@ -83,14 +83,13 @@ vectors as conforming matrices (eg see MM)."
           (if transpose-left?
               (values a1 a0)
               (values a0 a1)))
-         (type (common-float-type a))
-         (real-type (absolute-square-type type)))
+         (type (common-float-type a)))
     (blas-call (("syrk" "herk") type 
                 (make-hermitian-matrix c))
       #\U (&char (if transpose-left? #\N #\C))
       (&integers dim-c other-dim-a) 1
       (&array a) (&integer a1) 0
-      (&output c (list dim-c dim-c) :type real-type)
+      (&output c (list dim-c dim-c))
       (&integer dim-c))))
 
 (defmethod mm ((a array) (b (eql t)))

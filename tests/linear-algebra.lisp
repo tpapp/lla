@@ -63,14 +63,11 @@
     (ensure-same (outer a b) (outer2 a b))
     (ensure-same (outer a t) (outer2 a a t))
     (ensure-same (outer t a) (outer2 a a t))
-    ;; (ensure-same (outer b a) (outer2 b a))
-    ;; (ensure-same (outer b t) (outer2 b b t))
-    ;; (ensure-same (outer t b) (outer2 b b t))
-))
-
-;;; !!!! this gives invalid-pointer, investigate
-;; (outer (vec 'lla-complex-double 1 #C(2 1) 9) t)
-
+    (ensure-same (outer (vec 'lla-complex-double 1 #C(2 1) 9) t)
+                 (hermitian 'lla-complex-double
+                   (1)
+                   (#C(2 1) 5)
+                   (9 #C (18 -9) 81)))))
 
 (addtest (linear-algebra-tests)
   mm-diagonal
