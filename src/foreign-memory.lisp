@@ -182,34 +182,32 @@ EXPAND-SPECIFICATIONS%."
   "Copy the contents of ARRAY to the memory area of type INTERNAL-TYPE at
 POINTER."
   (check-type array array)
-  (let+ ((size (array-total-size array))
-         ((&macrolet expansion ()
-            (expand-specifications%
-             (array-clause% (array internal-type element-type%
-                                   internal-type%)
-               `(loop for index below size do
-                 (,(value-to-memory% internal-type%) pointer index
-                  (row-major-aref array index))))
-             (all-to-specifications%)))))
-    (expansion))
+  (let ((size (array-total-size array)))
+    (expanding
+      (expand-specifications%
+       (array-clause% (array internal-type element-type%
+                             internal-type%)
+         `(loop for index below size do
+           (,(value-to-memory% internal-type%) pointer index
+            (row-major-aref array index))))
+       (all-to-specifications%))))
   (values))
 
 (defun copy-array-from-memory (array pointer internal-type)
   "Copy the memory area of type INTERNAL-TYPE at POINTER to ARRAY."
   (check-type array array)
-  (let+ ((size (array-total-size array))
-         ((&macrolet expansion ()
-            (expand-specifications%
-             (array-clause% (array internal-type element-type% internal-type%)
-               `(loop for index below size do
-                 (setf (row-major-aref array index)
-                       (coerce
-                        (,(value-from-memory% internal-type%) pointer index)
-                        ',(if (eq element-type% '*)
-                              t
-                              element-type%)))))
-             (all-from-specifications%)))))
-    (expansion))
+  (let+ ((size (array-total-size array)))
+    (expanding
+      (expand-specifications%
+       (array-clause% (array internal-type element-type% internal-type%)
+         `(loop for index below size do
+           (setf (row-major-aref array index)
+                 (coerce
+                  (,(value-from-memory% internal-type%) pointer index)
+                  ',(if (eq element-type% '*)
+                        t
+                        element-type%)))))
+       (all-from-specifications%))))
   (values))
 
 (defun create-array-from-memory (pointer internal-type dimensions
@@ -228,19 +226,18 @@ POINTER.  VECTORs are also handled."
     (vector (copy-array-to-memory matrix pointer internal-type))
     (matrix
      (let+ (((nrow ncol) (array-dimensions matrix))
-            (index 0)
-            ((&macrolet expansion ()
-               (expand-specifications%
-                (array-clause% (matrix internal-type element-type%
-                                       internal-type%)
-                  `(loop for col-index fixnum below ncol do
-                    (loop for row-index fixnum below nrow do
-                      (,(value-to-memory% internal-type%) pointer index
-                       (aref matrix row-index col-index))
-                      (incf index))))
-                (all-to-specifications%)))))
+            (index 0))
        (declare (type fixnum index))
-       (expansion))))
+       (expanding
+         (expand-specifications%
+          (array-clause% (matrix internal-type element-type%
+                                 internal-type%)
+            `(loop for col-index fixnum below ncol do
+              (loop for row-index fixnum below nrow do
+                (,(value-to-memory% internal-type%) pointer index
+                 (aref matrix row-index col-index))
+                (incf index))))
+          (all-to-specifications%))))))
   (values))
 
 (defun transpose-matrix-from-memory (matrix pointer internal-type)
@@ -250,24 +247,23 @@ POINTER.  VECTORs are also handled."
     (vector (copy-array-from-memory matrix pointer internal-type))
     (matrix
      (let+ (((nrow ncol) (array-dimensions matrix))
-            (index 0)
-            ((&macrolet expansion ()
-               (expand-specifications%
-                (array-clause% (matrix internal-type element-type%
-                                       internal-type%)
-                  `(loop for col-index fixnum below ncol do
-                    (loop for row-index fixnum below nrow do
-                      (setf (aref matrix row-index col-index)
-                            (coerce
-                             (,(value-from-memory% internal-type%)
-                               pointer index)
-                             ',(if (eq element-type% '*)
-                                   t
-                                   element-type%)))
-                      (incf index))))
-                (all-from-specifications%)))))
+            (index 0))
        (declare (type fixnum index))
-       (expansion))))
+       (expanding
+         (expand-specifications%
+          (array-clause% (matrix internal-type element-type%
+                                 internal-type%)
+            `(loop for col-index fixnum below ncol do
+              (loop for row-index fixnum below nrow do
+                (setf (aref matrix row-index col-index)
+                      (coerce
+                       (,(value-from-memory% internal-type%)
+                         pointer index)
+                       ',(if (eq element-type% '*)
+                             t
+                             element-type%)))
+                (incf index))))
+          (all-from-specifications%))))))
   (values))
 
 (defun create-transposed-matrix-from-memory (pointer internal-type dimensions
