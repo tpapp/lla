@@ -17,6 +17,7 @@
     "Return a (LAMBDA (POINTER INDEX VALUE) ...) form that can be used to
 write an element to an array in memory."
     `(lambda (pointer index value)
+       (declare (type (integer 0 #.(floor most-positive-fixnum 8)) index))
        ,(eswitch (internal-type)
           (+single+
            `(setf (mem-aref pointer :float index)
@@ -48,6 +49,7 @@ write an element to an array in memory."
     "Return a (LAMBDA (POINTER INDEX) ...) form that can be used to read an
 element from an array in memory."
     `(lambda (pointer index)
+       (declare (type (integer 0 #.(floor most-positive-fixnum 8)) index))
        ,(eswitch (internal-type)
           (+single+
            `(mem-aref pointer :float index))
@@ -181,6 +183,7 @@ EXPAND-SPECIFICATIONS%."
 (defun copy-array-to-memory (array pointer internal-type)
   "Copy the contents of ARRAY to the memory area of type INTERNAL-TYPE at
 POINTER."
+  (declare (type internal-type internal-type))
   (check-type array array)
   (let ((size (array-total-size array)))
     (expanding
@@ -195,6 +198,7 @@ POINTER."
 
 (defun copy-array-from-memory (array pointer internal-type)
   "Copy the memory area of type INTERNAL-TYPE at POINTER to ARRAY."
+  (declare (type internal-type internal-type))
   (check-type array array)
   (let+ ((size (array-total-size array)))
     (expanding
