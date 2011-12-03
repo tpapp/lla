@@ -12,12 +12,13 @@
 ;;; lambda forms, creating efficient code.
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
-
+  (deftype maximum-array-size ()
+    `(integer 0 #.(floor most-positive-fixnum (foreign-type-size :double))))
   (defun value-to-memory% (internal-type)
     "Return a (LAMBDA (POINTER INDEX VALUE) ...) form that can be used to
 write an element to an array in memory."
     `(lambda (pointer index value)
-       (declare (type (integer 0 #.(floor most-positive-fixnum 8)) index))
+       (declare (type maximum-array-size index))
        ,(eswitch (internal-type)
           (+single+
            `(setf (mem-aref pointer :float index)
@@ -49,7 +50,7 @@ write an element to an array in memory."
     "Return a (LAMBDA (POINTER INDEX) ...) form that can be used to read an
 element from an array in memory."
     `(lambda (pointer index)
-       (declare (type (integer 0 #.(floor most-positive-fixnum 8)) index))
+       (declare (type maximum-array-size index))
        ,(eswitch (internal-type)
           (+single+
            `(mem-aref pointer :float index))
