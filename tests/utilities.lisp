@@ -8,11 +8,11 @@
 
 (defun random-array (type &rest dimensions)
   "Random array for testing."
-  (filled-array dimensions (if (subtypep type 'complex)
-                               (lambda () (coerce (complex (random 100)
-                                                           (random 100))
-                                                  type))
-                               (lambda () (coerce (random 100) type))) type))
+  (generate-array dimensions (if (subtypep type 'complex)
+                                 (lambda () (coerce (complex (random 100)
+                                                             (random 100))
+                                                    type))
+                                 (lambda () (coerce (random 100) type))) type))
 
 (defmacro with-foreign-temporary-buffer ((pointer size) &body body)
     "Allocate a buffer for SIZE complex doubles."

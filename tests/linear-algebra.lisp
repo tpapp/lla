@@ -423,8 +423,8 @@
     (loop repeat 100 do
       (let* ((a0 (+ 2 (random 3)))
              (a1 (+ 2 (random 3)))
-             (a (filled-array (list a0 a1) (lambda () (random 1d0))
-                              'double-float)))
+             (a (generate-array (list a0 a1) (lambda () (random 1d0))
+                                'double-float)))
         (ensure-same (as-array (svd a :thin)) a)
         (ensure-same (as-array (svd a :all)) a)))))
 
