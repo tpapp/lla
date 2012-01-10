@@ -149,20 +149,20 @@
 ;; ))
 
 
-;; ;; (addtest (linear-algebra-tests)
-;; ;;   mm-solve-diagonal
-;; ;;   (let* ((a (clo 1 2 3 :/
-;; ;;                  4 5 6))
-;; ;;          (b (clo 'lla-double 9 11))
-;; ;;          (left-d (clo :diagonal 7 8))
-;; ;;          (right-d (clo :diagonal 9 10 11))
-;; ;;          (left-a (mm left-d a))
-;; ;;          (a-right (mm a right-d)))
-;; ;;     (ensure-same (mm (as-matrix left-d) a) left-a)
-;; ;;     (ensure-same (mm a (as-matrix right-d)) a-right)
-;; ;;     (ensure-same (solve left-d left-a) a)
-;; ;;     (ensure-same (solve left-d (mm left-d b)) b)))
-
+(addtest (linear-algebra-tests)
+  mm-solve-diagonal
+  (let* ((a (dense 'double-float
+              (1 2 3)
+              (4 5 6)))
+         (b (vec 'double-float 9d0 11))
+         (left-d (diag 'double-float 7 8))
+         (right-d (diag 'double-float 9 10 11))
+         (left-a (mm left-d a))
+         (a-right (mm a right-d)))
+    (ensure-same (mm (as-matrix left-d) a) left-a)
+    (ensure-same (mm a (as-matrix right-d)) a-right)
+    (ensure-same (solve left-d left-a) a)
+    (ensure-same (solve left-d (mm left-d b)) b)))
 
 (addtest (linear-algebra-tests)
   mm-solve-triangular

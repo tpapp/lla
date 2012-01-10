@@ -339,8 +339,8 @@ vectors as conforming matrices (eg see MM)."
 (defmethod solve ((a upper-triangular-matrix) b)
   (trsm% (elements a) t b))
 
-;; (defmethod solve ((a diagonal) (b dense-matrix-like))
-;;   (mm (e/ a) b))
+(defmethod solve ((a diagonal) b)
+  (mm (e/ a) b))
 
 (defgeneric invert (a &key &allow-other-keys)
   (:documentation "Invert A.  The inverse of matrix factorizations are other
