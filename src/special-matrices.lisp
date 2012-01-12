@@ -343,8 +343,19 @@ same class."
                 (,(symbolicate '#:make- type)
                  (,function (elements a) (elements b)))))))
 
+(defmacro define-elementwise-as-array (type
+                                       &optional (functions '(e2+ e2- e2*)))
+  "Define binary elementwise operations for FUNCTION for two arguments of the
+same class."
+  `(progn
+     ,@(loop for function in functions
+             collect `(defmethod ,function ((a ,type) b)
+                        (,function (as-array a) b))
+             collect `(defmethod ,function (a (b ,type))
+                        (,function a (as-array b))))))
+
 (defmacro define-elementwise-univariate
-    (type &optional (functions '(e1- e1/ eexp elog esqrt)))
+    (type &optional (functions '(e1- e1/ eexp e1log esqrt)))
   "Define unary elementwise operations for FUNCTION for all subclasses of
 wrapped-elements."
   `(progn
@@ -352,6 +363,8 @@ wrapped-elements."
              :collect
              `(defmethod ,function ((a ,type))
                 (,(symbolicate '#:make- type) (,function (elements a)))))))
+
+(define-elementwise-as-array wrapped-matrix)
 
 (define-elementwise-with-constant lower-triangular-matrix)
 (define-elementwise-with-constant upper-triangular-matrix)
