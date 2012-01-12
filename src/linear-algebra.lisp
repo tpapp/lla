@@ -155,7 +155,8 @@ vectors as conforming matrices (eg see MM)."
   (let+ (((b0 b1) (array-dimensions b))
          (a (elements a))
          ;; !!! currently we are not using the narrowest element type
-         (c (make-array (list b0 b1)))
+         (c (make-array (list b0 b1)
+                        :element-type (elementwise-float-contagion a b)))
          (i 0))
     (assert (= (length a) b0) () 'lla-incompatible-dimensions)
     (dotimes (row b0)
@@ -169,7 +170,8 @@ vectors as conforming matrices (eg see MM)."
   (let+ (((a0 a1) (array-dimensions a))
          (b (elements b))
          ;; !!! currently we are not using the narrowest element type
-         (c (make-array (list a0 a1)))
+         (c (make-array (list a0 a1)
+                        :element-type (elementwise-float-contagion a b)))
          (i 0))
     (assert (= a1 (length b)) () 'lla-incompatible-dimensions)
     (dotimes (row a0)
