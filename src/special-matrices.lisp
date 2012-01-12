@@ -332,7 +332,7 @@ wrapped-elements."
                :collect
                `(defmethod ,function ((a number) (b ,type))
                   (,make (,function a (elements b))))))))
-  
+
 (defmacro define-elementwise-same-class (type
                                          &optional (functions '(e2+ e2- e2*)))
   "Define binary elementwise operations for FUNCTION for two arguments of the
@@ -343,7 +343,7 @@ same class."
                 (,(symbolicate '#:make- type)
                  (,function (elements a) (elements b)))))))
 
-(defmacro define-elementwise-univariate 
+(defmacro define-elementwise-univariate
     (type &optional (functions '(e1- e1/ eexp elog esqrt)))
   "Define unary elementwise operations for FUNCTION for all subclasses of
 wrapped-elements."
