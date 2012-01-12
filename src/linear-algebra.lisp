@@ -409,7 +409,7 @@ matrix, UNIT-DIAG? indicates whether the diagonal is supposed to consist of
 \(if given, otherwise / is just used without any checking."
   (let ((elements (elements diagonal)))
     (make-diagonal (map `(simple-array
-                          ,(clnu::emap-common-type elements) (*))
+                          ,(clnu::elementwise-float-contagion elements) (*))
                         (cond
                           ((null tolerance) #'/)
                           ((and (numberp tolerance) (<= 0 tolerance))
