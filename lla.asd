@@ -12,8 +12,8 @@
   :author "Tamas K Papp <tkpapp@gmail.com>"
   :license "Boost Software License - Version 1.0"
   :serial t
-  :components 
-  ((:module 
+  :components
+  ((:module
     "package-init"
     :pathname #P"src/"
     :serial t
@@ -22,7 +22,7 @@
      (:file "configuration-interface")
      (:file "configuration")
      (:file "libraries")))
-   (:module 
+   (:module
     "basics"
     :pathname #P"src/"
     :depends-on ("package-init")
@@ -58,7 +58,7 @@
   :license "Same as LLA--this is part of the LLA library."
   :serial t
   :components
-  ((:module 
+  ((:module
     "package-init"
     :pathname #P"tests/"
     :components
@@ -70,7 +70,7 @@
     :components
     ((:file "setup")
      (:file "utilities")))
-   (:module 
+   (:module
     "tests"
     :pathname #P"tests/"
     :components
@@ -78,4 +78,4 @@
      (:file "pinned-array")
      (:file "linear-algebra"))))
   :depends-on
-  (iterate anaphora alexandria cl-num-utils cffi lla lift))
+  (iterate anaphora alexandria cl-num-utils cl-num-utils-tests cffi lla lift))

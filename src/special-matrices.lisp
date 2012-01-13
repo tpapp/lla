@@ -15,11 +15,11 @@ symmetric/hermitian).  ELEMENTS is always a matrix."
 (defmethod diagonal ((matrix wrapped-matrix) &key copy?)
   (diagonal (elements matrix) :copy? copy?))
 
-(defmethod emap-dimensions ((wrapped-matrix wrapped-matrix))
-  (array-dimensions (elements wrapped-matrix)))
+(defmethod stack-dimensions (h? (wrapped-matrix wrapped-matrix))
+  (stack-dimensions h? (elements wrapped-matrix)))
 
-(defmethod emap-next ((wrapped-matrix wrapped-matrix) dimensions)
-  (emap-next (as-array wrapped-matrix) dimensions))
+(defmethod stack-element-type ((wrapped-matrix wrapped-matrix))
+  (array-element-type (elements wrapped-matrix)))
 
 (defmethod stack-into ((wrapped-matrix wrapped-matrix)
                        h? result cumulative-index)
@@ -216,7 +216,7 @@ list of lists (or atoms, which are treated as lists), elements are evaluated."
     `(make-array (list ,nrow ,ncol)
                  :element-type ,element-type
                  :initial-contents
-                 (list 
+                 (list
                   ,@(loop for row across rows collect
                           `(list
                             ,@(loop for element in row collect
@@ -281,9 +281,12 @@ ignored at the expansion."
 (defmethod elements ((diagonal diagonal))
   (diagonal-elements diagonal))
 
-(defmethod emap-dimensions ((diagonal diagonal))
+(defmethod stack-dimensions (h? (diagonal diagonal))
   (let ((length (length (elements diagonal))))
-    (list length length)))
+    (cons length length)))
+
+(defmethod stack-element-type ((diagonal diagonal))
+  (array-element-type (elements diagonal)))
 
 (defmethod stack-into ((diagonal diagonal)
                        h? result cumulative-index)
@@ -409,7 +412,7 @@ wrapped-elements."
   (make-diagonal (econjugate (elements diagonal))))
 
 ;;;; sub
-;;; 
+;;;
 ;;; (sub wrapped-matrix index-specification nil) returns a matrix of the same
 ;;; class (or a scalar), using index-specification along both dimensions
 
