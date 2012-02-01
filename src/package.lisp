@@ -1,8 +1,9 @@
 (defpackage #:lla
   (:use #:common-lisp #:iterate #:let-plus #:cffi #:anaphora #:alexandria
         #:cl-num-utils)
-  (:shadowing-import-from #:cl-num-utils #:mean #:variance #:median)
-  (:export 
+  (:shadowing-import-from #:cl-num-utils #:mean #:variance #:median
+                          #:displace-array)
+  (:export
    ;;package-init - no exports
    ;;basics -- no exports
    ;;types
