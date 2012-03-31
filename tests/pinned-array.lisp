@@ -6,7 +6,7 @@
   ())
 
 ;;;; Basic testing of copying functions
-;;; 
+;;;
 ;;; Should not require LLA facilities other than those tested.
 
 (defun flatten-complex-vector (vector)
@@ -100,8 +100,8 @@ of INTERNAL-TYPE."
               `(ensure (check-transpose (random-array ,element-type 5 6)
                                         ,internal-type))))
            ((&macrolet ensure-transpose-error (element-type internal-type)
-              `(ensure-error 
-                 (lla::transpose-matrix-to-memory 
+              `(ensure-error
+                 (lla::transpose-matrix-to-memory
                   (random-array ,element-type 7 5) pointer ,internal-type)))))
       ;; single float
       (ensure-transpose t lla::+single+)
@@ -163,7 +163,7 @@ of INTERNAL-TYPE."
       (ensure-to-and-from 'lla-integer lla::+integer+))))
 
 ;;;; Pinning tests
-;;; 
+;;;
 ;;; Test the pinning framework, regardless of its implementation (copying,
 ;;; sharing, etc).
 
@@ -257,7 +257,7 @@ test-pinning-copy, except that the output is also checked."
 
 (addtest (pinned-array-tests)
   pinning-input
-  (iter 
+  (iter
     (for (source destination) :in (coercible-pairs-list))
     (ensure
      (test-pinning-readonly source destination))))
@@ -266,7 +266,7 @@ test-pinning-copy, except that the output is also checked."
 
 (addtest (pinned-array-tests)
   pinning-copy
-  (iter 
+  (iter
     (for (source destination) :in (coercible-pairs-list))
     (ensure
      (test-pinning-copy source destination))))
@@ -275,7 +275,7 @@ test-pinning-copy, except that the output is also checked."
 
 (addtest (pinned-array-tests)
   pinning-output
-  (iter 
+  (iter
     (for (source destination) :in (coercible-pairs-list))
     (ensure
      (test-pinning-output source destination))))
