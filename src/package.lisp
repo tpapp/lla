@@ -1,8 +1,10 @@
 (defpackage #:lla
   (:use #:common-lisp #:iterate #:let-plus #:cffi #:anaphora #:alexandria
         #:cl-num-utils)
-  (:shadowing-import-from #:cl-num-utils #:mean #:variance #:median
-                          #:displace-array)
+  (:shadowing-import-from #:cl-num-utils #:mean #:variance #:median ; also in ALEXANDRIA
+                          #:displace-array ; no longer in ALEXANDRIA TODO remove in 2012 June
+                          #:sum            ; also in ITERATE
+                          )
   (:export
    ;;package-init - no exports
    ;;basics -- no exports
