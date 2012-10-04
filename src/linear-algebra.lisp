@@ -44,7 +44,8 @@ vectors as conforming matrices (eg see MM)."
 (defmethod as-matrix ((matrix-square-root matrix-square-root))
   (mm (left-square-root matrix-square-root) t))
 
-(defmethod as-array ((matrix-square-root matrix-square-root) &key)
+(defmethod as-array ((matrix-square-root matrix-square-root)
+                     &key &allow-other-keys)
   (as-array (as-matrix matrix-square-root)))
 
 (defun mmm (&rest matrices)
@@ -747,7 +748,7 @@ which matrices define their eigenvalues to high relative accuracy."
     (assert z)
     (mm (mm z (esqrt w)) t)))
 
-(defmethod as-array ((sf spectral-factorization) &key)
+(defmethod as-array ((sf spectral-factorization) &key &allow-other-keys)
   (as-array (as-matrix sf)))
 
 ;;; SVD
@@ -796,7 +797,7 @@ which matrices define their eigenvalues to high relative accuracy."
              vt
              (sub vt (cons 0 n) t)))))
 
-(defmethod as-array ((svd svd) &key)
+(defmethod as-array ((svd svd) &key &allow-other-keys)
   (as-matrix svd))
 
 ;;; trace
