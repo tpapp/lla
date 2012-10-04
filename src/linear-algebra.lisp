@@ -9,7 +9,7 @@
 ;;; otherwise it should be a matrix.
 
 ;;;;  matrix multiplication
-;;; 
+;;;
 ;;; The general matrix multiplication function is MMM.  It can be
 ;;; called with more than two arguments: it multiplies matrices from
 ;;; the left, using MM.
@@ -84,7 +84,7 @@ vectors as conforming matrices (eg see MM)."
               (values a1 a0)
               (values a0 a1)))
          (type (common-float-type a)))
-    (blas-call (("syrk" "herk") type 
+    (blas-call (("syrk" "herk") type
                 (make-hermitian-matrix c))
       #\U (&char (if transpose-left? #\N #\C))
       (&integers dim-c other-dim-a) 1
@@ -275,7 +275,7 @@ vectors as conforming matrices (eg see MM)."
 (defmethod solve ((lu lu) (b array))
   (let+ (((&slots lu ipiv) lu)
          ((lu0 lu1) (array-dimensions lu))
-         ((&values b0 b1 nil) (dimensions-as-matrix b :column)))
+         ((&values b0 b1 &ign) (dimensions-as-matrix b :column)))
     (assert (= lu0 lu1 b0) () 'lla-incompatible-dimensions)
     (lapack-call ("getrs" (common-float-type lu b) x)
       #\N (&integer lu0) (&integer b1) (&array lu :transpose? t)
@@ -285,7 +285,7 @@ vectors as conforming matrices (eg see MM)."
 
 (defmethod solve ((a array) (b array))
   (let+ (((a0 a1) (array-dimensions a))
-         ((&values b0 b1 nil) (dimensions-as-matrix b :column)))
+         ((&values b0 b1 &ign) (dimensions-as-matrix b :column)))
     (assert (= a0 a1 b0) () 'lla-incompatible-dimensions)
     (lapack-call ("gesv" (common-float-type a b) x)
       (&integer a0) (&integer b1) (&array a :transpose? t) (&integer a0)
@@ -294,7 +294,7 @@ vectors as conforming matrices (eg see MM)."
 
 (defmethod solve ((cholesky cholesky) b)
   (let+ ((a (elements (left-square-root cholesky)))
-         ((&values b0 b1 nil) (dimensions-as-matrix b :column))
+         ((&values b0 b1 &ign) (dimensions-as-matrix b :column))
          ((a0 a1) (array-dimensions a)))
     (assert (= a0 a1 b0) () 'lla-incompatible-dimensions)
     (lapack-call ("potrs" (common-float-type a b) x)
@@ -329,7 +329,7 @@ vectors as conforming matrices (eg see MM)."
 (defun trsm% (a a-upper? b)
   "Wrapper for BLAS routine xTRSM.  Solve AX=B, where A is triangular."
   (let+ (((a0 a1) (array-dimensions a))
-         ((&values b0 b1 nil) (dimensions-as-matrix b :column)))
+         ((&values b0 b1 &ign) (dimensions-as-matrix b :column)))
     (assert (= a0 a1 b0) () 'lla-incompatible-dimensions)
     (blas-call ("trsm" (common-float-type a b) x)
       #\R (&char (if a-upper? #\L #\U)) #\N #\N (&integers b1 b0) 1
@@ -389,7 +389,7 @@ matrix, UNIT-DIAG? indicates whether the diagonal is supposed to consist of
                  (&array a :output inverse)
                  (&integer a0)
                  &info)))
-  
+
 (defmethod invert ((a upper-triangular-matrix) &key)
   (invert-triangular% (elements a) t nil 'upper))
 
@@ -444,7 +444,7 @@ matrix, UNIT-DIAG? indicates whether the diagonal is supposed to consist of
 ;;             ((:char v-char%) #\V)
 ;;             ((:check info%)))
 ;;     (assert (= n n2))
-;;     (call procedure n-char% v-char% n% a% n% 
+;;     (call procedure n-char% v-char% n% a% n%
 ;;           w% (inc-pointer w% (* n (foreign-size* real-type))) ; eigenvalues
 ;;           (null-pointer) n% vr% n%                            ; eigenvectors
 ;;           work% lwork% info%)
@@ -540,7 +540,7 @@ well-conditioned."
   ;; Note: the naming convention (y,X,b) is different from LAPACK's
   ;; (b,A,x).  Sorry if this creates confusion, I decided to follow
   ;; standard statistical notation.
-  ;; 
+  ;;
   ;; implementation note: there is no point in transposing the last rows of
   ;; b-and-ss, we could just sum them as is, would even be better for
   ;; linearity of memory access
@@ -589,7 +589,7 @@ well-conditioned."
 ;;             (nlvl (max 0 (1+ (ceiling (log minmn 2)))))
 ;;             ((:work iwork% +integer+) (* minmn (+ 11 (* 3 nlvl))))
 ;;             ;; !!! end of fix, comment out iwork% below when removed.
-;;             ((:work-queries lwork% 
+;;             ((:work-queries lwork%
 ;;                             (work% common-type)
 ;;                             (rwork% real-type t)
 ;;                             ;; (iwork% +integer+)
@@ -602,11 +602,11 @@ well-conditioned."
 ;;     (unless (<= n m)
 ;;       (error 'not-enough-columns))
 ;;     (if (lla-complex? common-type)
-;;         (call procedure m% n% nrhs% x% m% y% m% s% rcond% rank% work% lwork% 
+;;         (call procedure m% n% nrhs% x% m% y% m% s% rcond% rank% work% lwork%
 ;;               rwork% iwork% info%)
-;;         (call procedure m% n% nrhs% x% m% y% m% s% rcond% rank% work% lwork% 
+;;         (call procedure m% n% nrhs% x% m% y% m% s% rcond% rank% work% lwork%
 ;;               iwork% info%))
-;;     (values 
+;;     (values
 ;;       (matrix-from-first-rows b n nrhs m)
 ;;       (sum-last-rows b m nrhs n)
 ;;       (- m n)
@@ -756,7 +756,7 @@ which matrices define their eigenvalues to high relative accuracy."
   (:documentation "Return singular value decomposition A.
 
   VECTORS determines how singular vectors are calculated:
- 
+
   - NIL sets U and VT to NIL
   - :ALL makes U and VT square, with dimensions conforming to A
   - :THIN makes the larger of U and VT rectangular.  This means that not all
@@ -831,7 +831,7 @@ which matrices define their eigenvalues to high relative accuracy."
 ;;   (bind (((:accessors-r/o nrow ncol) matrix)
 ;;          (ratio (log (/ nrow ncol)))
 ;;          ((&values matrix squared?)
-;;           (cond 
+;;           (cond
 ;;             ((aand logrc-threshold (< ratio (- it))) ; fewer rows than columns
 ;;              (values (mm matrix t) t))
 ;;             ((aand logrc-threshold (< it ratio)) ; more rows than columns
@@ -877,7 +877,7 @@ negative values, and may be started at something else than 0 (eg in case of
 pivoting).  Return (values NIL 0) in case of encountering a 0."
   (let+ (((nrow ncol) (array-dimensions matrix)))
     (assert (= nrow ncol))
-    (values 
+    (values
       (iter
         (for i :from 0 :below nrow)
         (summing (log-with-sign% (aref matrix i i)
@@ -896,7 +896,7 @@ pivoting).  Return (values NIL 0) in case of encountering a 0."
 
 ;; (defmethod logdet ((matrix hermitian-matrix))
 ;;   (let ((sign-changes 0))
-;;     (values 
+;;     (values
 ;;       (reduce #'+ (eigen matrix)
 ;;               :key (lambda (e)
 ;;                      (log-with-sign% e sign-changes logdet)))
