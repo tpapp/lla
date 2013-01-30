@@ -30,8 +30,8 @@
     :components
     ((:file "types")
      (:file "conditions")
-     (:file "special-matrices")
-     (:file "printing")))
+     (:file "printing")
+     (:file "special-matrices")))
    (:module
     "pinned-array"
     :pathname #P"src/"
