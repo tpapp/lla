@@ -3,7 +3,7 @@
 (in-package #:lla)
 
 ;;;; Lambda forms for accessing foreign memory.
-;;; 
+;;;
 ;;; These are used to define the functions that access values in foreign
 ;;; memory.  It would be really convenient to use CFFI:MEM-AREF directly, but
 ;;; unfortunately C99 complex types are not (yet) supported (as of Oct 2011).
@@ -88,7 +88,7 @@ element from an array in memory."
        (ecase internal-type
          ,@(loop for type in +internal-types+ collect
                  `(,type (,(value-from-memory% type) pointer index)))))
-     (defun (setf foreign-aref) (value pointer internal-type 
+     (defun (setf foreign-aref) (value pointer internal-type
                                  &optional (index 0))
        "Setf expander for FOREIGN-AREF."
        (ecase internal-type
@@ -121,13 +121,13 @@ FOREIGN-AREF)."
        ,@body)))
 
 ;;;; Array copying functions
-;;; 
+;;;
 ;;; Macros below define optimized copying for certain pairs of LLA types and
 ;;; Common Lisp array element types.  The functions below return the default
 ;;; ones for LLA.
 
 ;;;; Helper macros and standard specifications lists
-;;; 
+;;;
 ;;; Note that when LLA copies from memory, it always aims for the same element
 ;;; type, so the other pairs need not be defined.
 
@@ -149,7 +149,7 @@ FOREIGN-AREF)."
     '((#.+single+ lla-single *)
       (#.+double+ lla-single lla-double *)
       (#.+complex-single+ lla-single lla-double lla-complex-single *)
-      (#.+complex-double+ lla-single lla-double lla-complex-single 
+      (#.+complex-double+ lla-single lla-double lla-complex-single
        lla-complex-double *)
       (#.+integer+ lla-integer *)))
 
@@ -188,13 +188,13 @@ POINTER."
   (check-type array array)
   (let ((size (array-total-size array)))
     (expanding
-      (expand-specifications%
-       (array-clause% (array internal-type element-type%
-                             internal-type%)
-         `(loop for index below size do
-           (,(value-to-memory% internal-type%) pointer index
-            (row-major-aref array index))))
-       (all-to-specifications%))))
+     (expand-specifications%
+      (array-clause% (array internal-type element-type%
+                            internal-type%)
+        `(loop for index below size do
+                  (,(value-to-memory% internal-type%) pointer index
+                   (row-major-aref array index))))
+      (all-to-specifications%))))
   (values))
 
 (defun copy-array-from-memory (array pointer internal-type)
@@ -229,7 +229,7 @@ POINTER."
 POINTER.  VECTORs are also handled."
   (etypecase matrix
     (vector (copy-array-to-memory matrix pointer internal-type))
-    (matrix
+    (aops:matrix
      (let+ (((nrow ncol) (array-dimensions matrix))
             (index 0))
        (declare (type fixnum index))
@@ -250,7 +250,7 @@ POINTER.  VECTORs are also handled."
 POINTER.  VECTORs are also handled."
   (etypecase matrix
     (vector (copy-array-from-memory matrix pointer internal-type))
-    (matrix
+    (aops:matrix
      (let+ (((nrow ncol) (array-dimensions matrix))
             (index 0))
        (declare (type fixnum index))
@@ -259,15 +259,15 @@ POINTER.  VECTORs are also handled."
           (array-clause% (matrix internal-type element-type%
                                  internal-type%)
             `(loop for col-index fixnum below ncol do
-              (loop for row-index fixnum below nrow do
-                (setf (aref matrix row-index col-index)
-                      (coerce
-                       (,(value-from-memory% internal-type%)
-                         pointer index)
-                       ',(if (eq element-type% '*)
-                             t
-                             element-type%)))
-                (incf index))))
+                      (loop for row-index fixnum below nrow do
+                               (setf (aref matrix row-index col-index)
+                                     (coerce
+                                      (,(value-from-memory% internal-type%)
+                                       pointer index)
+                                      ',(if (eq element-type% '*)
+                                            t
+                                            element-type%)))
+                               (incf index))))
           (all-from-specifications%))))))
   (values))
 

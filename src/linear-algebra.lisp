@@ -554,7 +554,7 @@ well-conditioned."
      ("gels"
       common-type
       (values
-       (copy-array (partition b-and-ss 0 x1))
+       (copy-array (aops:partition b-and-ss 0 x1))
        (last-rows-ss b-and-ss x1 common-type)
        df
        (make-instance 'qr :qr qr)))

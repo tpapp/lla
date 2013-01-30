@@ -58,7 +58,7 @@ symmetric/hermitian).  ELEMENTS is always a matrix."
 
 (defgeneric matrix-kind (matrix)
   (:method ((matrix array))
-    (check-type matrix matrix)
+    (check-type matrix aops:matrix)
     'dense))
 
 (declaim (inline make-matrix%))
@@ -194,8 +194,8 @@ non-represented elements."
   (>= row col)
   (conjugate (aref elements col row))
   "*"
-  :elements-check (assert (square? elements) () "Hermitian matrices have to be
-  square."))
+  :elements-check (assert (aops:square-matrix? elements) ()
+                          "Hermitian matrices have to be square."))
 
 ;;;; Convenience functions for creating matrices
 
