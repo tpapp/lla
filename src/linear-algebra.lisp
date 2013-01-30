@@ -132,9 +132,9 @@ vectors as conforming matrices (eg see MM)."
   or B is T, they are taken to be conjugate transposes of the other
   argument.")
   (:method ((a vector) (b (eql t)))
-    (mm (as-column a) t))
+    (mm (aops:reshape-col a) t))
   (:method ((a (eql t)) (b vector))
-    (mm (as-column b) t))
+    (mm (aops:reshape-col b) t))
   (:method ((a vector) (b vector))
     (let* ((a0 (length a))
            (b0 (length b))
@@ -192,7 +192,8 @@ vectors as conforming matrices (eg see MM)."
 
 (defmethod mm ((a diagonal) (b (eql t)))
   ;; !!! currently we are not using the narrowest element type
-  (make-diagonal (map1 #'absolute-square (elements a))))
+  (let+ (((&accessors-r/o elements) a))
+    (make-diagonal (map (type-of elements) #'absolute-square elements))))
 
 (defmethod mm ((a (eql t)) (b diagonal))
   (mm b a))

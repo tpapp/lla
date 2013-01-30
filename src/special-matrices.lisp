@@ -204,8 +204,7 @@ non-represented elements."
 list of lists (or atoms, which are treated as lists), elements are evaluated."
   (let+ ((rows (map 'vector #'ensure-list rows))
          (nrow (length rows))
-         (ncol (common rows :key #'length :error
-                       "Rows don't have the same number of elements."))
+         (ncol (length (aref rows 0)))
          ((&once-only element-type)))
     `(make-array (list ,nrow ,ncol)
                  :element-type ,element-type
