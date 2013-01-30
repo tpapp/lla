@@ -36,12 +36,11 @@
    elementary reflectors (see documentation of xGEQRF)."))
   (:documentation "QR factorization of a matrix."))
 
-(defun qr-r (qr &key copy?)
+(defun qr-r (qr)
   (let+ (((&slots-r/o qr) qr)
          ((&accessors-r/o nrow ncol) qr))
     (assert (>= nrow ncol))
-    (make-upper-triangular-matrix
-     (clnu::maybe-copy-array (partition qr 0 ncol) copy?))))
+    (make-upper-triangular-matrix (aops:partition qr 0 ncol))))
 
 ;;;; generic interface for square root-like factorizations
 

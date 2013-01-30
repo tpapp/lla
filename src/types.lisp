@@ -1,7 +1,7 @@
 (in-package :lla)
 
 ;;;; Type synonyms
-;;; 
+;;;
 ;;; These are synonyms for types generally recognized by LLA.  Note that LLA
 ;;; works fine with any kind of numbers, but may be faster for array element
 ;;; types it recognized as it does not have to spend time detecting a common
@@ -20,7 +20,7 @@
   '(complex double-float))
 
 ;;;; Internal types
-;;; 
+;;;
 ;;; LLA uses these constants and the associated functions to represent types
 ;;; internally.  They are not exported, so we don't worry about name clashes.
 ;;; The float types are set up so that the common float type can be found
@@ -55,7 +55,7 @@
     (+integer+ 'lla-integer)))
 
 ;;;; Type classification
-;;; 
+;;;
 ;;; In order to decide which of the 4 BLAS/LAPACK functions to call, LLA
 ;;; attempts to determine the type of objects it is asked to operate on.
 ;;; Functions below always return an appropriate float type.
@@ -87,7 +87,7 @@ detected from the specialized array element type, O(n) otherwise."
       ((is? 'lla-double) +double+)
       ((is? 'lla-complex-single) +complex-single+)
       ((is? 'lla-complex-double) +complex-double+)
-      (t (reduce #'logior (flatten-array array) :key #'number-float-type)))))
+      (t (reduce #'logior (aops:flatten array) :key #'number-float-type)))))
 
 (defun common-float-type (&rest arrays-or-numbers)
   "Return the common (internal) float type for the arguments."

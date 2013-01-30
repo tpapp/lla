@@ -7,7 +7,7 @@
 (defstruct (wrapped-matrix (:constructor make-wrapped-matrix (elements)))
   "A matrix that has some special structure (eg triangular,
 symmetric/hermitian).  ELEMENTS is always a matrix."
-  (elements nil :type matrix))
+  (elements nil :type aops:matrix))
 
 (defmethod elements ((matrix wrapped-matrix))
   (wrapped-matrix-elements matrix))
@@ -23,36 +23,36 @@ symmetric/hermitian).  ELEMENTS is always a matrix."
 
 (defmethod stack-into ((wrapped-matrix wrapped-matrix)
                        h? result cumulative-index)
-  (stack-into (as-array wrapped-matrix) h? result cumulative-index))
+  (stack-into (aops:as-array wrapped-matrix) h? result cumulative-index))
 
 ;;;; mean accumulator
 
-(defstruct (wrapped-matrix-mean-accumulator
-             (:constructor wrapped-matrix-mean-accumulator% (mean kind))
-             (:include array-mean-accumulator))
-    "Accumulator for wrapped matrices.  Save type as extra information."
-  (kind nil))
+;; (defstruct (wrapped-matrix-mean-accumulator
+;;              (:constructor wrapped-matrix-mean-accumulator% (mean kind))
+;;              (:include array-mean-accumulator))
+;;     "Accumulator for wrapped matrices.  Save type as extra information."
+;;   (kind nil))
 
-(defun wrapped-matrix-mean-accumulator (wrapped-matrix)
-  "Create a conforming wrapped-matrix-mean-accumulator."
-  (wrapped-matrix-mean-accumulator%
-   (make-array (array-dimensions (elements wrapped-matrix))
-               :initial-element 0d0)
-   (matrix-kind wrapped-matrix)))
+;; (defun wrapped-matrix-mean-accumulator (wrapped-matrix)
+;;   "Create a conforming wrapped-matrix-mean-accumulator."
+;;   (wrapped-matrix-mean-accumulator%
+;;    (make-array (array-dimensions (elements wrapped-matrix))
+;;                :initial-element 0d0)
+;;    (matrix-kind wrapped-matrix)))
 
-(define-conforming-accumulator (mean (matrix wrapped-matrix))
-  (wrapped-matrix-mean-accumulator matrix))
+;; (define-conforming-accumulator (mean (matrix wrapped-matrix))
+;;   (wrapped-matrix-mean-accumulator matrix))
 
-(defmethod add :after ((accumulator wrapped-matrix-mean-accumulator) object)
-  (let+ (((&structure wrapped-matrix-mean-accumulator- kind) accumulator))
-    (when (and kind (not (eq kind (matrix-kind object))))
-      (setf kind nil))))
+;; (defmethod add :after ((accumulator wrapped-matrix-mean-accumulator) object)
+;;   (let+ (((&structure wrapped-matrix-mean-accumulator- kind) accumulator))
+;;     (when (and kind (not (eq kind (matrix-kind object))))
+;;       (setf kind nil))))
 
-(defmethod mean ((accumulator wrapped-matrix-mean-accumulator))
-  (let+ (((&structure wrapped-matrix-mean-accumulator- mean kind) accumulator))
-    (if kind
-        (convert-matrix kind mean)
-        mean)))
+;; (defmethod mean ((accumulator wrapped-matrix-mean-accumulator))
+;;   (let+ (((&structure wrapped-matrix-mean-accumulator- mean kind) accumulator))
+;;     (if kind
+;;         (convert-matrix kind mean)
+;;         mean)))
 
 ;;;; matrix creation and element access
 
@@ -75,11 +75,11 @@ symmetric/hermitian).  ELEMENTS is always a matrix."
             &key (element-type t) (initial-element (coerce 0 element-type)))
     (make-matrix% nrow ncol element-type initial-element)))
 
-(defgeneric convert-matrix (kind object &key copy?)
+(defgeneric convert-matrix (kind object)
   (:documentation "Convert object to a matrix of the given KIND.  May share
-  structure unless COPY?.")
-  (:method ((kind (eql 'dense)) object &key copy?)
-    (as-array object :copy? copy?)))
+  structure unless the second value is T.")
+  (:method ((kind (eql 'dense)) object)
+    (aops:as-array object)))
 
 (defgeneric mref (matrix row col)
   (:documentation "Element accessor for matrices.  When second value is true,
@@ -132,8 +132,8 @@ non-represented elements."
          ',designator)
        (defmethod represented-element? ((kind (eql ',designator)) row col)
          ,represented-element?)
-       (defmethod convert-matrix ((kind (eql ',designator)) object &key copy?)
-         (,make (as-array object :copy? copy?)))
+       (defmethod convert-matrix ((kind (eql ',designator)) object)
+         (,make (aops:as-array object)))
        (defmethod nrow ((matrix ,type))
          (array-dimension (elements matrix) 0))
        (defmethod ncol ((matrix ,type))
@@ -148,20 +148,14 @@ non-represented elements."
          (print-unreadable-object (matrix stream :type t)
            (terpri stream)
            (print-matrix matrix stream ,masked-element-string)))
-       (defmethod as-array ((matrix ,type) &key copy?)
+       (defmethod aops:as-array ((matrix ,type))
          (let+ (((&slots-r/o elements) matrix))
-           (if copy?
-               (aprog1 (make-similar-array elements)
-                 (row-major-loop ((array-dimensions elements) index row col)
-                   (setf (row-major-aref it index)
-                         (if ,represented-element?
-                             (row-major-aref elements index)
-                             ,non-represented-element))))
-               (prog1 elements
-                 (row-major-loop ((array-dimensions elements) index row col)
-                   (unless ,represented-element?
-                     (setf (row-major-aref elements index)
-                           ,non-represented-element))))))))))
+           (prog1 elements
+             (dotimes (row (aops:nrow elements))
+               (dotimes (col (aops:ncol elements))
+                 (unless ,represented-element?
+                               (setf (aref elements row col)
+                                     ,non-represented-element))))))))))
 
 ;;;; Triangular matrices
 
@@ -290,7 +284,7 @@ ignored at the expansion."
 
 (defmethod stack-into ((diagonal diagonal)
                        h? result cumulative-index)
-  (stack-into (as-array diagonal) h? result cumulative-index))
+  (stack-into (aops:as-array diagonal) h? result cumulative-index))
 
 (defmethod nrow ((diagonal diagonal))
   (length (elements diagonal)))
@@ -308,12 +302,12 @@ ignored at the expansion."
     (terpri stream)
     (print-matrix diagonal stream ".")))
 
-(defmethod as-array ((diagonal diagonal) &key copy?)
-  (declare (ignore copy?))
+(defmethod aops:as-array ((diagonal diagonal))
   (let+ (((&slots-r/o elements) diagonal)
          (n (length elements)))
-    (aprog1 (make-similar-array elements :dimensions (list n n)
-                                :initial-element (zero-like elements))
+    (aprog1 (make-array (list n n)
+                        :element-type (array-element-type elements)
+                        :initial-element (zero-like elements))
       (dotimes (i n) (setf (aref it i i) (aref elements i))))))
 
 (defun diag (element-type &rest elements)
@@ -353,9 +347,9 @@ same class."
   `(progn
      ,@(loop for function in functions
              collect `(defmethod ,function ((a ,type) b)
-                        (,function (as-array a) b))
+                        (,function (aops:as-array a) b))
              collect `(defmethod ,function (a (b ,type))
-                        (,function a (as-array b))))))
+                        (,function a (aops:as-array b))))))
 
 (defmacro define-elementwise-univariate
     (type &optional (functions '(e1- e1/ eexp e1log esqrt)))
@@ -397,7 +391,7 @@ wrapped-elements."
   (make-lower-triangular-matrix (transpose* (elements matrix) :copy? copy?)))
 
 (defmethod transpose ((matrix hermitian-matrix) &key copy?)
-  (make-hermitian-matrix (transpose (as-array matrix) :copy? copy?)))
+  (make-hermitian-matrix (transpose (aops:as-array matrix) :copy? copy?)))
 (defmethod transpose* ((matrix hermitian-matrix) &key copy?)
   (if copy?
       (make-hermitian-matrix (copy-array (elements matrix)))
@@ -419,22 +413,22 @@ wrapped-elements."
 (defmethod sub ((matrix wrapped-matrix) &rest index-specifications)
   (destructuring-bind (is0 &optional is1) index-specifications
     (if is1
-        (sub (as-array matrix) is0 is1)
+        (sub (aops:as-array matrix) is0 is1)
         (let ((submatrix (sub (elements matrix) is0 is0)))
           (if (arrayp submatrix)
               (convert-matrix (matrix-kind matrix) submatrix)
               submatrix)))))
 
-;;; ==
+;;; num=
 
-(defmethod == ((a wrapped-matrix) (b wrapped-matrix)
-               &optional (tolerance *==-tolerance*))
+(defmethod num= ((a wrapped-matrix) (b wrapped-matrix)
+               &optional (tolerance *num=-tolerance*))
     (and (equal (matrix-kind a) (matrix-kind b))
-         (== (as-array a) (as-array b) tolerance)))
+         (num= (aops:as-array a) (aops:as-array b) tolerance)))
 
-(defmethod == ((a diagonal) (b diagonal)
-               &optional (tolerance *==-tolerance*))
-    (== (elements a) (elements b) tolerance))
+(defmethod num= ((a diagonal) (b diagonal)
+               &optional (tolerance *num=-tolerance*))
+    (num= (elements a) (elements b) tolerance))
 
 (defgeneric as-matrix (object)
   (:documentation "Return OBJECT as an ARRAY if it has rank 2, a

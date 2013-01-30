@@ -39,14 +39,13 @@ vectors as conforming matrices (eg see MM)."
 
 (defgeneric mm (a b)
   (:documentation  "Matrix multiplication of A and B.")
-  (:method (a b) (mm (as-array a) (as-array b))))
+  (:method (a b) (mm (aops:as-array a) (aops:as-array b))))
 
 (defmethod as-matrix ((matrix-square-root matrix-square-root))
   (mm (left-square-root matrix-square-root) t))
 
-(defmethod as-array ((matrix-square-root matrix-square-root)
-                     &key &allow-other-keys)
-  (as-array (as-matrix matrix-square-root)))
+(defmethod aops:as-array ((matrix-square-root matrix-square-root))
+  (aops:as-array (as-matrix matrix-square-root)))
 
 (defun mmm (&rest matrices)
   "Multiply arguments from left to right using MM."
@@ -102,13 +101,13 @@ vectors as conforming matrices (eg see MM)."
   (mm-hermitian% b t))
 
 (defmethod mm ((a wrapped-matrix) (b wrapped-matrix))
-  (mm (as-array a) (as-array b)))
+  (mm (aops:as-array a) (aops:as-array b)))
 
 (defmethod mm ((a wrapped-matrix) b)
-  (mm (as-array a) b))
+  (mm (aops:as-array a) b))
 
 (defmethod mm (a (b wrapped-matrix))
-  (mm a (as-array b)))
+  (mm a (aops:as-array b)))
 
 ;;; (mm vector t) is the dot product
 
@@ -271,7 +270,7 @@ vectors as conforming matrices (eg see MM)."
   (:argument-precedence-order b a))
 
 (defmethod solve (a (b wrapped-matrix))
-  (solve a (as-array b)))
+  (solve a (aops:as-array b)))
 
 (defmethod solve ((lu lu) (b array))
   (let+ (((&slots lu ipiv) lu)
@@ -748,8 +747,8 @@ which matrices define their eigenvalues to high relative accuracy."
     (assert z)
     (mm (mm z (esqrt w)) t)))
 
-(defmethod as-array ((sf spectral-factorization) &key &allow-other-keys)
-  (as-array (as-matrix sf)))
+(defmethod aops:as-array ((sf spectral-factorization))
+  (aops:as-array (as-matrix sf)))
 
 ;;; SVD
 
@@ -797,7 +796,7 @@ which matrices define their eigenvalues to high relative accuracy."
              vt
              (sub vt (cons 0 n) t)))))
 
-(defmethod as-array ((svd svd) &key &allow-other-keys)
+(defmethod aops:as-array ((svd svd))
   (as-matrix svd))
 
 ;;; trace
