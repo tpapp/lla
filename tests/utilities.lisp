@@ -6,13 +6,19 @@
 
 ;; support functions
 
+(defun array= (array1 array2)
+  "Test that arrays are equal and have the same element type."
+  (and (type= (array-element-type array1)
+              (array-element-type array2))
+       (equalp array1 array2)))
+
 (defun random-array (type &rest dimensions)
   "Random array for testing."
-  (generate-array dimensions (if (subtypep type 'complex)
-                                 (lambda () (coerce (complex (random 100)
-                                                             (random 100))
-                                                    type))
-                                 (lambda () (coerce (random 100) type))) type))
+  (aops:generate dimensions (if (subtypep type 'complex)
+                                (lambda () (coerce (complex (random 100)
+                                                            (random 100))
+                                                   type))
+                                (lambda () (coerce (random 100) type))) type))
 
 (defmacro with-foreign-temporary-buffer ((pointer size) &body body)
     "Allocate a buffer for SIZE complex doubles."

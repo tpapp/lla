@@ -44,7 +44,7 @@ of INTERNAL-TYPE."
                                            #+lla::int64 :int64))
                          (let ((vector (aetypecase values
                                          (vector it)
-                                         (array (flatten-array it))
+                                         (array (aops:flatten it))
                                          (t (coerce it 'vector)))))
                            (if (lla::complex? internal-type)
                                (flatten-complex-vector vector)
