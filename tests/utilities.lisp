@@ -39,19 +39,19 @@
 
 (addtest (utilities-tests)
   approx=-test
-  (let ((*==-tolerance* 1))
-    (ensure (== 0 10))
-    (ensure (not (== -1 10)))))
+  (let ((*num=-tolerance* 1))
+    (ensure (num= 0 10))
+    (ensure (not (num= -1 10)))))
 
 (addtest (utilities-tests)
-  ==-test
-  (let ((*lift-equality-test* #'==))
+  num=-test
+  (let ((*lift-equality-test* #'num=))
     (ensure-same (dense t 1) (dense t 1))
     (ensure-different (dense t 1) (dense t 2))))
 
 ;; (addtest (utilities-tests)
 ;;   make-vector-or-matrix-test
-;;   (let ((*lift-equality-test* #'==))
+;;   (let ((*lift-equality-test* #'num=))
 ;;     (ensure-same (make-vector-with-seq 3 :single) (clo :single 0 1 2))
 ;;     (ensure-same (make-matrix-with-seq 2 2 :complex-double)
 ;;                  (clo :complex-double

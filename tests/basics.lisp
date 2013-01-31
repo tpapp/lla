@@ -46,7 +46,7 @@
 ;;   (let ((source (make-vector-with-seq 10 :single))
 ;;         (destination1 (lla-array 5 :single))
 ;;         (destination2 (lla-array 5 :double))
-;;         (*lift-equality-test* #'==))
+;;         (*lift-equality-test* #'num=))
 ;;     (copy-elements source 2 destination1 1 3)
 ;;     (copy-elements source 2 destination2 2 3)
 ;;     (ensure-same destination1 (clo :single 0 2 3 4 0))
@@ -55,7 +55,7 @@
 ;; (addtest (basic-tests)
 ;;   copy-vector
 ;;   (let ((source (make-vector-with-seq 3 :single))
-;;         (*lift-equality-test* #'==))
+;;         (*lift-equality-test* #'num=))
 ;;     (ensure-same (copy-vector source) (clo :single 0 1 2))
 ;;     (ensure-same (copy-vector source :double) (clo :double 0 1 2))
 ;;     (ensure-same (copy-vector source :complex-single) (clo :complex-single 0 1 2))
@@ -78,9 +78,9 @@
 ;;                   2x2 0 2
 ;;                   4x4-double 5 4)
 ;;     (ensure-same 4x4-single expected-result
-;;                  :test #'==)
+;;                  :test #'num=)
 ;;     (ensure-same 4x4-double (copy-vector expected-result :double)
-;;                  :test #'==)))
+;;                  :test #'num=)))
 
 
 ;; ;;; pinned-vector is tested in a separate file
@@ -89,14 +89,14 @@
 
 (addtest (basic-tests)
   special-univariate-operation
-  (let ((*lift-equality-test* #'==))
+  (let ((*lift-equality-test* #'num=))
     (ensure-same (e- (upper t 2)) (upper t -2))
     (ensure-same (e/ (upper t 2)) (upper t 0.5))
     (ensure-same (e+ (upper t 2 )) (upper t 2))))
 
 (addtest (basic-tests)
   special-bivariate-operation
-  (let+ ((*lift-equality-test* #'==)
+  (let+ ((*lift-equality-test* #'num=)
          (a (dense t
               (1 2)
               (3 4)))
@@ -116,7 +116,7 @@
 
 (addtest (basic-tests)
   special-bivariate-to-array
-  (let+ ((*lift-equality-test* #'==)
+  (let+ ((*lift-equality-test* #'num=)
          (a (dense t
               (1 2)
               (3 4)))
@@ -141,7 +141,7 @@
         (b (lower 'lla-double
              (2 0)
              (4 6)))
-        (*lift-equality-test* #'==))
+        (*lift-equality-test* #'num=))
     (ensure-same (mean (list (e* 2 a) (e- a))) (e/ a 2)
                  :ignore-multiple-values? t)
     (ensure-same (mean (list (e* 2 b) (e- b))) (e/ b 2)

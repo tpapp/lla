@@ -4,7 +4,7 @@
 
 (deftestsuite linear-algebra-tests (lla-tests)
   ()
-  (:equality-test #'==))
+  (:equality-test #'num=))
 
 ;;;; linear algebra
 
@@ -59,7 +59,7 @@
               (if hermitian?
                   (convert-matrix 'hermitian result)
                   result))))
-         (*lift-equality-test* #'==))
+         (*lift-equality-test* #'num=))
     (ensure-same (outer a b) (outer2 a b))
     (ensure-same (outer a t) (outer2 a a t))
     (ensure-same (outer t a) (outer2 a a t))
@@ -119,7 +119,7 @@
               (3 4)))
          (aat (mm a t))
          (ata (mm t a))
-         (*lift-equality-test* #'==))
+         (*lift-equality-test* #'num=))
     (ensure-same aat (convert-matrix 'hermitian (mm a (transpose a))))
     (ensure-same ata (convert-matrix 'hermitian (mm (transpose a) a)))))
 
@@ -185,7 +185,7 @@
 ;; ;;   (once-only (a x alpha)
 ;; ;;     `(ensure-same (update-hermitian ,a ,x ,alpha)
 ;; ;;                   (e+ ,a (outer ,x t ,alpha))
-;; ;;                   :test #'==)))
+;; ;;                   :test #'num=)))
 
 ;; ;; (addtest (linear-algebra-tests)
 ;; ;;   update-hermitian
@@ -212,7 +212,7 @@
 ;; ;;                            (mm ,x* (conjugate-transpose ,y*) ,alpha)
 ;; ;;                            (mm ,y* (conjugate-transpose ,x*) (conjugate ,alpha)))
 ;; ;;                        :kind :hermitian)))
-;; ;;          (ensure-same ,r1 ,r2 :test #'==)))))
+;; ;;          (ensure-same ,r1 ,r2 :test #'num=)))))
 
 ;; ;; (addtest (linear-algebra-tests)
 ;; ;;   update-hermitian2
@@ -333,10 +333,10 @@
          ((&values beta2 ss2 nu2 qr) (least-squares y x :method :qr))
          (raw-var (invert-xx qr))
          (variance (e* (as-array raw-var) (/ ss2 nu2)))
-         (*==-tolerance* 1e-5))
+         (*num=-tolerance* 1e-5))
     ;; (ensure-same beta1 beta)
     (ensure-same beta2 beta)
-    ;; (ensure-same ss1 ss :test #'==)
+    ;; (ensure-same ss1 ss :test #'num=)
     (ensure-same ss2 ss)
     ;; (ensure-same nu1 3 :test #'=)
     (ensure-same nu2 3 :test #'=)
@@ -358,7 +358,7 @@
 ;; ;;                  1 -1 1 1
 ;; ;;                  1 1 -1 1))
 ;; ;;          (w (clo 1 3 -1))
-;; ;;          (*==-tolerance* 1e-5))
+;; ;;          (*num=-tolerance* 1e-5))
 ;; ;;     (ensure-same (constrained-least-squares y x z w)
 ;; ;;                  (clo :single 0.5 -0.5 1.5 0.5))))
 
@@ -376,7 +376,7 @@
          (b (vec 'lla-double 5 7 13))
          (a\b (solve (as-array a) b))
          (a\1 (convert-matrix 'hermitian (invert (as-array a))))
-         (*lift-equality-test* #'==))
+         (*lift-equality-test* #'num=))
     (ensure-same (left-square-root c) l)
     (ensure-same (solve a b) a\b)
     (ensure-same (solve c b) a\b)
@@ -394,7 +394,7 @@
                    (0.5760484  0.8174156)))
          ((&structure-r/o spectral-factorization- z w)
          (spectral-factorization a))
-         (*lift-equality-test* #'==))
+         (*lift-equality-test* #'num=))
     (ensure-same w w-true)
     (ensure-same z z-true)))
 
@@ -414,7 +414,7 @@
               (-0.79911  0.60118)))
          (svd1 (svd a))
          (svd2 (svd a :all))
-         (*lift-equality-test* #'==)
+         (*lift-equality-test* #'num=)
          ((&flet svd-rec (a &optional (vectors :thin))
             (as-array (svd a vectors)))))
     (ensure-same (svd-d svd1) d)
@@ -473,8 +473,8 @@
 
 ;; (addtest (linear-algebra-tests)
 ;;   det
-;;   (let ((*==-tolerance* 1e-4)
-;;         (*lift-equality-test* #'==))
+;;   (let ((*num=-tolerance* 1e-4)
+;;         (*lift-equality-test* #'num=))
 ;;     ;; dense
 ;;     (ensure-same (det (clo 'lla-double
 ;;                            1 2 :/
