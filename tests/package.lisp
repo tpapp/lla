@@ -1,6 +1,13 @@
 (defpackage #:lla-tests
-  (:use #:cl #:iterate #:let-plus #:anaphora #:cl-num-utils #:cffi #:lift
+  (:use #:cl
+        #:alexandria
+        #:cl-num-utils
+        #:cffi
+        #:iterate
+        #:let-plus
+        #:anaphora
+        #:lift
         #:lla)
-  (:import-from #:cl-num-utils-tests #:array=)
   (:shadowing-import-from #:cl-num-utils #:sum) ; also in ITERATE
+  (:shadowing-import-from #:alexandria #:mean #:variance #:median)
   (:export #:run))
