@@ -29,8 +29,7 @@
     :serial t
     :components
     ((:file "types")
-     (:file "conditions")
-     (:file "special-matrices")))
+     (:file "conditions")))
    (:module
     "pinned-array"
     :pathname #P"src/"
