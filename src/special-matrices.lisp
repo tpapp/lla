@@ -153,29 +153,6 @@ ignored at the expansion."
        (lambda (element) (coerce element element-type))
        elements))
 
-;;;; Diagonal matrices
-
-(defmethod stack-dimensions (h? (diagonal diagonal))
-  (let ((length (length (diagonal-elements diagonal))))
-    (cons length length)))
-
-(defmethod stack-element-type ((diagonal diagonal))
-  (array-element-type (diagonal-elements diagonal)))
-
-(defmethod stack-into ((diagonal diagonal)
-                       h? result cumulative-index)
-  (stack-into (aops:as-array diagonal) h? result cumulative-index))
-
-(defmethod mref ((diagonal diagonal) row col)
-  (if (= row col)
-      (aref (diagonal-elements diagonal) row)
-      (values 0 t)))
-
-(defmethod print-object ((diagonal diagonal) stream)
-  (print-unreadable-object (diagonal stream :type t)
-    (terpri stream)
-    (print-matrix diagonal stream ".")))
-
 (defun diag (element-type &rest elements)
   "Return a DIAGONAL with elements coerced to ELEMENT-TYPE."
   (make-diagonal (apply #'vec element-type elements)))
