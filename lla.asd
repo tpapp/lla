@@ -30,7 +30,6 @@
     :components
     ((:file "types")
      (:file "conditions")
-     (:file "printing")
      (:file "special-matrices")))
    (:module
     "pinned-array"
