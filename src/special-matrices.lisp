@@ -4,14 +4,6 @@
 
 ;;;; base structure and representation-independent functions
 
-(defstruct (wrapped-matrix (:constructor make-wrapped-matrix (elements)))
-  "A matrix that has some special structure (eg triangular,
-symmetric/hermitian).  ELEMENTS is always a matrix."
-  (elements nil :type aops:matrix))
-
-(defmethod diagonal ((matrix wrapped-matrix) &key copy?)
-  (diagonal (wrapped-matrix-elements matrix) :copy? copy?))
-
 (defmethod stack-dimensions (h? (wrapped-matrix wrapped-matrix))
   (stack-dimensions h? (wrapped-matrix-elements wrapped-matrix)))
 
@@ -270,10 +262,6 @@ ignored at the expansion."
 
 ;;;; Diagonal matrices
 
-(defstruct (diagonal (:constructor make-diagonal (elements)))
-  "Diagonal matrix.  The elements in the diagonal are stored in a vector."
-  (elements nil :type vector))
-
 (defmethod stack-dimensions (h? (diagonal diagonal))
   (let ((length (length (diagonal-elements diagonal))))
     (cons length length)))
@@ -284,12 +272,6 @@ ignored at the expansion."
 (defmethod stack-into ((diagonal diagonal)
                        h? result cumulative-index)
   (stack-into (aops:as-array diagonal) h? result cumulative-index))
-
-(defmethod aops:nrow ((diagonal diagonal))
-  (length (diagonal-elements diagonal)))
-
-(defmethod aops:ncol ((diagonal diagonal))
-  (length (diagonal-elements diagonal)))
 
 (defmethod mref ((diagonal diagonal) row col)
   (if (= row col)
