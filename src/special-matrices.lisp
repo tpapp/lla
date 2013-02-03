@@ -2,18 +2,6 @@
 
 (in-package :lla)
 
-;;;; base structure and representation-independent functions
-
-(defmethod stack-dimensions (h? (wrapped-matrix wrapped-matrix))
-  (stack-dimensions h? (wrapped-matrix-elements wrapped-matrix)))
-
-(defmethod stack-element-type ((wrapped-matrix wrapped-matrix))
-  (array-element-type (wrapped-matrix-elements wrapped-matrix)))
-
-(defmethod stack-into ((wrapped-matrix wrapped-matrix)
-                       h? result cumulative-index)
-  (stack-into (aops:as-array wrapped-matrix) h? result cumulative-index))
-
 ;;;; mean accumulator
 
 ;; (defstruct (wrapped-matrix-mean-accumulator
