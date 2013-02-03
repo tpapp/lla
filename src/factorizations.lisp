@@ -38,7 +38,7 @@
 
 (defun qr-r (qr)
   (let+ (((&slots-r/o qr) qr)
-         ((&accessors-r/o nrow ncol) qr))
+         ((aops:&dims nrow ncol) qr))
     (assert (>= nrow ncol))
     (make-upper-triangular-matrix (aops:partition qr 0 ncol))))
 

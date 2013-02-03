@@ -9,17 +9,14 @@
 symmetric/hermitian).  ELEMENTS is always a matrix."
   (elements nil :type aops:matrix))
 
-(defmethod elements ((matrix wrapped-matrix))
-  (wrapped-matrix-elements matrix))
-
 (defmethod diagonal ((matrix wrapped-matrix) &key copy?)
-  (diagonal (elements matrix) :copy? copy?))
+  (diagonal (wrapped-matrix-elements matrix) :copy? copy?))
 
 (defmethod stack-dimensions (h? (wrapped-matrix wrapped-matrix))
-  (stack-dimensions h? (elements wrapped-matrix)))
+  (stack-dimensions h? (wrapped-matrix-elements wrapped-matrix)))
 
 (defmethod stack-element-type ((wrapped-matrix wrapped-matrix))
-  (array-element-type (elements wrapped-matrix)))
+  (array-element-type (wrapped-matrix-elements wrapped-matrix)))
 
 (defmethod stack-into ((wrapped-matrix wrapped-matrix)
                        h? result cumulative-index)
@@ -36,7 +33,7 @@ symmetric/hermitian).  ELEMENTS is always a matrix."
 ;; (defun wrapped-matrix-mean-accumulator (wrapped-matrix)
 ;;   "Create a conforming wrapped-matrix-mean-accumulator."
 ;;   (wrapped-matrix-mean-accumulator%
-;;    (make-array (array-dimensions (elements wrapped-matrix))
+;;    (make-array (array-dimensions (wrapped-matrix-elements wrapped-matrix))
 ;;                :initial-element 0d0)
 ;;    (matrix-kind wrapped-matrix)))
 
@@ -134,14 +131,20 @@ non-represented elements."
          ,represented-element?)
        (defmethod convert-matrix ((kind (eql ',designator)) object)
          (,make (aops:as-array object)))
-       (defmethod nrow ((matrix ,type))
-         (array-dimension (elements matrix) 0))
-       (defmethod ncol ((matrix ,type))
-         (array-dimension (elements matrix) 1))
+       (defmethod aops:dims ((matrix ,type))
+         (array-dimensions (wrapped-matrix-elements matrix)))
+       (defmethod aops:dim ((matrix ,type) axis)
+         (array-dimension (wrapped-matrix-elements matrix) axis))
+       (defmethod aops:rank ((matrix ,type))
+         2)
+       (defmethod aops:nrow ((matrix ,type))
+         (array-dimension (wrapped-matrix-elements matrix) 0))
+       (defmethod aops:ncol ((matrix ,type))
+         (array-dimension (wrapped-matrix-elements matrix) 1))
        (defmethod mref ((matrix ,type) row col)
-         (let+ (((&slots-r/o elements) matrix))
+         (let+ (((&accessors-r/o (elements wrapped-matrix-elements)) matrix))
            (if ,represented-element?
-               (aref (elements matrix) row col)
+               (aref elements row col)
                (values ,non-represented-element t))))
        ;; !! setf mref
        (defmethod print-object ((matrix ,type) stream)
@@ -149,13 +152,13 @@ non-represented elements."
            (terpri stream)
            (print-matrix matrix stream ,masked-element-string)))
        (defmethod aops:as-array ((matrix ,type))
-         (let+ (((&slots-r/o elements) matrix))
+         (let+ (((&accessors-r/o (elements wrapped-matrix-elements)) matrix))
            (prog1 elements
              (dotimes (row (aops:nrow elements))
                (dotimes (col (aops:ncol elements))
                  (unless ,represented-element?
-                               (setf (aref elements row col)
-                                     ,non-represented-element))))))))))
+                   (setf (aref elements row col)
+                         ,non-represented-element))))))))))
 
 ;;;; Triangular matrices
 
@@ -271,29 +274,26 @@ ignored at the expansion."
   "Diagonal matrix.  The elements in the diagonal are stored in a vector."
   (elements nil :type vector))
 
-(defmethod elements ((diagonal diagonal))
-  (diagonal-elements diagonal))
-
 (defmethod stack-dimensions (h? (diagonal diagonal))
-  (let ((length (length (elements diagonal))))
+  (let ((length (length (diagonal-elements diagonal))))
     (cons length length)))
 
 (defmethod stack-element-type ((diagonal diagonal))
-  (array-element-type (elements diagonal)))
+  (array-element-type (diagonal-elements diagonal)))
 
 (defmethod stack-into ((diagonal diagonal)
                        h? result cumulative-index)
   (stack-into (aops:as-array diagonal) h? result cumulative-index))
 
-(defmethod nrow ((diagonal diagonal))
-  (length (elements diagonal)))
+(defmethod aops:nrow ((diagonal diagonal))
+  (length (diagonal-elements diagonal)))
 
-(defmethod ncol ((diagonal diagonal))
-  (length (elements diagonal)))
+(defmethod aops:ncol ((diagonal diagonal))
+  (length (diagonal-elements diagonal)))
 
 (defmethod mref ((diagonal diagonal) row col)
   (if (= row col)
-      (aref (elements diagonal) row)
+      (aref (diagonal-elements diagonal) row)
       (values 0 t)))
 
 (defmethod print-object ((diagonal diagonal) stream)
@@ -302,7 +302,7 @@ ignored at the expansion."
     (print-matrix diagonal stream ".")))
 
 (defmethod aops:as-array ((diagonal diagonal))
-  (let+ (((&slots-r/o elements) diagonal)
+  (let+ (((&structure-r/o diagonal- elements) diagonal)
          (n (length elements)))
     (aprog1 (make-array (list n n)
                         :element-type (array-element-type elements)
@@ -315,34 +315,35 @@ ignored at the expansion."
 
 ;;;; elementwise operations
 
-(defmacro define-elementwise-with-constant (type
-                                            &optional (functions '(e2* e2/)))
-  "Define binary elementwise operations for FUNCTION for all subclasses of
-wrapped-elements."
+(defmacro define-elementwise-with-constant
+    (type
+     &key (functions '(e2* e2/))
+          (elements-accessor (symbolicate type '#:-elements)))
+  "Define binary elementwise operations for FUNCTION for all subclasses of wrapped-elements."
   (let ((make (symbolicate '#:make- type)))
     `(progn
        ,@(loop :for function :in functions
                :collect
-               `(defmethod ,function ((a ,type) (b number))
-                  (,make (,function (elements a) b)))
+                  `(defmethod ,function ((a ,type) (b number))
+                     (,make (,function (,elements-accessor a) b)))
                :collect
-               `(defmethod ,function ((a number) (b ,type))
-                  (,make (,function a (elements b))))))))
+                  `(defmethod ,function ((a number) (b ,type))
+                     (,make (,function a (,elements-accessor b))))))))
 
-(defmacro define-elementwise-same-class (type
-                                         &optional (functions '(e2+ e2- e2*)))
-  "Define binary elementwise operations for FUNCTION for two arguments of the
-same class."
+(defmacro define-elementwise-same-class
+    (type
+     &key (functions '(e2+ e2- e2*))
+          (elements-accessor (symbolicate type '#:-elements)))
+  "Define binary elementwise operations for FUNCTION for two arguments of the same class."
   `(progn
      ,@(loop for function in functions collect
-             `(defmethod ,function ((a ,type) (b ,type))
-                (,(symbolicate '#:make- type)
-                 (,function (elements a) (elements b)))))))
+                `(defmethod ,function ((a ,type) (b ,type))
+                   (,(symbolicate '#:make- type)
+                    (,function (,elements-accessor a) (,elements-accessor b)))))))
 
 (defmacro define-elementwise-as-array (type
-                                       &optional (functions '(e2+ e2- e2*)))
-  "Define binary elementwise operations for FUNCTION for two arguments of the
-same class."
+                                       &key (functions '(e2+ e2- e2*)))
+  "Define binary elementwise operations for FUNCTION for two arguments of the same class."
   `(progn
      ,@(loop for function in functions
              collect `(defmethod ,function ((a ,type) b)
@@ -351,14 +352,14 @@ same class."
                         (,function a (aops:as-array b))))))
 
 (defmacro define-elementwise-univariate
-    (type &optional (functions '(e1- e1/ eexp e1log esqrt)))
-  "Define unary elementwise operations for FUNCTION for all subclasses of
-wrapped-elements."
+    (type &key (functions '(e1- e1/ eexp e1log esqrt))
+               (elements-accessor (symbolicate type '#:-elements)))
+  "Define unary elementwise operations for FUNCTION for all subclasses of wrapped-elements."
   `(progn
      ,@(loop :for function :in functions
              :collect
              `(defmethod ,function ((a ,type))
-                (,(symbolicate '#:make- type) (,function (elements a)))))))
+                (,(symbolicate '#:make- type) (,function (,elements-accessor a)))))))
 
 (define-elementwise-as-array wrapped-matrix)
 

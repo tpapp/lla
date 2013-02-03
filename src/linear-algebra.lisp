@@ -626,7 +626,7 @@ to generate random draws, etc."))
   ;; Notes: X = QR, and thus X^T X = R^T Q^T Q R = R^T R because Q is
   ;; orthogonal, also (X^T X)^-1 = R^-1 (R^T)-1
   (let+ ((r (qr-r qr)))
-    (assert (<= (ncol r) (nrow r)))
+    (assert (<= (aops:ncol r) (aops:nrow r)))
     (xx (invert r))))
 
 ;;;; constrained-least-squares
@@ -788,12 +788,12 @@ which matrices define their eigenvalues to high relative accuracy."
 
 (defmethod as-matrix ((svd svd))
   (let+ (((&structure-r/o svd- u d vt) svd)
-         (n (nrow d)))
-    (mmm (if (= (ncol u) n)
+         (n (aops:nrow d)))
+    (mmm (if (= (aops:ncol u) n)
              u
              (sub u t (cons 0 n)))
          d
-         (if (= (nrow vt) n)
+         (if (= (aops:nrow vt) n)
              vt
              (sub vt (cons 0 n) t)))))
 

@@ -2,7 +2,7 @@
 
 ;;;; Printing and formatting
 
-;;;; General variables and utility functions 
+;;;; General variables and utility functions
 
 (defun print-length-truncate (dimension)
   "Return values (min dimension *print-length*) and whether the
@@ -42,7 +42,7 @@ constraint is binding."
 (defvar *lla-print-matrix-paddig* 1
   "Number of spaces between columns.")
 
-(defun print-matrix (matrix stream masked-element 
+(defun print-matrix (matrix stream masked-element
                      &key (formatter #'standard-numeric-formatter))
   "Format and print the elements of matrix to stream, using
 *LLA-PRINT-MATRIX-PADDING* spaces between columns.  If
@@ -50,8 +50,8 @@ constraint is binding."
 *PRINT-LENGTH* rows and columns, indicating more with a ...  Uses MREF for
 element access, printing MASKED-ELEMENT for masked elements.."
   ;; ?? maybe column & row labels, not a high priority at the moment
-  (let+ (((&values nrow row-trunc?) (print-length-truncate (nrow matrix)))
-	 ((&values ncol col-trunc?) (print-length-truncate (ncol matrix)))
+  (let+ (((&values nrow row-trunc?) (print-length-truncate (aops:nrow matrix)))
+	 ((&values ncol col-trunc?) (print-length-truncate (aops:ncol matrix)))
 	 (formatted-elements (make-array (list nrow ncol)))
 	 (column-widths (make-array ncol :element-type 'fixnum
                                          :initial-element 0))
