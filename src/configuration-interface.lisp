@@ -8,8 +8,7 @@
 ;;; ********************************************************************
 
 (defun query-configuration (indicator &optional default)
-  "Return the property for INDICATOR from the configuration variable, with an
-optional default, which can be a function (called on demand)."
+  "Return the property for INDICATOR from the configuration variable, with an optional default, which can be a function (called on demand)."
   (let* ((symbol 'cl-user::*lla-configuration*)
          (plist (when (boundp symbol)
                   (symbol-value symbol)))
