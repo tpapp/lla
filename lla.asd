@@ -16,7 +16,6 @@
                #:cffi
                #:cl-num-utils
                #:cl-slice
-               #:iterate
                #:let-plus)
   :pathname #P"src/"
   :serial t

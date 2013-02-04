@@ -837,10 +837,10 @@ block-name (values nil 0) when zero."
   (let+ (((nrow ncol) (array-dimensions matrix)))
     (assert (= nrow ncol))
     (values
-      (iter
-        (for i :from 0 :below nrow)
-        (summing (log-with-sign% (aref matrix i i)
-                                 sign-changes diagonal-log-sum%)))
+      (loop
+        for i from 0 below nrow
+        summing (log-with-sign% (aref matrix i i)
+                                sign-changes diagonal-log-sum%))
       (if (evenp sign-changes) 1 -1))))
 
 (defmethod logdet ((matrix array))

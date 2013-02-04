@@ -5,12 +5,9 @@
         #:cffi
         #:cl-num-utils
         #:cl-slice
-        #:let-plus
-        #:iterate)
-  (:shadowing-import-from #:cl-num-utils
-                          #:mean #:variance #:median ; also in ALEXANDRIA
-                          #:sum                      ; also in ITERATE
-                          )
+        #:let-plus)
+  (:shadowing-import-from #:cl-num-utils ; also in ALEXANDRIA
+                          #:mean #:variance #:median)
   ;; no exports from:
   ;;   configuration-interface
   ;;   configuration
