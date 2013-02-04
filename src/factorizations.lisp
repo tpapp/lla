@@ -61,9 +61,9 @@
   demand, so getting X directly might be more efficient if you don't need
   X^T.")
   (:method ((a matrix-square-root))
-    (aops:transpose (matrix-square-root-left a)))
+    (transpose (matrix-square-root-left a)))
   (:method (a)
-    (aops:transpose (left-square-root a))))
+    (transpose (left-square-root a))))
 
 (declaim (inline xx))
 (defun xx (left-square-root)
