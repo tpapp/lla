@@ -125,9 +125,7 @@ vectors as conforming matrices (eg see MM)."
 ;;; outer product
 
 (defgeneric outer (a b)
-  (:documentation "Return the outer product column(a) row(b)^H.  If either A
-  or B is T, they are taken to be conjugate transposes of the other
-  argument.")
+  (:documentation "Return the outer product column(a) row(b)^H.  If either A or B is T, they are taken to be conjugate transposes of the other argument.")
   (:method ((a vector) (b (eql t)))
     (mm (aops:reshape-col a) t))
   (:method ((a (eql t)) (b vector))
