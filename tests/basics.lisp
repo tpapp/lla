@@ -84,22 +84,3 @@
 
 
 ;; ;;; pinned-vector is tested in a separate file
-
-;; special matrixes
-
-
-(addtest (basic-tests)
-  special-mean
-  (let ((a (upper 'lla-double
-             (2 4)
-             (0 6)))
-        (b (lower 'lla-double
-             (2 0)
-             (4 6)))
-        (*lift-equality-test* #'num=))
-    (ensure-same (mean (list (e* 2 a) (e- a))) (e/ a 2)
-                 :ignore-multiple-values? t)
-    (ensure-same (mean (list (e* 2 b) (e- b))) (e/ b 2)
-                 :ignore-multiple-values? t)
-    (ensure-same (mean (list a b)) (mean (list (as-array a) (as-array b)))
-                 :ignore-multiple-values? t)))
