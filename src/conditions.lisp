@@ -44,7 +44,7 @@ indicates a bug in LLA and should not happen."))
 (define-condition lla-incompatible-dimensions (lapack-error) ())
 
 ;;;; efficiency warnings
-;;; 
+;;;
 ;;; The framework for efficiency warnings has to be enabled before loading
 ;;; (compiling) the library, using the configuration interface.  See the
 ;;; documentation.
@@ -53,12 +53,9 @@ indicates a bug in LLA and should not happen."))
   ())
 
 (defvar *lla-efficiency-warning-array-type* nil
-  "Toggles whether arrays with types not recognized as LLA types raise an
-LLA-EFFICIENCY-WARNING-ARRAY-TYPE warning.
+  "Toggles whether arrays with types not recognized as LLA types raise an LLA-EFFICIENCY-WARNING-ARRAY-TYPE warning.
 
-Effective only when LLA was loaded & compiled with the appropriate settings in
-CL-USER::*LLA-CONFIGURATION*.  See the documentation on configuration in the
-README.")
+Effective only when LLA was loaded & compiled with the appropriate settings in CL-USER::*LLA-CONFIGURATION*.  See the documentation on configuration in the README.")
 
 (define-condition lla-efficiency-warning-array-type
     (lla-efficiency-warning)
@@ -70,12 +67,9 @@ README.")
           (slot-value object 'array)))
 
 (defvar *lla-efficiency-warning-array-conversion* nil
-  "Toggles whether conversion of array elements to another type when used with
-foreign functions raises an LLA-EFFICIENCY-WARNING-ARRAY-CONVERSION warning.
+  "Toggles whether conversion of array elements to another type when used with foreign functions raises an LLA-EFFICIENCY-WARNING-ARRAY-CONVERSION warning.
 
-Effective only when LLA was loaded & compiled with the appropriate settings in
-CL-USER::*LLA-CONFIGURATION*.  See the documentation on configuration in the
-README.")
+Effective only when LLA was loaded & compiled with the appropriate settings in CL-USER::*LLA-CONFIGURATION*.  See the documentation on configuration in the README.")
 
 (define-condition lla-efficiency-warning-array-conversion
     (lla-efficiency-warning)
