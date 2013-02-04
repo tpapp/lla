@@ -89,7 +89,7 @@
   "Cholesky factorization a matrix.")
 
 (defun make-cholesky (left)
-  (assert (typep left '(and lower-triangular-matrix (satisfies square?))))
+  (assert (typep left '(and lower-triangular-matrix (satisfies aops:square-matrix?))))
   (make-cholesky% left))
 
 ;;;; permutations (pivoting)
