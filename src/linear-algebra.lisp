@@ -25,10 +25,7 @@
 ;;; - methods for triangular matrices
 
 (defun dimensions-as-matrix (array orientation)
-  "If ARRAY is a vector, return its dimensions as a matrix with given
-ORIENTATION (:ROW or :COLUMN) as multiple values, and T as the third value.
-If it is matrix, just return the dimensions and NIL.  Used for considering
-vectors as conforming matrices (eg see MM)."
+  "If ARRAY is a vector, return its dimensions as a matrix with given ORIENTATION (:ROW or :COLUMN) as multiple values, and T as the third value.  If it is matrix, just return the dimensions and NIL.  Used for considering vectors as conforming matrices (eg see MM)."
   (ecase (array-rank array)
     (1 (let ((d0 (array-dimension array 0)))
          (ecase orientation
@@ -70,10 +67,7 @@ vectors as conforming matrices (eg see MM)."
 ;;; !! that.  Will investigate.
 
 (defun mm-hermitian% (a transpose-left?)
-  "Calculate A*op(A) if TRANSPOSE-LEFT? is NIL, and op(A)*A otherwise.  op()
-  is always conjugate transpose, but may be implemented as a transpose if A is
-  real, in which case the two are equivalent.  This function is meant to be
-  used internally, and is not exported."
+  "Calculate A*op(A) if TRANSPOSE-LEFT? is NIL, and op(A)*A otherwise.  op() is always conjugate transpose, but may be implemented as a transpose if A is real, in which case the two are equivalent.  This function is meant to be used internally, and is not exported."
   ;; implementation note: no transpose is necessary
   (let+ (((a0 a1) (array-dimensions a))
          ((&values dim-c other-dim-a)
@@ -342,11 +336,7 @@ vectors as conforming matrices (eg see MM)."
   (mm (e/ a) b))
 
 (defgeneric invert (a &key &allow-other-keys)
-  (:documentation "Invert A.  The inverse of matrix factorizations are other
-  factorizations when appropriate, otherwise the result is a matrix.  Usage
-  note: inverting dense matrices is unnecessary and unwise in most cases,
-  because it is numerically unstable.  If you are solving many Ax=b equations
-  with the same A, use a matrix factorization like LU."))
+  (:documentation "Invert A.  The inverse of matrix factorizations are other factorizations when appropriate, otherwise the result is a matrix.  Usage note: inverting dense matrices is unnecessary and unwise in most cases, because it is numerically unstable.  If you are solving many Ax=b equations with the same A, use a matrix factorization like LU."))
 
 (defmethod invert ((a array) &key)
   (invert (lu a)))
@@ -373,9 +363,7 @@ vectors as conforming matrices (eg see MM)."
 
 (defun invert-triangular% (a upper? unit-diag?)
   "Invert a dense (triangular) matrix using the LAPACK routine *TRTRI.
-UPPER? indicates if the matrix is in the upper or the lower triangle of a
-matrix, UNIT-DIAG? indicates whether the diagonal is supposed to consist of
-1s.  For internal use, not exported."
+UPPER? indicates if the matrix is in the upper or the lower triangle of a matrix, UNIT-DIAG? indicates whether the diagonal is supposed to consist of 1s.  For internal use, not exported."
   (let+ (((a0 a1) (array-dimensions a)))
     (assert (= a0 a1))
     (lapack-call ("trtri" (common-float-type a) inverse)
@@ -403,8 +391,7 @@ matrix, UNIT-DIAG? indicates whether the diagonal is supposed to consist of
       #\U (&integer a0) (&array a :output inverse) (&integer a0) &info)))
 
 (defmethod invert ((diagonal diagonal-matrix) &key (tolerance 0))
-  "For pseudoinverse, suppressing diagonal elements below TOLERANCE
-\(if given, otherwise / is just used without any checking."
+  "For pseudoinverse, suppressing diagonal elements below TOLERANCE \(if given, otherwise / is just used without any checking."
   (let ((elements (diagonal-matrix-elements diagonal)))
     (diagonal-matrix (map `(simple-array
                             ,(clnu::elementwise-float-contagion elements) (*))
@@ -514,8 +501,7 @@ matrix, UNIT-DIAG? indicates whether the diagonal is supposed to consist of
 
 (defun last-rows-ss (matrix nrhs common-type)
   "Calculate the sum of squares of the last rows of MATRIX columnwise,
-omitting the first NRHS rows.  If MATRIX is a vector, just do this for the
-last elements.  Used for interfacing with xGELS."
+omitting the first NRHS rows.  If MATRIX is a vector, just do this for the last elements.  Used for interfacing with xGELS."
   (ecase (array-rank matrix)
     (1 (reduce #'+ matrix :key #'absolute-square :start nrhs))
     (2 (let+ (((m n) (array-dimensions matrix))
@@ -531,10 +517,7 @@ last elements.  Used for interfacing with xGELS."
          sum))))
 
 (defun least-squares-qr (y x &key &allow-other-keys)
-  "Least squares using QR decomposition.  Additional values returned: the QR
-decomposition of X.  See LEAST-SQUARES for additional documentation.  Usage
-note: SVD-based methods are recommended over this one, unless X is
-well-conditioned."
+  "Least squares using QR decomposition.  Additional values returned: the QR decomposition of X.  See LEAST-SQUARES for additional documentation.  Usage note: SVD-based methods are recommended over this one, unless X is well-conditioned."
   ;; Note: the naming convention (y,X,b) is different from LAPACK's
   ;; (b,A,x).  Sorry if this creates confusion, I decided to follow
   ;; standard statistical notation.
@@ -614,10 +597,7 @@ well-conditioned."
 ;;; !! least-squares too
 
 (defgeneric invert-xx (xx)
-  (:documentation "Calculate (X^T X)-1 (which is used for calculating the
-variance of estimates) and return as a decomposition.  Usually XX is a
-decomposition itself, eg QR returned by least squares.  Note: this can be used
-to generate random draws, etc."))
+  (:documentation "Calculate (X^T X)-1 (which is used for calculating the variance of estimates) and return as a decomposition.  Usually XX is a decomposition itself, eg QR returned by least squares.  Note: this can be used to generate random draws, etc."))
 
 (defmethod invert-xx ((qr qr))
   ;; Notes: X = QR, and thus X^T X = R^T Q^T Q R = R^T R because Q is
@@ -701,26 +681,15 @@ SPECTRAL-FACTORIZATION about ABSTOL."
 
 The LAPACK manual says the following about ABSTOL:
 
-The absolute error tolerance for the eigenvalues.  An approximate eigenvalue
-is accepted as converged when it is determined to lie in an interval [a,b] of
-width less than or equal to
+The absolute error tolerance for the eigenvalues.  An approximate eigenvalue is accepted as converged when it is determined to lie in an interval [a,b] of width less than or equal to
 
                   ABSTOL + EPS *   max( |a|,|b| ) ,
 
-where EPS is the machine precision.  If ABSTOL is less than or equal to zero,
-then EPS*|T| will be used in its place, where |T| is the 1-norm of the
-tridiagonal matrix obtained by reducing A to tridiagonal form.
+where EPS is the machine precision.  If ABSTOL is less than or equal to zero, then EPS*|T| will be used in its place, where |T| is the 1-norm of the tridiagonal matrix obtained by reducing A to tridiagonal form.
 
-See \"Computing Small Singular Values of Bidiagonal Matrices with Guaranteed
-High Relative Accuracy,\" by Demmel and Kahan, LAPACK Working Note #3.
+See \"Computing Small Singular Values of Bidiagonal Matrices with Guaranteed High Relative Accuracy,\" by Demmel and Kahan, LAPACK Working Note #3.
 
-If high relative accuracy is important, set ABSTOL to DLAMCH( 'Safe minimum').
-Doing so will guarantee that eigenvalues are computed to high relative
-accuracy when possible in future releases.  The current code does not make any
-guarantees about high relative accuracy, but furutre releases will. See
-J. Barlow and J. Demmel, \"Computing Accurate Eigensystems of Scaled
-Diagonally Dominant Matrices\", LAPACK Working Note #7, for a discussion of
-which matrices define their eigenvalues to high relative accuracy."
+If high relative accuracy is important, set ABSTOL to DLAMCH( 'Safe minimum').  Doing so will guarantee that eigenvalues are computed to high relative accuracy when possible in future releases.  The current code does not make any guarantees about high relative accuracy, but furutre releases will. See J. Barlow and J. Demmel, \"Computing Accurate Eigensystems of Scaled Diagonally Dominant Matrices\", LAPACK Working Note #7, for a discussion of which matrices define their eigenvalues to high relative accuracy."
   (check-type a hermitian-matrix)
   (let+ ((a (wrapped-matrix-elements a))
          (type (common-float-type a))
@@ -864,9 +833,7 @@ block-name (values nil 0) when zero."
             (t ,value)))))
 
 (defun diagonal-log-sum% (matrix &optional (sign-changes 0))
-  "Sum of the log of the elements in the diagonal.  Sign-changes counts the
-negative values, and may be started at something else than 0 (eg in case of
-pivoting).  Return (values NIL 0) in case of encountering a 0."
+  "Sum of the log of the elements in the diagonal.  Sign-changes counts the negative values, and may be started at something else than 0 (eg in case of pivoting).  Return (values NIL 0) in case of encountering a 0."
   (let+ (((nrow ncol) (array-dimensions matrix)))
     (assert (= nrow ncol))
     (values
