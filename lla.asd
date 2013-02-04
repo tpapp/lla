@@ -18,42 +18,20 @@
                #:cl-slice
                #:iterate
                #:let-plus)
+  :pathname #P"src/"
   :serial t
   :components
-  ((:module
-    "package-init"
-    :pathname #P"src/"
-    :serial t
-    :components
-    ((:file "package")
-     (:file "configuration-interface")
-     (:file "configuration")
-     (:file "libraries")))
-   (:module
-    "basics"
-    :pathname #P"src/"
-    :depends-on ("package-init")
-    :serial t
-    :components
-    ((:file "types")
-     (:file "conditions")))
-   (:module
-    "pinned-array"
-    :pathname #P"src/"
-    :depends-on ("basics")
-    :serial t
-    :components
-    ((:file "foreign-memory")
-     (:file "pinned-array")))
-   (:module
-    "linear-algebra"
-    :pathname #P"src/"
-    :depends-on ("basics" "pinned-array")
-    :serial t
-    :components
-    ((:file "factorizations")
-     (:file "fortran-call")
-     (:file "linear-algebra")))))
+  ((:file "package")
+   (:file "configuration-interface")
+   (:file "configuration")
+   (:file "libraries")
+   (:file "types")
+   (:file "conditions")
+   (:file "foreign-memory")
+   (:file "pinned-array")
+   (:file "factorizations")
+   (:file "fortran-call")
+   (:file "linear-algebra")))
 
 (defsystem lla-tests
   :description "Unit tests for LLA."
