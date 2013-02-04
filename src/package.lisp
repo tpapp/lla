@@ -1,7 +1,13 @@
 (defpackage #:lla
-  (:use #:common-lisp #:iterate #:let-plus #:cffi #:anaphora #:alexandria
-        #:cl-num-utils)
-  (:shadowing-import-from #:cl-num-utils #:mean #:variance #:median ; also in ALEXANDRIA
+  (:use #:common-lisp
+        #:alexandria
+        #:anaphora
+        #:cffi
+        #:cl-num-utils
+        #:let-plus
+        #:iterate)
+  (:shadowing-import-from #:cl-num-utils
+                          #:mean #:variance #:median ; also in ALEXANDRIA
                           #:sum            ; also in ITERATE
                           )
   (:export
