@@ -87,51 +87,6 @@
 
 ;; special matrixes
 
-(addtest (basic-tests)
-  special-univariate-operation
-  (let ((*lift-equality-test* #'num=))
-    (ensure-same (e- (upper t 2)) (upper t -2))
-    (ensure-same (e/ (upper t 2)) (upper t 0.5))
-    (ensure-same (e+ (upper t 2 )) (upper t 2))))
-
-(addtest (basic-tests)
-  special-bivariate-operation
-  (let+ ((*lift-equality-test* #'num=)
-         (a (dense t
-              (1 2)
-              (3 4)))
-         (b (dense t
-              (5 7)
-              (11 13)))
-         ((&macrolet test (kind op)
-            `(ensure-same (,op (convert-matrix ,kind a)
-                               (convert-matrix ,kind b))
-                          (convert-matrix ,kind (,op a b)))))
-         ((&macrolet tests (kind &optional (ops '(e+ e- e*)))
-            `(progn
-              ,@(mapcar (lambda (op) `(test ,kind ,op)) ops)))))
-    (tests 'hermitian)
-    (tests 'lower)
-    (tests 'upper)))
-
-(addtest (basic-tests)
-  special-bivariate-to-array
-  (let+ ((*lift-equality-test* #'num=)
-         (a (dense t
-              (1 2)
-              (3 4)))
-         (b (dense t
-              (5 7)
-              (11 13)))
-         ((&macrolet test (kind op)
-            `(progn
-               (ensure-same (,op (convert-matrix ,kind a) b) (,op a b))
-               (ensure-same (,op a (convert-matrix ,kind b)) (,op a b)))))
-         ((&macrolet tests (kind &optional (ops '(e+ e- e*)))
-            `(progn ,@(mapcar (lambda (op) `(test ,kind ,op)) ops)))))
-    (tests 'hermitian)
-    (tests 'lower)
-    (tests 'upper)))
 
 (addtest (basic-tests)
   special-mean
