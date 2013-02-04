@@ -2,25 +2,22 @@
 
 (in-package #:lla-tests)
 
-(deftestsuite pinned-array-tests (lla-tests)
-  ())
+(defsuite pinned-array-suite (tests))
 
 ;;;; Basic testing of copying functions
 ;;;
 ;;; Should not require LLA facilities other than those tested.
 
 (defun flatten-complex-vector (vector)
-  "Separate real and complex elements in a vector and stack them
-consecutively."
-  (coerce (iter
-            (for element :in-vector vector)
-            (collecting (realpart element))
-            (collecting (imagpart element)))
+  "Separate real and complex elements in a vector and stack them consecutively."
+  (coerce (loop
+            for element across vector
+            collect (realpart element)
+            collect (imagpart element))
           'vector))
 
 (defun check-memory-contents (pointer cffi-type values)
-  "Check that the contents of the memory (of CFFI-TYPE) at POINTER is the same
-as VALUES.  VALUES should be flattened if complex."
+  "Check that the contents of the memory (of CFFI-TYPE) at POINTER is the same as VALUES.  VALUES should be flattened if complex."
   (loop
     for index from 0
     for value across values
@@ -32,8 +29,7 @@ as VALUES.  VALUES should be flattened if complex."
              same?)))
 
 (defun check-memory-contents2 (pointer internal-type values)
-  "Like CHECK-MEMORY-CONTENTS, with autoconversion of values and calculation
-of INTERNAL-TYPE."
+  "Like CHECK-MEMORY-CONTENTS, with autoconversion of values and calculation of INTERNAL-TYPE."
   (check-memory-contents pointer
                          (alexandria:eswitch (internal-type)
                            (lla::+single+ :float)
@@ -50,117 +46,112 @@ of INTERNAL-TYPE."
                                (flatten-complex-vector vector)
                                vector))))
 
-(addtest (pinned-array-tests)
-  copy-to-memory
+(deftest copy-to-memory (pinned-array-suite)
   (with-foreign-temporary-buffer (pointer 100)
     (let+ (((&flet check-copy (array internal-type)
               (lla::copy-array-to-memory array pointer internal-type)
-              (check-memory-contents2 pointer internal-type array)))
-           ((&macrolet ensure-copy (element-type internal-type)
-              `(ensure (check-copy (random-array ,element-type 5 7)
-                                   ,internal-type))))
-           ((&macrolet ensure-copy-error (element-type internal-type)
-              `(ensure-error
-                 (lla::copy-array-to-memory (random-array ,element-type 19)
-                                            pointer ,internal-type)))))
+              (assert-true (check-memory-contents2 pointer internal-type array))))
+           ((&flet assert-same-copy (element-type internal-type)
+              (check-copy (random-array element-type 5 7)
+                          internal-type)))
+           ((&flet assert-copy-error (element-type internal-type)
+              (assert-condition error
+                  (lla::copy-array-to-memory (random-array element-type 19)
+                                             pointer internal-type)))))
       ;; single float
-      (ensure-copy t lla::+single+)
-      (ensure-copy 'lla-integer lla::+single+)
-      (ensure-copy 'lla-single lla::+single+)
-      (ensure-copy 'lla-double lla::+single+)
-      (ensure-copy-error 'lla-complex-single lla::+single+)
+      (assert-same-copy t lla::+single+)
+      (assert-same-copy 'lla-integer lla::+single+)
+      (assert-same-copy 'lla-single lla::+single+)
+      (assert-same-copy 'lla-double lla::+single+)
+      (assert-copy-error 'lla-complex-single lla::+single+)
       ;; double float
-      (ensure-copy t lla::+double+)
-      (ensure-copy 'lla-integer lla::+double+)
-      (ensure-copy 'lla-single lla::+double+)
-      (ensure-copy 'lla-double lla::+double+)
-      (ensure-copy-error 'lla-complex-single lla::+double+)
+      (assert-same-copy t lla::+double+)
+      (assert-same-copy 'lla-integer lla::+double+)
+      (assert-same-copy 'lla-single lla::+double+)
+      (assert-same-copy 'lla-double lla::+double+)
+      (assert-copy-error 'lla-complex-single lla::+double+)
       ;; complex single
-      (ensure-copy t lla::+complex-single+)
-      (ensure-copy 'lla-integer lla::+complex-single+)
-      (ensure-copy 'lla-single lla::+complex-single+)
-      (ensure-copy 'lla-double lla::+complex-single+)
-      (ensure-copy 'lla-complex-single lla::+complex-single+)
-      (ensure-copy 'lla-complex-double lla::+complex-single+)
+      (assert-same-copy t lla::+complex-single+)
+      (assert-same-copy 'lla-integer lla::+complex-single+)
+      (assert-same-copy 'lla-single lla::+complex-single+)
+      (assert-same-copy 'lla-double lla::+complex-single+)
+      (assert-same-copy 'lla-complex-single lla::+complex-single+)
+      (assert-same-copy 'lla-complex-double lla::+complex-single+)
       ;; complex double
-      (ensure-copy t lla::+complex-double+)
-      (ensure-copy 'lla-integer lla::+complex-double+)
-      (ensure-copy 'lla-single lla::+complex-double+)
-      (ensure-copy 'lla-double lla::+complex-double+)
-      (ensure-copy 'lla-complex-single lla::+complex-double+)
-      (ensure-copy 'lla-complex-double lla::+complex-double+))))
+      (assert-same-copy t lla::+complex-double+)
+      (assert-same-copy 'lla-integer lla::+complex-double+)
+      (assert-same-copy 'lla-single lla::+complex-double+)
+      (assert-same-copy 'lla-double lla::+complex-double+)
+      (assert-same-copy 'lla-complex-single lla::+complex-double+)
+      (assert-same-copy 'lla-complex-double lla::+complex-double+))))
 
-(addtest (pinned-array-tests)
-  transpose-to-memory
+(deftest transpose-to-memory (pinned-array-suite)
   (with-foreign-temporary-buffer (pointer 100)
     (let+ (((&flet check-transpose (matrix internal-type)
               (lla::transpose-matrix-to-memory matrix pointer internal-type)
-              (check-memory-contents2 pointer internal-type (transpose matrix))))
-           ((&macrolet ensure-transpose (element-type internal-type)
-              `(ensure (check-transpose (random-array ,element-type 5 6)
-                                        ,internal-type))))
-           ((&macrolet ensure-transpose-error (element-type internal-type)
-              `(ensure-error
-                 (lla::transpose-matrix-to-memory
-                  (random-array ,element-type 7 5) pointer ,internal-type)))))
+              (assert-true (check-memory-contents2 pointer internal-type
+                                                   (aops:transpose matrix)))))
+           ((&flet assert-same-transpose (element-type internal-type)
+              (check-transpose (random-array element-type 5 6)
+                               internal-type)))
+           ((&flet assert-transpose-error (element-type internal-type)
+              (assert-condition error
+                  (lla::transpose-matrix-to-memory
+                   (random-array element-type 7 5) pointer internal-type)))))
       ;; single float
-      (ensure-transpose t lla::+single+)
-      (ensure-transpose 'lla-integer lla::+single+)
-      (ensure-transpose 'lla-single lla::+single+)
-      (ensure-transpose 'lla-double lla::+single+)
-      (ensure-transpose-error 'lla-complex-single lla::+single+)
+      (assert-same-transpose t lla::+single+)
+      (assert-same-transpose 'lla-integer lla::+single+)
+      (assert-same-transpose 'lla-single lla::+single+)
+      (assert-same-transpose 'lla-double lla::+single+)
+      (assert-transpose-error 'lla-complex-single lla::+single+)
       ;; ;; double float
-      (ensure-transpose t lla::+double+)
-      (ensure-transpose 'lla-integer lla::+double+)
-      (ensure-transpose 'lla-single lla::+double+)
-      (ensure-transpose 'lla-double lla::+double+)
-      (ensure-transpose-error 'lla-complex-single lla::+double+)
+      (assert-same-transpose t lla::+double+)
+      (assert-same-transpose 'lla-integer lla::+double+)
+      (assert-same-transpose 'lla-single lla::+double+)
+      (assert-same-transpose 'lla-double lla::+double+)
+      (assert-transpose-error 'lla-complex-single lla::+double+)
       ;; complex single
-      (ensure-transpose t lla::+complex-single+)
-      (ensure-transpose 'lla-integer lla::+complex-single+)
-      (ensure-transpose 'lla-single lla::+complex-single+)
-      (ensure-transpose 'lla-double lla::+complex-single+)
-      (ensure-transpose 'lla-complex-single lla::+complex-single+)
-      (ensure-transpose 'lla-complex-double lla::+complex-single+)
+      (assert-same-transpose t lla::+complex-single+)
+      (assert-same-transpose 'lla-integer lla::+complex-single+)
+      (assert-same-transpose 'lla-single lla::+complex-single+)
+      (assert-same-transpose 'lla-double lla::+complex-single+)
+      (assert-same-transpose 'lla-complex-single lla::+complex-single+)
+      (assert-same-transpose 'lla-complex-double lla::+complex-single+)
       ;; complex double
-      (ensure-transpose t lla::+complex-double+)
-      (ensure-transpose 'lla-integer lla::+complex-double+)
-      (ensure-transpose 'lla-single lla::+complex-double+)
-      (ensure-transpose 'lla-double lla::+complex-double+)
-      (ensure-transpose 'lla-complex-single lla::+complex-double+)
-      (ensure-transpose 'lla-complex-double lla::+complex-double+))))
+      (assert-same-transpose t lla::+complex-double+)
+      (assert-same-transpose 'lla-integer lla::+complex-double+)
+      (assert-same-transpose 'lla-single lla::+complex-double+)
+      (assert-same-transpose 'lla-double lla::+complex-double+)
+      (assert-same-transpose 'lla-complex-single lla::+complex-double+)
+      (assert-same-transpose 'lla-complex-double lla::+complex-double+))))
 
-(addtest (pinned-array-tests)
-  copy-from-memory
+(deftest copy-from-memory (pinned-array-suite)
   (with-foreign-temporary-buffer (pointer 100)
     (let+ (((&flet check-copy-to-and-from (element-type internal-type)
               (let ((array (random-array element-type 5 8)))
                 (lla::copy-array-to-memory array pointer internal-type)
-                (equalp array (lla::create-array-from-memory
-                               pointer internal-type (array-dimensions array))))))
-           ((&macrolet ensure-to-and-from (element-type internal-type)
-              `(ensure (check-copy-to-and-from ,element-type ,internal-type)))))
-      (ensure-to-and-from 'lla-single lla::+single+)
-      (ensure-to-and-from 'lla-double lla::+double+)
-      (ensure-to-and-from 'lla-complex-single lla::+complex-single+)
-      (ensure-to-and-from 'lla-complex-double lla::+complex-double+)
-      (ensure-to-and-from 'lla-integer lla::+integer+))))
+                (assert-equalp array
+                    (lla::create-array-from-memory
+                     pointer internal-type (array-dimensions array)))))))
+      (check-copy-to-and-from 'lla-single lla::+single+)
+      (check-copy-to-and-from 'lla-double lla::+double+)
+      (check-copy-to-and-from 'lla-complex-single lla::+complex-single+)
+      (check-copy-to-and-from 'lla-complex-double lla::+complex-double+)
+      (check-copy-to-and-from 'lla-integer lla::+integer+))))
 
-(addtest (pinned-array-tests)
-  transpose-from-memory
+(deftest transpose-from-memory (pinned-array-suite)
   (with-foreign-temporary-buffer (pointer 100)
     (let+ (((&flet check-transpose-to-and-from (element-type internal-type)
               (let ((matrix (random-array element-type 5 8)))
                 (lla::transpose-matrix-to-memory matrix pointer internal-type)
-                (equalp matrix (lla::create-transposed-matrix-from-memory
-                                pointer internal-type (array-dimensions matrix))))))
-           ((&macrolet ensure-to-and-from (element-type internal-type)
-              `(ensure (check-transpose-to-and-from ,element-type ,internal-type)))))
-      (ensure-to-and-from 'lla-single lla::+single+)
-      (ensure-to-and-from 'lla-double lla::+double+)
-      (ensure-to-and-from 'lla-complex-single lla::+complex-single+)
-      (ensure-to-and-from 'lla-complex-double lla::+complex-double+)
-      (ensure-to-and-from 'lla-integer lla::+integer+))))
+                (assert-equalp matrix
+                    (lla::create-transposed-matrix-from-memory
+                     pointer internal-type (array-dimensions matrix)))))))
+      (check-transpose-to-and-from 'lla-single lla::+single+)
+      (check-transpose-to-and-from 'lla-double lla::+double+)
+      (check-transpose-to-and-from 'lla-complex-single lla::+complex-single+)
+      (check-transpose-to-and-from 'lla-complex-double lla::+complex-double+)
+      (check-transpose-to-and-from 'lla-integer lla::+integer+))))
 
 ;;;; Pinning tests
 ;;;
@@ -255,7 +246,7 @@ test-pinning-copy, except that the output is also checked."
 
 ;; pinning, input only
 
-(addtest (pinned-array-tests)
+(deftest (pinned-array-suite)
   pinning-input
   (iter
     (for (source destination) :in (coercible-pairs-list))
@@ -264,7 +255,7 @@ test-pinning-copy, except that the output is also checked."
 
 ;; pinning, copy
 
-(addtest (pinned-array-tests)
+(deftest (pinned-array-suite)
   pinning-copy
   (iter
     (for (source destination) :in (coercible-pairs-list))
@@ -273,7 +264,7 @@ test-pinning-copy, except that the output is also checked."
 
 ;; pinning, output
 
-(addtest (pinned-array-tests)
+(deftest (pinned-array-suite)
   pinning-output
   (iter
     (for (source destination) :in (coercible-pairs-list))
@@ -282,7 +273,7 @@ test-pinning-copy, except that the output is also checked."
 
 ;; vector-output
 
-(addtest (pinned-array-tests)
+(deftest (pinned-array-suite)
   vector-output
   (ensure (test-vector-output lla::+integer+))
   (ensure (test-vector-output lla::+single+))
