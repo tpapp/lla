@@ -85,7 +85,7 @@ vectors as conforming matrices (eg see MM)."
               (values a0 a1)))
          (type (common-float-type a)))
     (blas-call (("syrk" "herk") type
-                (make-hermitian-matrix c))
+                (hermitian-matrix c))
       #\U (&char (if transpose-left? #\N #\C))
       (&integers dim-c other-dim-a) 1
       (&array a) (&integer a1) 0
@@ -151,9 +151,9 @@ vectors as conforming matrices (eg see MM)."
 
 ;;; mm for diagonal matrices
 
-(defmethod mm ((a diagonal) (b array))
+(defmethod mm ((a diagonal-matrix) (b array))
   (let+ (((b0 b1) (array-dimensions b))
-         (a (elements a))
+         (a (diagonal-matrix-elements a))
          ;; !!! currently we are not using the narrowest element type
          (c (make-array (list b0 b1)
                         :element-type (elementwise-float-contagion a b)))
@@ -166,9 +166,9 @@ vectors as conforming matrices (eg see MM)."
           (incf i))))
     c))
 
-(defmethod mm ((a array) (b diagonal))
+(defmethod mm ((a array) (b diagonal-matrix))
   (let+ (((a0 a1) (array-dimensions a))
-         (b (elements b))
+         (b (diagonal-matrix-elements b))
          ;; !!! currently we are not using the narrowest element type
          (c (make-array (list a0 a1)
                         :element-type (elementwise-float-contagion a b)))
@@ -181,21 +181,22 @@ vectors as conforming matrices (eg see MM)."
         (incf i)))
     c))
 
-(defmethod mm ((a vector) (b diagonal))
-  (e* a (elements b)))
+(defmethod mm ((a vector) (b diagonal-matrix))
+  (e* a (diagonal-matrix-elements b)))
 
-(defmethod mm ((a diagonal) (b vector))
-  (e* (elements a) b))
+(defmethod mm ((a diagonal-matrix) (b vector))
+  (e* (diagonal-matrix-elements a) b))
 
-(defmethod mm ((a diagonal) (b diagonal))
-  (make-diagonal (e* (elements a) (elements b))))
+(defmethod mm ((a diagonal-matrix) (b diagonal-matrix))
+  (diagonal-matrix (e* (diagonal-matrix-elements a) (diagonal-matrix-elements b))))
 
-(defmethod mm ((a diagonal) (b (eql t)))
+(defmethod mm ((a diagonal-matrix) (b (eql t)))
   ;; !!! currently we are not using the narrowest element type
-  (let+ (((&accessors-r/o elements) a))
-    (make-diagonal (map (type-of elements) #'absolute-square elements))))
+  (let+ (((&accessors-r/o diagonal-matrix-elements) a))
+    (diagonal-matrix (map (type-of diagonal-matrix-elements)
+                          #'absolute-square diagonal-matrix-elements))))
 
-(defmethod mm ((a (eql t)) (b diagonal))
+(defmethod mm ((a (eql t)) (b diagonal-matrix))
   (mm b a))
 
 
@@ -255,7 +256,7 @@ vectors as conforming matrices (eg see MM)."
   (:documentation "Compute the hermitian factorization."))
 
 (defmethod hermitian-factorization ((a hermitian-matrix))
-  (let+ ((a (elements a))
+  (let+ ((a (wrapped-matrix-elements a))
          ((a0 a1) (array-dimensions a)))
     (assert (= a0 a1) () 'lla-incompatible-dimensions)
     (lapack-call-w/query (("sytrf" "hetrf") (common-float-type a)
@@ -294,7 +295,7 @@ vectors as conforming matrices (eg see MM)."
       (&integer a0) &info)))
 
 (defmethod solve ((cholesky cholesky) b)
-  (let+ ((a (elements (left-square-root cholesky)))
+  (let+ ((a (wrapped-matrix-elements (left-square-root cholesky)))
          ((&values b0 b1 &ign) (dimensions-as-matrix b :column))
          ((a0 a1) (array-dimensions a)))
     (assert (= a0 a1 b0) () 'lla-incompatible-dimensions)
@@ -304,7 +305,7 @@ vectors as conforming matrices (eg see MM)."
       (&integer b0) &info)))
 
 (defmethod solve ((hermitian-matrix hermitian-matrix) b)
-  (let+ ((a (elements hermitian-matrix))
+  (let+ ((a (wrapped-matrix-elements hermitian-matrix))
          ((&values b0 b1) (dimensions-as-matrix b :column))
          ((a0 a1) (array-dimensions a)))
     (assert (= a0 a1 b0) () 'lla-incompatible-dimensions)
@@ -337,12 +338,12 @@ vectors as conforming matrices (eg see MM)."
       (&array a) (&integer a1) (&array b :output x) (&integer b1))))
 
 (defmethod solve ((a lower-triangular-matrix) b)
-  (trsm% (elements a) nil b))
+  (trsm% (wrapped-matrix-elements a) nil b))
 
 (defmethod solve ((a upper-triangular-matrix) b)
-  (trsm% (elements a) t b))
+  (trsm% (wrapped-matrix-elements a) t b))
 
-(defmethod solve ((a diagonal) b)
+(defmethod solve ((a diagonal-matrix) b)
   (mm (e/ a) b))
 
 (defgeneric invert (a &key &allow-other-keys)
@@ -368,22 +369,21 @@ vectors as conforming matrices (eg see MM)."
          ((a0 a1) (array-dimensions factor)))
     (assert (= a0 a1))
     (lapack-call (("sytri" "hetri") (common-float-type factor)
-                  (make-hermitian-matrix inverse))
+                  (hermitian-matrix inverse))
       #\U (&integer a0) (&array factor :output inverse) (&integer a0)
       (&array ipiv :type +integer+) (&work a0) &info)))
 
 (defmethod invert ((a hermitian-matrix) &key)
   (invert (hermitian-factorization a)))
 
-(defun invert-triangular% (a upper? unit-diag? kind)
+(defun invert-triangular% (a upper? unit-diag?)
   "Invert a dense (triangular) matrix using the LAPACK routine *TRTRI.
 UPPER? indicates if the matrix is in the upper or the lower triangle of a
 matrix, UNIT-DIAG? indicates whether the diagonal is supposed to consist of
 1s.  For internal use, not exported."
   (let+ (((a0 a1) (array-dimensions a)))
     (assert (= a0 a1))
-    (lapack-call ("trtri" (common-float-type a)
-                          (convert-matrix kind inverse))
+    (lapack-call ("trtri" (common-float-type a) inverse)
                  (&char (if upper? #\L #\U))
                  (&char (if unit-diag? #\U #\N))
                  (&integer a0)
@@ -392,35 +392,37 @@ matrix, UNIT-DIAG? indicates whether the diagonal is supposed to consist of
                  &info)))
 
 (defmethod invert ((a upper-triangular-matrix) &key)
-  (invert-triangular% (elements a) t nil 'upper))
+  (upper-triangular-matrix
+   (invert-triangular% (wrapped-matrix-elements a) t nil)))
 
 (defmethod invert ((a lower-triangular-matrix) &key)
-  (invert-triangular% (elements a) nil nil 'lower))
+  (lower-triangular-matrix
+   (invert-triangular% (wrapped-matrix-elements a) nil nil)))
 
 (defmethod invert ((a cholesky) &key)
-  (let+ ((a (elements (left-square-root a)))
+  (let+ ((a (wrapped-matrix-elements (left-square-root a)))
          ((a0 a1) (array-dimensions a)))
     (assert (= a0 a1))
     (lapack-call ("potri" (common-float-type a)
-                          (make-hermitian-matrix inverse))
+                          (hermitian-matrix inverse))
       #\U (&integer a0) (&array a :output inverse) (&integer a0) &info)))
 
-(defmethod invert ((diagonal diagonal) &key (tolerance 0))
+(defmethod invert ((diagonal diagonal-matrix) &key (tolerance 0))
   "For pseudoinverse, suppressing diagonal elements below TOLERANCE
 \(if given, otherwise / is just used without any checking."
-  (let ((elements (elements diagonal)))
-    (make-diagonal (map `(simple-array
-                          ,(clnu::elementwise-float-contagion elements) (*))
-                        (cond
-                          ((null tolerance) #'/)
-                          ((and (numberp tolerance) (<= 0 tolerance))
-                           (lambda (x)
-                             (if (<= (abs x) tolerance) 0 (/ x))))
-                          ((and (numberp tolerance) (zerop tolerance))
-                           (lambda (x)
-                             (if (zerop x) 0 (/ x))))
-                          (t (error "Invalid tolerance argument.")))
-                        elements))))
+  (let ((elements (diagonal-matrix-elements diagonal)))
+    (diagonal-matrix (map `(simple-array
+                            ,(clnu::elementwise-float-contagion elements) (*))
+                          (cond
+                            ((null tolerance) #'/)
+                            ((and (numberp tolerance) (<= 0 tolerance))
+                             (lambda (x)
+                               (if (<= (abs x) tolerance) 0 (/ x))))
+                            ((and (numberp tolerance) (zerop tolerance))
+                             (lambda (x)
+                               (if (zerop x) 0 (/ x))))
+                            (t (error "Invalid tolerance argument.")))
+                          elements))))
 
 ;; (defgeneric eigen (a &key vectors? check-real? &allow-other-keys)
 ;;   (:documentation "Calculate the eigenvalues and optionally the right
@@ -665,17 +667,17 @@ to generate random draws, etc."))
   (:documentation "Cholesky factorization."))
 
 (defmethod cholesky ((a hermitian-matrix))
-  (let+ ((a (elements a))
+  (let+ ((a (wrapped-matrix-elements a))
          ((a0 a1) (array-dimensions a)))
     (assert (= a0 a1))
     (lapack-call ("potrf" (common-float-type a)
-                          (make-cholesky (make-lower-triangular-matrix l)))
+                          (make-cholesky (lower-triangular-matrix l)))
                  #\U (&integer a0) (&array a :output l) (&integer a0) &info)))
 
 (defmethod left-square-root ((hermitian-matrix hermitian-matrix))
   (left-square-root (cholesky hermitian-matrix)))
 
-(defmethod left-square-root ((a diagonal))
+(defmethod left-square-root ((a diagonal-matrix))
   (esqrt a))
 
 ;;; spectral factorization
@@ -684,7 +686,7 @@ to generate random draws, etc."))
   "Return the eigenvalues of A.  See the documentation of
 SPECTRAL-FACTORIZATION about ABSTOL."
   (check-type a hermitian-matrix)
-  (let+ ((a (elements a))
+  (let+ ((a (wrapped-matrix-elements a))
          (type (common-float-type a))
          (real-type (absolute-square-type type))
          ((a0 a1) (array-dimensions a)))
@@ -725,7 +727,7 @@ J. Barlow and J. Demmel, \"Computing Accurate Eigensystems of Scaled
 Diagonally Dominant Matrices\", LAPACK Working Note #7, for a discussion of
 which matrices define their eigenvalues to high relative accuracy."
   (check-type a hermitian-matrix)
-  (let+ ((a (elements a))
+  (let+ ((a (wrapped-matrix-elements a))
          (type (common-float-type a))
          (real-type (absolute-square-type type))
          ((a0 a1) (array-dimensions a)))
@@ -735,7 +737,7 @@ which matrices define their eigenvalues to high relative accuracy."
           (error "needs to be written, report this as an issue")
           (lapack-call-w/query (("syevr" "heevr") type
                                 (make-spectral-factorization
-                                 :z z :w (make-diagonal w)))
+                                 :z z :w (diagonal-matrix w)))
             #\V #\A #\U (&integer a0) (&array a :output :copy)
             (&integer a0) nil nil nil nil (&atom abstol :type real-type)
             (&work 1 +integer+) (&output w a0 :type real-type)
@@ -777,7 +779,7 @@ which matrices define their eigenvalues to high relative accuracy."
                                         (:thin (values #\S min min))
                                         (:all (values #\A a0 a1)))))
           (lapack-call-w/query ("gesdd" type
-                                        (make-svd :d (make-diagonal d)
+                                        (make-svd :d (diagonal-matrix d)
                                                   :u (when vectors u)
                                                   :vt (when vectors vt)))
             (&char jobz) (&integers a1 a0) (&array a :output :copy)
@@ -786,16 +788,16 @@ which matrices define their eigenvalues to high relative accuracy."
             (&integer (max u1 1)) (&work-query) (&work (* 8 min) +integer+)
             &info)))))
 
-(defmethod as-matrix ((svd svd))
+(defmethod as-array ((svd svd))
   (let+ (((&structure-r/o svd- u d vt) svd)
          (n (aops:nrow d)))
     (mmm (if (= (aops:ncol u) n)
              u
-             (sub u t (cons 0 n)))
+             (slice u t (cons 0 n)))
          d
          (if (= (aops:nrow vt) n)
              vt
-             (sub vt (cons 0 n) t)))))
+             (slice vt (cons 0 n) t)))))
 
 (defmethod aops:as-array ((svd svd))
   (as-matrix svd))
@@ -813,9 +815,9 @@ which matrices define their eigenvalues to high relative accuracy."
   (:method ((a array))
     (sum-diagonal% a))
   (:method ((a wrapped-matrix))
-    (sum-diagonal% (elements a)))
-  (:method ((a diagonal))
-    (sum (elements a))))
+    (sum-diagonal% (wrapped-matrix-elements a)))
+  (:method ((a diagonal-matrix))
+    (sum (diagonal-matrix-elements a))))
 
 ;; rank
 
@@ -890,10 +892,10 @@ pivoting).  Return (values NIL 0) in case of encountering a 0."
     (diagonal-log-sum% (lu lu) (permutations lu))))
 
 (defmethod logdet ((matrix lower-triangular-matrix))
-  (diagonal-log-sum% (elements matrix)))
+  (diagonal-log-sum% (wrapped-matrix-elements matrix)))
 
 (defmethod logdet ((matrix upper-triangular-matrix))
-  (diagonal-log-sum% (elements matrix)))
+  (diagonal-log-sum% (wrapped-matrix-elements matrix)))
 
 ;; (defmethod logdet ((matrix hermitian-matrix))
 ;;   (let ((sign-changes 0))
@@ -907,7 +909,7 @@ pivoting).  Return (values NIL 0) in case of encountering a 0."
 ;;   "Calculate the condition number of a matrix (with respect to the Euclidean
 ;;   norm).  Implemented as the ratio of the largest and smallest singular values."
 ;;   (check-type matrix dense-matrix-like)
-;;   (let* ((s (elements (svd matrix)))
+;;   (let* ((s (wrapped-matrix-elements (svd matrix)))
 ;;          (s-min (aref s (1- (length s)))))
 ;;     (if (zerop s-min)
 ;;         (error "Matrix is not full rank.")
