@@ -15,6 +15,7 @@
                #:alexandria
                #:cffi
                #:cl-num-utils
+               #:cl-slice
                #:iterate
                #:let-plus)
   :serial t

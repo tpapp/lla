@@ -4,6 +4,7 @@
         #:anaphora
         #:cffi
         #:cl-num-utils
+        #:cl-slice
         #:let-plus
         #:iterate)
   (:shadowing-import-from #:cl-num-utils
