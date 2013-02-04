@@ -374,10 +374,9 @@
          (z-true (mx 'lla-double
                    (-0.8174156 0.5760484)
                    (0.5760484  0.8174156)))
-         ((&structure-r/o spectral-factorization- z w)
-          (spectral-factorization a)))
-    (assert-equality #'num= w w-true)
-    (assert-equality #'num= z z-true)))
+         (sf (spectral-factorization a)))
+    (assert-equality #'num= (spectral-factorization-w sf) w-true)
+    (assert-equality #'num= (spectral-factorization-z sf) z-true)))
 
 (deftest svd (linear-algebra-suite)
   (let+ ((a (mx 'lla-double
