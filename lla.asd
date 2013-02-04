@@ -65,6 +65,6 @@
   :serial t
   :components
   ((:file "setup")
-   ;; (:file "pinned-array")
+   (:file "pinned-array")
    ;; (:file "linear-algebra")
    ))

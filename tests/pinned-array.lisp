@@ -187,12 +187,11 @@
   "Test array pinning (input only)."
   (let ((vector (random-array (lla::lisp-type source-type) length)))
     (lla::with-pinned-array (pointer vector destination-type nil nil nil nil)
-      (same-memory-contents2? pointer destination-type vector))))
+      (assert-true (same-memory-contents2? pointer destination-type vector)))))
 
 (defun test-pinning-copy (source-type destination-type
                           &key (length 50))
-  "Test array pinning (copy requested).  The memory is modified, compared
-again, and the original vector is checked to ensure that it remains constant."
+  "Test array pinning (copy requested).  The memory is modified, compared again, and the original vector is checked to ensure that it remains constant."
   (let* ((vector (random-array (lla::lisp-type source-type) length))
          (copy (copy-seq vector))
          (copy-inc (map 'vector #'1+ copy)))
@@ -204,13 +203,12 @@ again, and the original vector is checked to ensure that it remains constant."
       ;; increment memory area, check equality, and that original is intact
       (dotimes (i length)
         (incf (lla::foreign-aref pointer destination-type i) 1))
-      (and (same-memory-contents2? pointer destination-type copy-inc)
-           (equalp vector copy)))))
+      (assert-true (and (same-memory-contents2? pointer destination-type copy-inc)
+                        (equalp vector copy))))))
 
 (defun test-pinning-output (source-type destination-type
                             &key (length 50))
-  "Test array pinning (with output).  Procedure is similar to
-test-pinning-copy, except that the output is also checked."
+  "Test array pinning (with output).  Procedure is similar to test-pinning-copy, except that the output is also checked."
   (let* ((vector (random-array (lla::lisp-type source-type) length))
          vector-inc
          (copy (copy-seq vector))
@@ -227,7 +225,7 @@ test-pinning-copy, except that the output is also checked."
                    (equalp vector copy))
         (return-from test-pinning-output nil)))
     ;; check output
-    (every #'= vector-inc copy-inc)))
+    (assert-true (every #'= vector-inc copy-inc))))
 
 (defun test-vector-output (internal-type &key (length 50))
   (let ((vector (random-array (lla::lisp-type internal-type) length))
@@ -236,42 +234,35 @@ test-pinning-copy, except that the output is also checked."
       (dotimes (index length)
         (setf (lla::foreign-aref pointer internal-type index)
               (aref vector index))))
-    (equalp vector output)))
+    (assert-equalp vector output)))
 
 
 ;; pinning, input only
 
-(deftest (pinned-array-suite)
-  pinning-input
-  (iter
-    (for (source destination) :in (coercible-pairs-list))
-    (ensure
-     (test-pinning-readonly source destination))))
+(deftest pinning-input (pinned-array-suite)
+  (loop
+    for (source destination) :in (coercible-pairs-list)
+    do (test-pinning-readonly source destination)))
 
 ;; pinning, copy
 
-(deftest (pinned-array-suite)
-  pinning-copy
-  (iter
-    (for (source destination) :in (coercible-pairs-list))
-    (ensure
-     (test-pinning-copy source destination))))
+(deftest pinning-copy (pinned-array-suite)
+  (loop
+    for (source destination) :in (coercible-pairs-list)
+    do (test-pinning-copy source destination)))
 
 ;; pinning, output
 
-(deftest (pinned-array-suite)
-  pinning-output
-  (iter
-    (for (source destination) :in (coercible-pairs-list))
-    (ensure
-     (test-pinning-output source destination))))
+(deftest pinning-output (pinned-array-suite)
+  (loop
+    for (source destination) :in (coercible-pairs-list)
+    do (test-pinning-output source destination)))
 
 ;; vector-output
 
-(deftest (pinned-array-suite)
-  vector-output
-  (ensure (test-vector-output lla::+integer+))
-  (ensure (test-vector-output lla::+single+))
-  (ensure (test-vector-output lla::+double+))
-  (ensure (test-vector-output lla::+complex-single+))
-  (ensure (test-vector-output lla::+complex-double+)))
+(deftest vector-output (pinned-array-suite)
+  (test-vector-output lla::+integer+)
+  (test-vector-output lla::+single+)
+  (test-vector-output lla::+double+)
+  (test-vector-output lla::+complex-single+)
+  (test-vector-output lla::+complex-double+))
