@@ -11,6 +11,12 @@
   :version "0.1"
   :author "Tamas K Papp <tkpapp@gmail.com>"
   :license "Boost Software License - Version 1.0"
+  :depends-on (#:anaphora
+               #:alexandria
+               #:cffi
+               #:cl-num-utils
+               #:iterate
+               #:let-plus)
   :serial t
   :components
   ((:module
@@ -44,11 +50,9 @@
     :depends-on ("basics" "pinned-array")
     :serial t
     :components
-     ((:file "factorizations")
-      (:file "fortran-call")
-      (:file "linear-algebra"))))
-  :depends-on
-  (iterate let-plus cffi anaphora alexandria cl-num-utils))
+    ((:file "factorizations")
+     (:file "fortran-call")
+     (:file "linear-algebra")))))
 
 (defsystem lla-tests
   :description "Unit tests for LLA."
