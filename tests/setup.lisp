@@ -5,6 +5,7 @@
         #:anaphora
         #:cl-num-utils
         #:cl-num-utils.matrix-shorthand
+        #:cl-slice
         #:clunit
         #:cffi
         #:let-plus

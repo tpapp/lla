@@ -366,8 +366,7 @@
     (assert-equality #'num= (invert a) a\1)
     (assert-equality #'num= (invert c) a\1)))
 
-(deftest (linear-algebra-suite)
-  spectral-factorization
+(deftest spectral-factorization (linear-algebra-suite)
   (let+ ((a (mm t (mx 'lla-double
                     (1 2)
                     (3 4))))
@@ -376,13 +375,11 @@
                    (-0.8174156 0.5760484)
                    (0.5760484  0.8174156)))
          ((&structure-r/o spectral-factorization- z w)
-          (spectral-factorization a))
-         (*lift-equality-test* #'num=))
+          (spectral-factorization a)))
     (assert-equality #'num= w w-true)
     (assert-equality #'num= z z-true)))
 
-(deftest (linear-algebra-suite)
-  svd
+(deftest svd (linear-algebra-suite)
   (let+ ((a (mx 'lla-double
               (0 1)
               (2 3)
@@ -397,20 +394,20 @@
               (-0.79911  0.60118)))
          (svd1 (svd a))
          (svd2 (svd a :all))
-         (*lift-equality-test* #'num=)
          ((&flet svd-rec (a &optional (vectors :thin))
             (as-array (svd a vectors)))))
     (assert-equality #'num= (svd-d svd1) d)
     (assert-equality #'num= (svd-d svd2) d)
-    (assert-equality #'num= (sub (svd-u svd2) t (cons 0 2)) u)
+    (assert-equality #'num= (slice (svd-u svd2) t (cons 0 2)) u)
     (assert-equality #'num= (svd-vt svd2) (transpose v))
     (loop repeat 100 do
              (let* ((a0 (+ 2 (random 3)))
                     (a1 (+ 2 (random 3)))
-                    (a (generate-array (list a0 a1) (lambda () (random 1d0))
-                                       'double-float)))
-               (assert-equality #'num= (as-array (svd a :thin)) a)
-               (assert-equality #'num= (as-array (svd a :all)) a)))))
+                    (a (aops:generate* 'double-float
+                                       (lambda () (random 1d0))
+                                       (list a0 a1))))
+               (assert-equality #'num= (aops:as-array (svd a :thin)) a)
+               (assert-equality #'num= (aops:as-array (svd a :all)) a)))))
 
 ;; ;; (deftest (linear-algebra-suite)
 ;; ;;   svd-rectangular
@@ -428,22 +425,20 @@
 ;; ;;                          0.6196295 0.7848945 :/
 ;; ;;                          -0.7848945 0.6196295))))
 
-(deftest (linear-algebra-suite)
-  tr
-  (let ((*lift-equality-test* #'=))
-    (assert-equality #'num= (tr (mx 'lla-double
-                       (1 2)
-                       (3 4))) 5d0)
-    (assert-equality #'num= (tr (hermitian-mx 'lla-double
-                       (1 2)
-                       (0 9))) 10d0)
-    (assert-equality #'num= (tr (mx 'lla-double
-                       (1 2)
-                       (3 4))) 5d0)
-    (assert-equality #'num= (tr (upper-triangular-mx 'lla-double
-                       (1 2)
-                       (3 4))) 5d0)
-    (assert-equality #'num= (tr (diagonal-mx 'lla-double 2 15)) 17d0)))
+(deftest tr (linear-algebra-suite)
+  (assert-equality #'num= (tr (mx 'lla-double
+                                (1 2)
+                                (3 4))) 5d0)
+  (assert-equality #'num= (tr (hermitian-mx 'lla-double
+                                (1 2)
+                                (0 9))) 10d0)
+  (assert-equality #'num= (tr (mx 'lla-double
+                                (1 2)
+                                (3 4))) 5d0)
+  (assert-equality #'num= (tr (upper-triangular-mx 'lla-double
+                                (1 2)
+                                (3 4))) 5d0)
+  (assert-equality #'num= (tr (diagonal-mx 'lla-double 2 15)) 17d0))
 
 ;; (deftest (linear-algebra-suite)
 ;;   rank

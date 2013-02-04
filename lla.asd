@@ -66,5 +66,4 @@
   :components
   ((:file "setup")
    (:file "pinned-array")
-   ;; (:file "linear-algebra")
-   ))
+   (:file "linear-algebra")))
