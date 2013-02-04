@@ -90,7 +90,7 @@
     (let+ (((&flet check-transpose (matrix internal-type)
               (lla::transpose-matrix-to-memory matrix pointer internal-type)
               (assert-true (same-memory-contents2? pointer internal-type
-                                                   (aops:transpose matrix)))))
+                                                   (transpose matrix)))))
            ((&flet assert-same-transpose (element-type internal-type)
               (check-transpose (random-array element-type 5 6)
                                internal-type)))
