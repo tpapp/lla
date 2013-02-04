@@ -22,7 +22,6 @@
   :serial t
   :components
   ((:file "package")
-   ;; configuration and libraries
    (:file "configuration-interface")
    (:file "configuration")
    (:file "libraries")
