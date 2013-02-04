@@ -103,23 +103,3 @@
                  :ignore-multiple-values? t)
     (ensure-same (mean (list a b)) (mean (list (as-array a) (as-array b)))
                  :ignore-multiple-values? t)))
-
-(addtest (basic-tests)
-  wrapped-stack
-  (let* ((a (diag 'double-float 1 2))
-         (b (upper 'double-float
-              (3 5)
-              (% 7)))
-         (c (vec 'double-float 11 13))
-         (*lift-equality-test* #'array=))
-    (ensure-same (stack nil :v a b c)
-                 (dense 'double-float
-                   (1 0)
-                   (0 2)
-                   (3 5)
-                   (0 7)
-                   (11 13)))
-    (ensure-same (stack nil :h a b c)
-                 (dense 'double-float
-                   (1 0 3 5 11)
-                   (0 2 0 7 13)))))
