@@ -16,7 +16,7 @@
             collect (imagpart element))
           'vector))
 
-(defun check-memory-contents (pointer cffi-type values)
+(defun same-memory-contents? (pointer cffi-type values)
   "Check that the contents of the memory (of CFFI-TYPE) at POINTER is the same as VALUES.  VALUES should be flattened if complex."
   (loop
     for index from 0
@@ -28,9 +28,9 @@
                      cffi-type index value-in-memory value))
              same?)))
 
-(defun check-memory-contents2 (pointer internal-type values)
-  "Like CHECK-MEMORY-CONTENTS, with autoconversion of values and calculation of INTERNAL-TYPE."
-  (check-memory-contents pointer
+(defun same-memory-contents2? (pointer internal-type values)
+  "Like SAME-MEMORY-CONTENTS?, with autoconversion of values and calculation of INTERNAL-TYPE."
+  (same-memory-contents? pointer
                          (alexandria:eswitch (internal-type)
                            (lla::+single+ :float)
                            (lla::+double+ :double)
@@ -50,7 +50,7 @@
   (with-foreign-temporary-buffer (pointer 100)
     (let+ (((&flet check-copy (array internal-type)
               (lla::copy-array-to-memory array pointer internal-type)
-              (assert-true (check-memory-contents2 pointer internal-type array))))
+              (assert-true (same-memory-contents2? pointer internal-type array))))
            ((&flet assert-same-copy (element-type internal-type)
               (check-copy (random-array element-type 5 7)
                           internal-type)))
@@ -89,7 +89,7 @@
   (with-foreign-temporary-buffer (pointer 100)
     (let+ (((&flet check-transpose (matrix internal-type)
               (lla::transpose-matrix-to-memory matrix pointer internal-type)
-              (assert-true (check-memory-contents2 pointer internal-type
+              (assert-true (same-memory-contents2? pointer internal-type
                                                    (aops:transpose matrix)))))
            ((&flet assert-same-transpose (element-type internal-type)
               (check-transpose (random-array element-type 5 6)
@@ -159,11 +159,7 @@
 ;;; sharing, etc).
 
 (defun coercible? (source-type target-type)
-  "Permitted coercions for internal LLA types.  It is guaranteed that
-CL:COERCE can perform these coercions on the corresponding lisp types. Basic
-summary: (1) integers can be coerced to anything, (2) single<->double
-precision coercions are possible both ways, (3) real floats can be upgraded to
-complex."
+  "Permitted coercions for internal LLA types.  It is guaranteed that CL:COERCE can perform these coercions on the corresponding lisp types. Basic summary: (1) integers can be coerced to anything, (2) single<->double precision coercions are possible both ways, (3) real floats can be upgraded to complex."
   (cond
     ;; always valid
     ((eq source-type lla::+integer+) t)
@@ -177,8 +173,7 @@ complex."
     (t t)))
 
 (defun coercible-pairs-list ()
-  ;;   "Generate the list of all LLA (source target) pairs for which
-  ;; coercible? holds.  For internal use only, NOT EXPORTED."
+  "Generate the list of all LLA (source target) pairs for which coercible? holds.  For internal use only, NOT EXPORTED."
   (let (coercible)
     (dolist (source lla::+internal-types+)
       (dolist (target lla::+internal-types+)
@@ -192,7 +187,7 @@ complex."
   "Test array pinning (input only)."
   (let ((vector (random-array (lla::lisp-type source-type) length)))
     (lla::with-pinned-array (pointer vector destination-type nil nil nil nil)
-      (check-memory-contents2 pointer destination-type vector))))
+      (same-memory-contents2? pointer destination-type vector))))
 
 (defun test-pinning-copy (source-type destination-type
                           &key (length 50))
@@ -204,12 +199,12 @@ again, and the original vector is checked to ensure that it remains constant."
     (lla::with-pinned-array (pointer vector destination-type nil
                                      :copy nil nil)
       ;; check equality
-      (unless (check-memory-contents2 pointer destination-type copy)
+      (unless (same-memory-contents2? pointer destination-type copy)
         (return-from test-pinning-copy nil))
       ;; increment memory area, check equality, and that original is intact
       (dotimes (i length)
         (incf (lla::foreign-aref pointer destination-type i) 1))
-      (and (check-memory-contents2 pointer destination-type copy-inc)
+      (and (same-memory-contents2? pointer destination-type copy-inc)
            (equalp vector copy)))))
 
 (defun test-pinning-output (source-type destination-type
@@ -223,12 +218,12 @@ test-pinning-copy, except that the output is also checked."
     (lla::with-pinned-array (pointer vector destination-type nil
                                      vector-inc nil nil)
       ;; check equality
-      (unless (check-memory-contents2 pointer destination-type copy)
+      (unless (same-memory-contents2? pointer destination-type copy)
         (return-from test-pinning-output nil))
       ;; increment memory area, check equality, and that original is intact
       (dotimes (i length)
         (incf (lla::foreign-aref pointer destination-type i) 1))
-      (unless (and (check-memory-contents2 pointer destination-type copy-inc)
+      (unless (and (same-memory-contents2? pointer destination-type copy-inc)
                    (equalp vector copy))
         (return-from test-pinning-output nil)))
     ;; check output
