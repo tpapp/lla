@@ -12,10 +12,10 @@
   (:documentation "LU factorization of a matrix with pivoting."))
 
 (defun lu-u (lu)
-  (make-upper-triangular-matrix (lu lu)))
+  (upper-triangular-matrix (lu lu)))
 
 (defun lu-l (lu)
-  (aprog1 (make-lower-triangular-matrix (copy-array (lu lu)))
+  (aprog1 (lower-triangular-matrix (copy-array (lu lu)))
     (let+ (((&slots-r/o elements) it)
            ((nrow ncol) (array-dimensions elements))
            (one (coerce 1 (array-element-type elements))))
@@ -40,7 +40,7 @@
   (let+ (((&slots-r/o qr) qr)
          ((aops:&dims nrow ncol) qr))
     (assert (>= nrow ncol))
-    (make-upper-triangular-matrix (aops:partition qr 0 ncol))))
+    (upper-triangular-matrix (aops:partition qr 0 ncol))))
 
 ;;;; generic interface for square root-like factorizations
 
@@ -61,9 +61,9 @@
   demand, so getting X directly might be more efficient if you don't need
   X^T.")
   (:method ((a matrix-square-root))
-    (transpose (matrix-square-root-left a)))
+    (aops:transpose (matrix-square-root-left a)))
   (:method (a)
-    (transpose (left-square-root a))))
+    (aops:transpose (left-square-root a))))
 
 (declaim (inline xx))
 (defun xx (left-square-root)
@@ -142,4 +142,4 @@ order.  U and VT may be NIL in case they are not computed."
      (defmethod e2+ ((a ,type) b) (e2+ (,conversion a) b))
      (defmethod e2+ (a (b ,type)) (e2+ a (,conversion b)))))
 
-(define-factorization-eops% matrix-square-root as-matrix)
+(define-factorization-eops% matrix-square-root aops:as-array)

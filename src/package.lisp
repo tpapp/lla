@@ -33,31 +33,6 @@
    #:lla-efficiency-warning-array-type
    #:*lla-efficiency-warning-array-conversion*
    #:lla-efficiency-warning-array-conversion
-   ;;special-matrices
-   #:wrapped-matrix
-   #:elements
-   #:make-matrix
-   #:convert-matrix
-   #:mref
-   #:lower-triangular-matrix
-   #:upper-triangular-matrix
-   #:hermitian-matrix
-   #:diagonal-matrix
-   #:make-lower-triangular-matrix
-   #:make-upper-triangular-matrix
-   #:make-hermitian-matrix
-   #:make-diagonal
-   #:dense
-   #:lower
-   #:hermitian
-   #:upper
-   #:vec
-   #:diag
-   #:as-matrix
-   ;;printing
-   #:*print-lla-precision*
-   #:*pring-matrix-aligned*
-   #:*print-matrix-padding*
    ;;pinned-array - no exports
    ;;factorizations
    #:lu

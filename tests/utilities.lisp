@@ -49,12 +49,6 @@
     (ensure (num= 0 10))
     (ensure (not (num= -1 10)))))
 
-(addtest (utilities-tests)
-  num=-test
-  (let ((*lift-equality-test* #'num=))
-    (ensure-same (dense t 1) (dense t 1))
-    (ensure-different (dense t 1) (dense t 2))))
-
 ;; (addtest (utilities-tests)
 ;;   make-vector-or-matrix-test
 ;;   (let ((*lift-equality-test* #'num=))

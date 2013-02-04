@@ -41,11 +41,8 @@ vectors as conforming matrices (eg see MM)."
   (:documentation  "Matrix multiplication of A and B.")
   (:method (a b) (mm (aops:as-array a) (aops:as-array b))))
 
-(defmethod as-matrix ((matrix-square-root matrix-square-root))
-  (mm (left-square-root matrix-square-root) t))
-
 (defmethod aops:as-array ((matrix-square-root matrix-square-root))
-  (aops:as-array (as-matrix matrix-square-root)))
+  (mm (left-square-root matrix-square-root) t))
 
 (defun mmm (&rest matrices)
   "Multiply arguments from left to right using MM."
@@ -745,13 +742,10 @@ which matrices define their eigenvalues to high relative accuracy."
             (&work (* 2 (max 1 a0))) (&work-query) (&work-query +integer+)
             &info)))))
 
-(defmethod as-matrix ((sf spectral-factorization))
+(defmethod aops:as-array ((sf spectral-factorization))
   (let+ (((&structure-r/o spectral-factorization- z w) sf))
     (assert z)
     (mm (mm z (esqrt w)) t)))
-
-(defmethod aops:as-array ((sf spectral-factorization))
-  (aops:as-array (as-matrix sf)))
 
 ;;; SVD
 
@@ -788,7 +782,7 @@ which matrices define their eigenvalues to high relative accuracy."
             (&integer (max u1 1)) (&work-query) (&work (* 8 min) +integer+)
             &info)))))
 
-(defmethod as-array ((svd svd))
+(defmethod aops:as-array ((svd svd))
   (let+ (((&structure-r/o svd- u d vt) svd)
          (n (aops:nrow d)))
     (mmm (if (= (aops:ncol u) n)
@@ -798,9 +792,6 @@ which matrices define their eigenvalues to high relative accuracy."
          (if (= (aops:nrow vt) n)
              vt
              (slice vt (cons 0 n) t)))))
-
-(defmethod aops:as-array ((svd svd))
-  (as-matrix svd))
 
 ;;; trace
 

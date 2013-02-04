@@ -10,16 +10,16 @@
 
 (addtest (linear-algebra-tests)
   mm
-  (let ((a (dense 'lla-double
+  (let ((a (mx 'lla-double
              (1 2)
              (3 4)
              (5 6)))
         (b2 (vec 'lla-double 1 2))
         (b3 (vec 'lla-double 1 2 3))
-        (i2 (dense 'lla-double
+        (i2 (mx 'lla-double
               (1 0)
               (0 1)))
-        (i3 (dense 'lla-double
+        (i3 (mx 'lla-double
               (1 0 0)
               (0 1 0)
               (0 0 1))))
@@ -64,24 +64,24 @@
     (ensure-same (outer a t) (outer2 a a t))
     (ensure-same (outer t a) (outer2 a a t))
     (ensure-same (outer (vec 'lla-complex-double 1 #C(2 1) 9) t)
-                 (hermitian 'lla-complex-double
+                 (hermitian-mx 'lla-complex-double
                    (1)
                    (#C(2 1) 5)
                    (9 #C (18 -9) 81)))))
 
 (addtest (linear-algebra-tests)
   mm-diagonal
-  (let ((a (dense 'lla-double
+  (let ((a (mx 'lla-double
              (1 2)
              (3 4)
              (5 6)))
-        (d2 (diag 'lla-double 2 3))
-        (d3 (diag 'lla-double 2 3 5))
-        (d3*a (dense 'lla-double
+        (d2 (diagonal-mx 'lla-double 2 3))
+        (d3 (diagonal-mx 'lla-double 2 3 5))
+        (d3*a (mx 'lla-double
                 (2 4)
                 (9 12)
                 (25 30)))
-        (a*d2 (dense 'lla-double
+        (a*d2 (mx 'lla-double
                 (2 6)
                 (6 12)
                 (10 18)))
@@ -96,7 +96,7 @@
 
 (addtest (linear-algebra-tests)
   mm-solve-lu
-  (let* ((a (dense t
+  (let* ((a (mx t
               (1 2)
               (3 4)))
          (x (vec 'lla-double 5 6))
@@ -110,11 +110,11 @@
     (ensure-same (solve a-lu b) x)
     ;; (ensure-same (solve a b-matrix) x-matrix)
     ;; (ensure-same (solve a-lu b-matrix) x-matrix)
-))
+    ))
 
 (addtest (linear-algebra-tests)
   mm-hermitian
-  (let* ((a (dense 'lla-double
+  (let* ((a (mx 'lla-double
               (1 2)
               (3 4)))
          (aat (mm a t))
@@ -152,12 +152,12 @@
 
 (addtest (linear-algebra-tests)
   mm-solve-diagonal
-  (let* ((a (dense 'double-float
+  (let* ((a (mx 'double-float
               (1 2 3)
               (4 5 6)))
          (b (vec 'double-float 9d0 11))
-         (left-d (diag 'double-float 7 8))
-         (right-d (diag 'double-float 9 10 11))
+         (left-d (diagonal-mx 'double-float 7 8))
+         (right-d (diagonal-mx 'double-float 9 10 11))
          (left-a (mm left-d a))
          (a-right (mm a right-d)))
     (ensure-same (mm (as-matrix left-d) a) left-a)
@@ -167,13 +167,13 @@
 
 (addtest (linear-algebra-tests)
   mm-solve-triangular
-  (let+ ((u (upper t
+  (let+ ((u (upper-triangular-mx t
               (1 2)
               (0 3)))
-         (l (lower t
+         (l (lower-triangular-mx t
               (1 0)
               (2 3)))
-         (b (dense 'lla-double
+         (b (mx 'lla-double
               (5 6)
               (7 8)))
          (x-u (solve u b))
@@ -230,21 +230,21 @@
 
 (addtest (linear-algebra-tests)
   invert
-  (let ((m (dense 'lla-double
+  (let ((m (mx 'lla-double
              (1 2)
              (3 4))))
     (flet ((invert (kind)
              (invert (convert-matrix kind m :copy? t))))
-      (ensure-same (invert 'dense)           ; also tests (invert lu)
-                   (dense 'lla-double
+      (ensure-same (invert 'mx)         ; also tests (invert lu)
+                   (mx 'lla-double
                      (-2 1)
                      (1.5 -0.5)))
-      (ensure-same (invert 'upper)
-                   (upper 'lla-double
+      (ensure-same (invert 'upper-triangular-mx)
+                   (upper-triangular-mx 'lla-double
                      (1 -0.5)
                      (0 0.25)))
-      (ensure-same (invert 'lower)
-                   (lower 'lla-double
+      (ensure-same (invert 'lower-triangular-mx)
+                   (lower-triangular-mx 'lla-double
                      (1 0)
                      (-0.75 0.25))))))
 
@@ -320,7 +320,7 @@
 
 (addtest (linear-algebra-tests)
   least-squares
-  (let+ ((x (dense 'lla-double
+  (let+ ((x (mx 'lla-double
               (23 23)
               (22 21)
               (25 20)
@@ -363,12 +363,12 @@
 ;; ;;                  (clo :single 0.5 -0.5 1.5 0.5))))
 
 (addtest (linear-algebra-tests)
-  cholesky                       ; also tests hermitian factorizations
-  (let* ((a (hermitian 'lla-double
+  cholesky                              ; also tests hermitian factorizations
+  (let* ((a (hermitian-mx 'lla-double
               (2 -1 0)
               (-1 2 -1)
               (0 -1 2)))
-         (l (lower 'lla-double
+         (l (lower-triangular-mx 'lla-double
               (1.414214)
               (-0.7071068 1.2247449)
               (0.000000 -0.8164966 1.1547005)))
@@ -385,31 +385,31 @@
 
 (addtest (linear-algebra-tests)
   spectral-factorization
-  (let+ ((a (mm t (dense 'lla-double
+  (let+ ((a (mm t (mx 'lla-double
                     (1 2)
                     (3 4))))
-         (w-true (diag 'lla-double 0.1339313 29.8660687))
-         (z-true (dense 'lla-double
+         (w-true (diagonal-mx 'lla-double 0.1339313 29.8660687))
+         (z-true (mx 'lla-double
                    (-0.8174156 0.5760484)
                    (0.5760484  0.8174156)))
          ((&structure-r/o spectral-factorization- z w)
-         (spectral-factorization a))
+          (spectral-factorization a))
          (*lift-equality-test* #'num=))
     (ensure-same w w-true)
     (ensure-same z z-true)))
 
 (addtest (linear-algebra-tests)
   svd
-  (let+ ((a (dense 'lla-double
+  (let+ ((a (mx 'lla-double
               (0 1)
               (2 3)
               (4 5)))
-         (d (diag 'lla-double 7.38648 0.66324))
-         (u (dense 'lla-double
+         (d (diagonal-mx 'lla-double 7.38648 0.66324))
+         (u (mx 'lla-double
               (-0.10819  0.90644)
               (-0.48734  0.30958)
               (-0.86649 -0.28729)))
-         (v (dense 'lla-double
+         (v (mx 'lla-double
               (-0.60118 -0.79911)
               (-0.79911  0.60118)))
          (svd1 (svd a))
@@ -422,12 +422,12 @@
     (ensure-same (sub (svd-u svd2) t (cons 0 2)) u)
     (ensure-same (svd-vt svd2) (transpose v))
     (loop repeat 100 do
-      (let* ((a0 (+ 2 (random 3)))
-             (a1 (+ 2 (random 3)))
-             (a (generate-array (list a0 a1) (lambda () (random 1d0))
-                                'double-float)))
-        (ensure-same (as-array (svd a :thin)) a)
-        (ensure-same (as-array (svd a :all)) a)))))
+             (let* ((a0 (+ 2 (random 3)))
+                    (a1 (+ 2 (random 3)))
+                    (a (generate-array (list a0 a1) (lambda () (random 1d0))
+                                       'double-float)))
+               (ensure-same (as-array (svd a :thin)) a)
+               (ensure-same (as-array (svd a :all)) a)))))
 
 ;; ;; (addtest (linear-algebra-tests)
 ;; ;;   svd-rectangular
@@ -448,19 +448,19 @@
 (addtest (linear-algebra-tests)
   tr
   (let ((*lift-equality-test* #'=))
-   (ensure-same (tr (dense 'lla-double
-                      (1 2)
-                      (3 4))) 5d0)
-    (ensure-same (tr (hermitian 'lla-double
+    (ensure-same (tr (mx 'lla-double
+                       (1 2)
+                       (3 4))) 5d0)
+    (ensure-same (tr (hermitian-mx 'lla-double
                        (1 2)
                        (0 9))) 10d0)
-    (ensure-same (tr (dense 'lla-double
+    (ensure-same (tr (mx 'lla-double
                        (1 2)
                        (3 4))) 5d0)
-    (ensure-same (tr (upper 'lla-double
+    (ensure-same (tr (upper-triangular-mx 'lla-double
                        (1 2)
                        (3 4))) 5d0)
-    (ensure-same (tr (diag 'lla-double 2 15)) 17d0)))
+    (ensure-same (tr (diagonal-mx 'lla-double 2 15)) 17d0)))
 
 ;; (addtest (linear-algebra-tests)
 ;;   rank
@@ -493,7 +493,7 @@
 ;;                            1 2 :/
 ;;                            0 0))
 ;;                  0)
-;;     ;; lower
+;;     ;; lower-triangular-mx
 ;;     (ensure-same (det (clo :lower
 ;;                            7 0 :/
 ;;                            8 12))

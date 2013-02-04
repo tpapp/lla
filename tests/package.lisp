@@ -2,6 +2,7 @@
   (:use #:cl
         #:alexandria
         #:cl-num-utils
+        #:cl-num-utils.matrix-shorthand
         #:cffi
         #:iterate
         #:let-plus
