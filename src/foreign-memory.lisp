@@ -229,7 +229,7 @@ POINTER."
 POINTER.  VECTORs are also handled."
   (etypecase matrix
     (vector (copy-array-to-memory matrix pointer internal-type))
-    (aops:matrix
+    (aops:array-matrix
      (let+ (((nrow ncol) (array-dimensions matrix))
             (index 0))
        (declare (type fixnum index))
@@ -250,7 +250,7 @@ POINTER.  VECTORs are also handled."
 POINTER.  VECTORs are also handled."
   (etypecase matrix
     (vector (copy-array-from-memory matrix pointer internal-type))
-    (aops:matrix
+    (aops:array-matrix
      (let+ (((nrow ncol) (array-dimensions matrix))
             (index 0))
        (declare (type fixnum index))
