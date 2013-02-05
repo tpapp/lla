@@ -15,8 +15,7 @@
   (deftype maximum-array-size ()
     `(integer 0 #.(floor most-positive-fixnum (foreign-type-size :double))))
   (defun value-to-memory% (internal-type)
-    "Return a (LAMBDA (POINTER INDEX VALUE) ...) form that can be used to
-write an element to an array in memory."
+    "Return a (LAMBDA (POINTER INDEX VALUE) ...) form that can be used to write an element to an array in memory."
     `(lambda (pointer index value)
        (declare (type maximum-array-size index))
        ,(eswitch (internal-type)
@@ -47,8 +46,7 @@ write an element to an array in memory."
        (values)))
 
   (defun value-from-memory% (internal-type)
-    "Return a (LAMBDA (POINTER INDEX) ...) form that can be used to read an
-element from an array in memory."
+    "Return a (LAMBDA (POINTER INDEX) ...) form that can be used to read an element from an array in memory."
     `(lambda (pointer index)
        (declare (type maximum-array-size index))
        ,(eswitch (internal-type)
@@ -99,10 +97,7 @@ element from an array in memory."
 (define-foreign-aref)
 
 (defmacro with-fortran-atom ((pointer value type output) &body body)
-  "Allocate memory for internal TYPE and set it to VALUE for body, which can
-use POINTER to access it.  When OUTPUT is given, the value is assigned to it
-after BODY.  The atom is automatically coerced to the correct type (by
-FOREIGN-AREF)."
+  "Allocate memory for internal TYPE and set it to VALUE for body, which can use POINTER to access it.  When OUTPUT is given, the value is assigned to it after BODY.  The atom is automatically coerced to the correct type (by FOREIGN-AREF)."
   (check-type pointer symbol)
   (once-only (type)
     `(with-foreign-pointer (,pointer (foreign-size ,type))
@@ -154,9 +149,7 @@ FOREIGN-AREF)."
       (#.+integer+ lla-integer *)))
 
   (defun all-from-specifications% ()
-    "Return an optimization specification for all functions that copy from
-     foreign memory."
-    '((#.+single+ lla-single *)
+    "Return an optimization specification for all functions that copy from foreign memory."  '((#.+single+ lla-single *)
       (#.+double+ lla-double *)
       (#.+complex-single+ lla-complex-single *)
       (#.+complex-double+ lla-complex-double *)
@@ -165,8 +158,7 @@ FOREIGN-AREF)."
   (defmacro array-clause% ((array internal-type clause-element-type
                             clause-internal-type)
                            &body body)
-    "Macro that generates a lambda form that can bed used in
-EXPAND-SPECIFICATIONS%."
+    "Macro that generates a lambda form that can bed used in EXPAND-SPECIFICATIONS%."
     (with-gensyms (generic? array-type)
       `(lambda (,clause-internal-type ,clause-element-type)
          (let* ((,generic? (eq ,clause-element-type '*))
@@ -182,8 +174,7 @@ EXPAND-SPECIFICATIONS%."
 ;;;; Copying to and from memory
 
 (defun copy-array-to-memory (array pointer internal-type)
-  "Copy the contents of ARRAY to the memory area of type INTERNAL-TYPE at
-POINTER."
+  "Copy the contents of ARRAY to the memory area of type INTERNAL-TYPE at POINTER."
   (declare (type internal-type internal-type))
   (check-type array array)
   (let ((size (array-total-size array)))
@@ -225,8 +216,7 @@ POINTER."
 ;;;; Transposing matrices to and from memory.
 
 (defun transpose-matrix-to-memory (matrix pointer internal-type)
-  "Transpose the contents of ARRAY to the memory area of type INTERNAL-TYPE at
-POINTER.  VECTORs are also handled."
+  "Transpose the contents of ARRAY to the memory area of type INTERNAL-TYPE at POINTER.  VECTORs are also handled."
   (etypecase matrix
     (vector (copy-array-to-memory matrix pointer internal-type))
     (aops:array-matrix
@@ -246,8 +236,7 @@ POINTER.  VECTORs are also handled."
   (values))
 
 (defun transpose-matrix-from-memory (matrix pointer internal-type)
-  "Transpose the contents of ARRAY to the memory area of type INTERNAL-TYPE at
-POINTER.  VECTORs are also handled."
+  "Transpose the contents of ARRAY to the memory area of type INTERNAL-TYPE at POINTER.  VECTORs are also handled."
   (etypecase matrix
     (vector (copy-array-from-memory matrix pointer internal-type))
     (aops:array-matrix
