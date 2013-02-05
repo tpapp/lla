@@ -1,14 +1,9 @@
 #+TITLE: Lisp Linear Algebra --- a linear algebra library for Common Lisp
 #+OPTIONS:   TeX:t LaTeX:t
 
-LLA is a high-level Common Lisp library built on on [[http://www.netlib.org/blas/][BLAS]] and [[http://www.netlib.org/lapack/][LAPACK]],
-but providing a much more abstract interface with the purpose of
-freeing the user from low-level concerns and reducing the number of
-bugs in numerical code.
+LLA is a high-level Common Lisp library built on on [[http://www.netlib.org/blas/][BLAS]] and [[http://www.netlib.org/lapack/][LAPACK]], but providing a much more abstract interface with the purpose of freeing the user from low-level concerns and reducing the number of bugs in numerical code.
 
-Documentation is mostly in docstrings at the moment, but I plan to
-write a decent tutorial at some point.  In the meantime, please look
-at the unit tests.
+Documentation is mostly in docstrings at the moment, but I plan to write a decent tutorial at some point.  In the meantime, please look at the unit tests.
 
 * Objectives
 
@@ -50,42 +45,18 @@ future/.
 
 * Reporting bugs
 
-Please report bugs using [[https://github.com/tpapp/lla/issues][Github's issue tracker]].  Small self-contained
-examples are appreciated when applicable, otherwise please try to
-provide a backtrace.  Feel free to submit efficiency/wishlist bugs
-too: if you need an interface for a particular LAPACK routine I will
-be happy to help with that and then possibly incorporate it into LLA.
+Please report bugs using [[https://github.com/tpapp/lla/issues][Github's issue tracker]].  Small self-contained examples are appreciated when applicable, otherwise please try to provide a backtrace.  Feel free to submit efficiency/wishlist bugs too: if you need an interface for a particular LAPACK routine I will be happy to help with that and then possibly incorporate it into LLA.
+
 
 * Configuration
 
-Certain features of LLA can be configured before loading using the
-plist =*lla-configuration*= in the =CL-USER= package (for example, on
-SBCL you would do it in your =~/.sbclrc=).  The following properties
-are supported:
+Certain features of LLA can be configured before loading using the plist =*lla-configuration*= in the =CL-USER= package (for example, on SBCL you would do it in your =~/.sbclrc=).  The following properties are supported:
 
-- =:libraries= :: A list of objects, passed directly to
-  =cffi:load-foreign-library=.  You can use strings, paths, or even
-  symbols if you have defined these libraries using
-  =cffi:define-foreign-library=.  If you don't define this, a
-  reasonable platform-dependent default will be used.  See the next
-  section for details.
+- =:libraries= :: A list of objects, passed directly to =cffi:load-foreign-library=.  You can use strings, paths, or even symbols if you have defined these libraries using =cffi:define-foreign-library=.  If you don't define this, a reasonable platform-dependent default will be used.  See the next section for details.
 
-- =:int64= :: This makes LLA use 64-bit integers for array dimensions,
-  pivot indices and other integer values passed to BLAS/LAPACK
-  functions.  *Only use this if you are sure that your libraries have
-  been compiled with 64-bit integers*.  The fact that you have a
-  64-bit platform does not necessarily mean that this is the case, in
-  fact, it is still quite rare.  Unless told otherwise, LLA expectes
-  BLAS/LAPACK to use the [[http://en.wikipedia.org/wiki/64-bit#64-bit_data_models][(L)LP64 model]] for integers -- that is to
-  say, integer types in Fortran are 32 bit.
+- =:int64= :: This makes LLA use 64-bit integers for array dimensions, pivot indices and other integer values passed to BLAS/LAPACK functions.  *Only use this if you are sure that your libraries have been compiled with 64-bit integers*.  The fact that you have a 64-bit platform does not necessarily mean that this is the case, in fact, it is still quite rare.  Unless told otherwise, LLA expectes BLAS/LAPACK to use the [[http://en.wikipedia.org/wiki/64-bit#64-bit_data_models][(L)LP64 model]] for integers -- that is to say, integer types in Fortran are 32 bit.
 
-- =:efficiency-warnings= :: Enable the *possibility* of efficiency
-  warnings at compile time.  You still have to set the appropriate
-  flags, but without this option, they won't even be checked.  There
-  are two properties you can set: =:array-type= and
-  =:array-conversion=.  The first warns whenever an array has to be
-  walked elementwise to determine its type, the second when some
-  arrays need to be converted to a common type.
+- =:efficiency-warnings= :: Enable the *possibility* of efficiency warnings at compile time.  You still have to set the appropriate flags, but without this option, they won't even be checked.  There are two properties you can set: =:array-type= and =:array-conversion=.  The first warns whenever an array has to be walked elementwise to determine its type, the second when some arrays need to be converted to a common type.
 
   Example:
 
@@ -102,6 +73,7 @@ are supported:
      (code that you want to check))
   #+END_SRC
 
+
 * Libraries
 
 ** Dependencies and configuration
@@ -111,10 +83,11 @@ LLA needs BLAS and LAPACK shared libraries to work.  When it comes to loading li
 You can do this by putting something like this in your startup script (eg =~/.sbclrc=, the symbol needs to be in the package =cl-user=):
 
 #+BEGIN_SRC lisp
-(defvar *lla-configuration* 
+(defvar *lla-configuration*
   '(:libraries ("/usr/lib/atlas-base/atlas/libblas.so.3gf"
                 "/usr/lib/atlas-base/libatlas.so.3gf")))
 #+END_SRC
+
 
 ** Debian
 
@@ -163,7 +136,7 @@ In =/etc/ld.so.conf.d/=, create a file that contains the paths, eg
 
 Then the configuration
 #+BEGIN_SRC lisp
-(defvar *lla-configuration* 
+(defvar *lla-configuration*
   '("libgomp.so.1" "libiomp5.so" "libmkl_rt" "libpthread.so.0" "libpthread"))
 #+END_SRC
 should work.
@@ -171,9 +144,7 @@ should work.
 
 * Acknowledgements
 
-LLA was inspired by packages written by AJ Rossini, Rif, Mark Hoemmen
-and others.  I have borrowed code (whenever allowed by their licenses)
-and ideas freely from all of them.
+LLA was inspired by packages written by AJ Rossini, Rif, Mark Hoemmen and others.  I have borrowed code (whenever allowed by their licenses) and ideas freely from all of them.
 
 
 * Things to do (roughly in order of priority)
