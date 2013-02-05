@@ -6,15 +6,10 @@
 ;;; of LLA.  When implementation-specific speedups (eg shared arrays) are not
 ;;; available, they should fall back to copying.
 
-(defmacro with-pinned-array ((pointer array internal-type transpose? 
+(defmacro with-pinned-array ((pointer array internal-type transpose?
                               output output-dimensions output-transpose?)
                              &body body)
-  "Ensure that ARRAY is mapped to a corresponding memory area for the duration
-of BODY (see below for details of semantics).  POINTER is bound to the start
-of the memory address.  The representation of values in the memory is
-determined by INTERNAL-TYPE.  When TRANSPOSE?, transpose the array before
-BODY (only works for matrices, otherwise signal an error).  TRANSPOSE? has to
-be fixed at compile-time.
+  "Ensure that ARRAY is mapped to a corresponding memory area for the duration of BODY (see below for details of semantics).  POINTER is bound to the start of the memory address.  The representation of values in the memory is determined by INTERNAL-TYPE.  When TRANSPOSE?, transpose the array before BODY (only works for matrices, otherwise signal an error).  TRANSPOSE? has to be fixed at compile-time.
 
 The semantics of memory access is determined by OUTPUT.
 
@@ -22,42 +17,33 @@ The semantics of memory access is determined by OUTPUT.
 
   2. If OUTPUT is :COPY, the memory area may be modified by BODY.
 
-  3. If OUTPUT is anything else, the memory area may be modifed by BODY, and
-     the result will be available after BODY is executed, assigned to the
-     place referred to by OUTPUT, with the given OUTPUT-DIMENSIONS (which
-     default to the dimensions of ARRAY when NIL).  When OUTPUT-TRANSPOSE?, a
-     transposed result is saved.
+  3. If OUTPUT is anything else, the memory area may be modifed by BODY, and the result will be available after BODY is executed, assigned to the place referred to by OUTPUT, with the given OUTPUT-DIMENSIONS (which default to the dimensions of ARRAY when NIL).  When OUTPUT-TRANSPOSE?, a transposed result is saved.
 
 The value of the expression is always the value of body."
   `(#+lla::cffi-pinning with-pinned-array-copy%
     #+(and sbcl (not lla::cffi-pinning)) with-pinned-array-sbcl%
-    (,pointer ,array ,internal-type ,transpose? 
+    (,pointer ,array ,internal-type ,transpose?
               ,output ,output-dimensions ,output-transpose?)
     ,@body))
 
 (defmacro with-array-output ((pointer output internal-type dimensions
                               transpose?)
                              &body body)
-  "Allocate a memory area of the given INTERNAL-TYPE and DIMENSIONS, bind its
-address to POINTER, and copy the contents to OUTPUT after BODY.  When the
-implied total size is 0, the implementation is allowed to assign the null
-pointer to POINTER.  When TRANSPOSE?, matrices are transposed."
+  "Allocate a memory area of the given INTERNAL-TYPE and DIMENSIONS, bind its address to POINTER, and copy the contents to OUTPUT after BODY.  When the implied total size is 0, the implementation is allowed to assign the null pointer to POINTER.  When TRANSPOSE?, matrices are transposed."
   `(#+lla::cffi-pinning with-array-output-copy%
     #+(and sbcl (not lla::cffi-pinning)) with-array-output-sbcl%
     (,pointer ,output ,internal-type ,dimensions ,transpose?)
     ,@body))
 
 (defmacro with-work-area ((pointer internal-type size) &body body)
-  "Allocate a work area of SIZE and INTERNAL-TYPE, and bind the POINTER to its
-start during BODY."
+  "Allocate a work area of SIZE and INTERNAL-TYPE, and bind the POINTER to its start during BODY."
   (check-type pointer symbol)
   `(with-foreign-pointer (,pointer (* (foreign-size ,internal-type) ,size))
      ,@body))
 
 ;;;; Pinning implemented by copying.
 ;;;
-;;; We effectively simulate pinning by copying the array to and from the
-;;; memory area.
+;;; We effectively simulate pinning by copying the array to and from the memory area.
 
 (defmacro with-copied-elements% ((pointer array internal-type transpose?)
                                  &body body)
@@ -168,12 +154,12 @@ BODY.  When TRANSPOSE?, matrices are transposed."
 ;;         (let ((vector-copy (gensym* pointer '#:-copy)))
 ;;           `(let ((,vector-copy (copy-vector ,vector ,foreign-type)))
 ;;              (check-type ,foreign-type foreign-type)
-;;              (multiple-value-prog1 
+;;              (multiple-value-prog1
 ;;                  (pinned-vector-wrapper-sbcl% (,vector-copy ,pointer)
 ;;                    ,@body)
 ;;                ,@(unless (eq output :copy)
 ;;                    `((setf ,output ,vector-copy))))))
-;;         `(pinned-vector-wrapper-sbcl% 
+;;         `(pinned-vector-wrapper-sbcl%
 ;;              ((if (and (simple-array1? ,vector)
 ;;                        (eq (array-foreign-type ,vector)
 ;;                            ,foreign-type))
