@@ -4,7 +4,7 @@
 ;;;
 ;;; These are synonyms for types generally recognized by LLA.  Note that LLA
 ;;; works fine with any kind of numbers, but may be faster for array element
-;;; types it recognized as it does not have to spend time detecting a common
+;;; types it recognizes as it does not have to spend time detecting a common
 ;;; type.  Think of these types as optimization hints when used in MAKE-ARRAY
 ;;; etc.
 
@@ -76,8 +76,7 @@
     (t (error 'lla-unhandled-type :object number))))
 
 (defun array-float-type (array)
-  "Return an (internal) float type for an array.  O(1) when the type can be
-detected from the specialized array element type, O(n) otherwise."
+  "Return an (internal) float type for an array.  O(1) when the type can be detected from the specialized array element type, O(n) otherwise."
   (declare (optimize speed)
            (inline number-float-type))
   (let+ ((element-type (array-element-type array))
