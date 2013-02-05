@@ -15,7 +15,6 @@
   ;;   foreign-memory
   ;;   pinned-array
   (:export                              ; types
-
    #:lla-integer
    #:lla-single
    #:lla-double
