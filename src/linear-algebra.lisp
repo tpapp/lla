@@ -2,22 +2,13 @@
 
 ;;;; Higher level linear algebra functions defined here.
 ;;;
-;;; General convention for vectors in places of matrices: should be
-;;; interpreted as a conforming vector.  If the result is an 1xn or nx1
-;;; matrix, it should be converted to a vector iff some related argument was a
-;;; vector.  For example, (solve a b) should be a vector iff b is a vector,
-;;; otherwise it should be a matrix.
-
+;;; General convention for vectors in places of matrices: should be interpreted as a conforming vector.  If the result is an 1xn or nx1 matrix, it should be converted to a vector iff some related argument was a vector.  For example, (solve a b) should be a vector iff b is a vector, otherwise it should be a matrix.
+;;;
 ;;;;  matrix multiplication
 ;;;
-;;; The general matrix multiplication function is MMM.  It can be
-;;; called with more than two arguments: it multiplies matrices from
-;;; the left, using MM.
+;;; The general matrix multiplication function is MMM.  It can be called with more than two arguments: it multiplies matrices from the left, using MM.
 ;;;
-;;; MM takes two matrices and an optional scalar.  Specialized methods
-;;; may allow matrices to be replaced by symbols etc, in which case
-;;; they have a special interpretation (eg T stands for "multiply
-;;; matrix by conjugate transpose").
+;;; MM takes two matrices and an optional scalar.  Specialized methods may allow matrices to be replaced by symbols etc, in which case they have a special interpretation (eg T stands for "multiply matrix by conjugate transpose").
 ;;;
 ;;; !! Various optimizations, deferred to the future:
 ;;; - compiler macros could notice (transpose matrix)
@@ -57,8 +48,8 @@
     ;; here C=AB <=> C^T=B^T A^T, so in the argument list, A and B are
     ;; interchanged
     (blas-call ("gemm" common-type c)
-      #\N #\N (&integers b1 a0 b0) 1 (&array b) (&integer b1)
-      (&array a) (&integer a1) 0 (&output c c-dimensions) (&integer b1))))
+               #\N #\N (&integers b1 a0 b0) 1 (&array b) (&integer b1)
+               (&array a) (&integer a1) 0 (&output c c-dimensions) (&integer b1))))
 
 ;;; !! this is how we could speed things up with compiler macros: have a
 ;;; !! compiler macro transform (MM (TRANSPOSE FOO) BAR) to (MM-TN FOO BAR),
@@ -362,17 +353,16 @@
   (invert (hermitian-factorization a)))
 
 (defun invert-triangular% (a upper? unit-diag?)
-  "Invert a dense (triangular) matrix using the LAPACK routine *TRTRI.
-UPPER? indicates if the matrix is in the upper or the lower triangle of a matrix, UNIT-DIAG? indicates whether the diagonal is supposed to consist of 1s.  For internal use, not exported."
+  "Invert a dense (triangular) matrix using the LAPACK routine *TRTRI.  UPPER? indicates if the matrix is in the upper or the lower triangle of a matrix, UNIT-DIAG? indicates whether the diagonal is supposed to consist of 1s.  For internal use, not exported."
   (let+ (((a0 a1) (array-dimensions a)))
     (assert (= a0 a1))
     (lapack-call ("trtri" (common-float-type a) inverse)
-                 (&char (if upper? #\L #\U))
-                 (&char (if unit-diag? #\U #\N))
-                 (&integer a0)
-                 (&array a :output inverse)
-                 (&integer a0)
-                 &info)))
+      (&char (if upper? #\L #\U))
+      (&char (if unit-diag? #\U #\N))
+      (&integer a0)
+      (&array a :output inverse)
+      (&integer a0)
+      &info)))
 
 (defmethod invert ((a upper-triangular-matrix) &key)
   (upper-triangular-matrix
@@ -812,8 +802,7 @@ If high relative accuracy is important, set ABSTOL to DLAMCH( 'Safe minimum').  
 ;;; determinants
 
 (defgeneric logdet (matrix)
-  (:documentation "Logarithm of the determinant of a matrix.  Return -1, 1 or
-  0 (or equivalent) to correct for the sign, as a second value."))
+  (:documentation "Logarithm of the determinant of a matrix.  Return -1, 1 or 0 (or equivalent) to correct for the sign, as a second value."))
 
 (defun det (matrix)
   "Determinant of a matrix.  If you need the log of this, use LOGDET
@@ -824,8 +813,7 @@ If high relative accuracy is important, set ABSTOL to DLAMCH( 'Safe minimum').  
         (* sign (exp logdet)))))
 
 (defmacro log-with-sign% (value sign-changes block-name)
-  "Log of (ABS VALUE), increments SIGN-CHANGES when negative, return-from
-block-name (values nil 0) when zero."
+  "Log of (ABS VALUE), increments SIGN-CHANGES when negative, return-from block-name (values nil 0) when zero."
   (once-only (value)
     `(log (cond
             ((zerop ,value) (return-from ,block-name (values nil 0)))
