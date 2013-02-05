@@ -2,24 +2,19 @@
 
 (in-package #:lla)
 
-;;; These macros take care of array pinning and the conversion of constants
-;;; to pointers to an allocated memory area with the value so that everything
-;;; is set up to call Fortran/BLAS/LAPACK functions.
+;;; These macros take care of array pinning and the conversion of constants to pointers to an allocated memory area with the value so that everything is set up to call Fortran/BLAS/LAPACK functions.
 ;;;
-;;; Since LAPACK functions are sometimes called two times (eg to query work
-;;; area sizes), expansions take care in 'passes', such as
-;;; 
+;;; Since LAPACK functions are sometimes called two times (eg to query work area sizes), expansions take care in 'passes', such as
+;;;
 ;;;  - bindings: establishes the bindings (also empty variables)
 ;;;
-;;;  - main: for arguments that are the same regardless of what kind of call
-;;;    is made
-;;; 
+;;;  - main: for arguments that are the same regardless of what kind of call is made
+;;;
 ;;;  - query: for querying work area sizes
-;;; 
+;;;
 ;;;  - call: the actual function call
-;;; 
-;;; The DSL is implemented via macros which expand to structures, which are in
-;;; then handed to WRAP-ARGUMENT for each pass.
+;;;
+;;; The DSL is implemented via macros which expand to structures, which are in then handed to WRAP-ARGUMENT for each pass.
 
 ;;;; generic interface and helper functions
 
@@ -30,8 +25,7 @@ converted into lists).")
     (macroexpand form environment )))
 
 (defun process-forms (forms environment)
-  "Process forms and return a list of argument specifications.  A form may
-correspond to multiple arguments."
+  "Process forms and return a list of argument specifications.  A form may correspond to multiple arguments."
   (reduce #'append forms
           :key (lambda (f) (ensure-list (process-form f environment)))))
 
@@ -43,8 +37,7 @@ correspond to multiple arguments."
     body))
 
 (defun wrap-arguments (arguments pass parameters body)
-  "Wrap BODY in arguments.  Convenienve function used to implement the
-expansion."
+  "Wrap BODY in arguments.  Convenienve function used to implement the expansion."
   (if arguments
       (wrap-argument (car arguments) pass parameters
                      (wrap-arguments (cdr arguments) pass parameters body))
@@ -96,9 +89,7 @@ expansion."
 ;;; characters
 
 (defstruct (fortran-character (:include fortran-argument))
-  "Characters passed to FORTRAN.  Input only, for specifying triangle
-orientation, etc."
-  value)
+  "Characters passed to FORTRAN.  Input only, for specifying triangle orientation, etc."  value)
 
 (defmethod wrap-argument ((argument fortran-character) (pass (eql 'main))
                           parameters body)
@@ -129,9 +120,7 @@ orientation, etc."
        ,body)))
 
 (defmacro &atom (value &key type output)
-  "Atoms passed to FORTRAN.  When not given, TYPE is inferred from the call's
-default.  VALUE is coerced to the desired type.  When OUTPUT is given, value
-is read after the call and placed there."
+  "Atoms passed to FORTRAN.  When not given, TYPE is inferred from the call's default.  VALUE is coerced to the desired type.  When OUTPUT is given, value is read after the call and placed there."
   (make-fortran-atom :value value :type type :output output))
 
 (defmacro &integer (value &key output &environment env)
@@ -158,8 +147,7 @@ is read after the call and placed there."
   (output-transpose? nil))
 
 (defun parse-array-output-specification (specification)
-  "Parse an output specification (a list a single variable) and return it as
-values."
+  "Parse an output specification (a list a single variable) and return it as values."
   (if (eq specification :copy)
       :copy
       (let+ (((output &key dimensions transpose?)
@@ -169,8 +157,7 @@ values."
         (values output dimensions transpose?))))
 
 (defmacro &array (value &key type transpose? output)
-  "Fortran ARRAY.  When given, OUTPUT can be a specification of the
-form (OUTPUT &KEY DIMENSIONS TRANSPOSE?)."
+  "Fortran ARRAY.  When given, OUTPUT can be a specification of the form (OUTPUT &KEY DIMENSIONS TRANSPOSE?)."
   (let+ (((&values o od ot) (parse-array-output-specification output)))
     (make-fortran-array :value value :type type :transpose? transpose?
                         :output o :output-dimensions od
@@ -198,9 +185,7 @@ form (OUTPUT &KEY DIMENSIONS TRANSPOSE?)."
   dimensions (type nil) (transpose? nil))
 
 (defmacro &output (output dimensions &key type transpose?)
-  "A memory area of DIMENSIONS is allocated, and the contents are assigned to
-OUTPUT after the call.  When not given, TYPE is the call's default.  When
-TRANSPOSE?, the result is transposed."
+  "A memory area of DIMENSIONS is allocated, and the contents are assigned to OUTPUT after the call.  When not given, TYPE is the call's default.  When TRANSPOSE?, the result is transposed."
   (make-fortran-output-array :output output :dimensions dimensions
                              :type type :transpose? transpose?))
 
@@ -222,8 +207,7 @@ TRANSPOSE?, the result is transposed."
   (type nil) size)
 
 (defmacro &work (size &optional type)
-  "Allocate a work area of SIZE.  When TYPE is not given, the call's default
-is used."
+  "Allocate a work area of SIZE.  When TYPE is not given, the call's default is used."
   (make-fortran-work-area :type type :size size))
 
 (defmethod wrap-argument ((argument fortran-work-area) (pass (eql 'main))
@@ -240,9 +224,7 @@ is used."
 ;;; call info
 
 (defmacro &info (&optional (condition ''lapack-failure))
-  "Argument for checking whether the call was executed without an error.
-Automatically takes care of raising the appropriate condition if it wasn't.
-CONDITION specifies the condition to raise in case of positive error codes."
+  "Argument for checking whether the call was executed without an error.  Automatically takes care of raising the appropriate condition if it wasn't.  CONDITION specifies the condition to raise in case of positive error codes."
   (make-lapack-info :condition condition))
 
 (define-symbol-macro &info (&info))
@@ -266,9 +248,8 @@ CONDITION specifies the condition to raise in case of positive error codes."
   (lapack-info-wrap-argument argument body))
 
 ;;; work area query
-;;; 
-;;; &work-query expands to TWO structures which share a SIZE argument, they
-;;; cooperate for the query.
+;;;
+;;; &work-query expands to TWO structures which share a SIZE argument, they cooperate for the query.
 
 (defstruct (lapack-work-query-area (:include fortran-argument))
   size
@@ -321,9 +302,7 @@ CONDITION specifies the condition to raise in case of positive error codes."
 ;;; various call interfaces
 
 (defun blas-lapack-function-name (type name)
-  "Return the BLAS/LAPACK foreign function name.  TYPE is the internal type,
-NAME is one of the following: NAME, (NAME), which are used for both complex
-and real names, or (REAL-NAME COMPLEX-NAME)."
+  "Return the BLAS/LAPACK foreign function name.  TYPE is the internal type, NAME is one of the following: NAME, (NAME), which are used for both complex and real names, or (REAL-NAME COMPLEX-NAME)."
   (let+ (((real-name &optional (complex-name name)) (ensure-list name))
          (letter (switch (type)
                    (+single+ "S")
@@ -340,24 +319,23 @@ and real names, or (REAL-NAME COMPLEX-NAME)."
   (loop for arg in arguments appending `(:pointer ,(argument-pointer arg))))
 
 (defun blas-lapack-call-form (type-var name arguments)
-  "Return a form BLAS/LAPACK calls, conditioning on TYPE-VAR.  See
-BLAS-LAPACK-FUNCTION-NAME for the interpretation of "
+  "Return a form BLAS/LAPACK calls, conditioning on TYPE-VAR.  See BLAS-LAPACK-FUNCTION-NAME for the interpretation of "
   (let ((arguments (arguments-for-cffi arguments)))
     `(ecase ,type-var
        ,@(loop for type in +float-types+
                collect
                `(,type
-                 (cffi:foreign-funcall 
+                 (cffi:foreign-funcall
                   ,(blas-lapack-function-name type name)
                   ,@arguments
                   :void))))))
 
 ;;;; Main interface
-;;; 
+;;;
 ;;; Common conventions:
 ;;;
 ;;;  1. NAME is either a string or a list of two strings (real/complex)
-;;; 
+;;;
 ;;;  2. VALUE is the form returned after the call
 
 (defmacro blas-call ((name type value) &body forms &environment env)
@@ -391,8 +369,7 @@ BLAS-LAPACK-FUNCTION-NAME for the interpretation of "
             ,value)))))
 
 (defmacro lapack-call-w/query ((name type value) &body forms &environment env)
-  "LAPACK call which also takes &work-query arguments (in place of two FORTRAN
-arguments)."
+  "LAPACK call which also takes &work-query arguments (in place of two FORTRAN arguments)."
   (let* ((type-var (gensym "TYPE"))
          (arguments (process-forms forms env))
          (parameters `(:default-type ,type-var :query? t))
@@ -411,14 +388,11 @@ arguments)."
 
 ;;;; floating point traps
 ;;;
-;;; Apparently, the only trap that we need to mask is division by zero, and
-;;; that only for a few operations.  Non-numerical floating points values are
-;;; used internally (eg in SVD calculations), but only reals are returned.
+;;; Apparently, the only trap that we need to mask is division by zero, and that only for a few operations.  Non-numerical floating points values are used internally (eg in SVD calculations), but only reals are returned.
 
 #-(or sbcl cmu)
 (defmacro with-fp-traps-masked (&body body)
-  (warn "No with-lapack-traps-masked macro provided for your ~
-  implementation -- some operations may signal an error.")
+  (warn "No with-lapack-traps-masked macro provided for your implementation -- some operations may signal an error.")
   `(progn
      ,@body))
 
