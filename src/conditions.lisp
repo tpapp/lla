@@ -31,8 +31,7 @@
   ((position :initarg :position :type fixnum
              :documentation "Position of the illegal argument"))
   (:documentation
-   "An argument to a LAPACK procedure had an illegal value.  Generally, this
-indicates a bug in LLA and should not happen."))
+   "An argument to a LAPACK procedure had an illegal value.  Generally, this indicates a bug in LLA and should not happen."))
 
 (define-condition lapack-failure (lapack-error)
   ((info :initarg :info :type fixnum
