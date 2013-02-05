@@ -1,3 +1,7 @@
+## some calculations that LLA has to replicate, done in R
+##
+## this code is not run for the Lisp tests
+
 ## least squares
 x <- matrix(c(23,23,22,21,25,20,29,32,24,29),5,2,byrow=TRUE)
 y <- x %*% c(1,2) + c(-2,-1,0,1,2)
