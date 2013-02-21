@@ -2,38 +2,105 @@
 
 ;;;; Interface
 ;;;
-;;; The following three macros provide the abstract interface used by the rest
-;;; of LLA.  When implementation-specific speedups (eg shared arrays) are not
-;;; available, they should fall back to copying.
+;;; The following macros provide the abstract interface used by the
+;;; rest of LLA. When implementation-specific speedups (eg shared
+;;; arrays) are not available, they fall back to copying.
 
-(defmacro with-pinned-array ((pointer array internal-type transpose?
-                              output output-dimensions output-transpose?)
+(defmacro with-array-input (((pointer &optional (copied? (gensym "COPIED?")))
+                             array internal-type transpose? force-copy?)
+                            &body body)
+  "Ensure that ARRAY is mapped to a corresponding memory area for the duration of BODY (see below for details of semantics).  POINTER is bound to the start of the memory address.  The representation of values in the memory is determined by INTERNAL-TYPE.  When TRANSPOSE?, transpose the array before BODY (only works for matrices, otherwise signal an error).
+
+If FORCE-COPY? is false, POINTER may or may not point to the memory backing ARRAY.
+
+If FORCE-COPY? is true, POINTER always points to a copy of the contents of ARRAY.
+
+COPIED? is bound to indicate whether POINTER points to a copy or the actual array contents.
+
+The value of the expression is always the value of BODY."
+  (alexandria:with-gensyms (backing-array offset)
+    (once-only (array internal-type transpose?)
+      `(flet ((body (,pointer ,copied?)
+                (declare (ignorable ,copied?))
+                ,@body))
+         (declare (dynamic-extent #'body)
+                  #+sbcl (sb-ext:muffle-conditions sb-ext:code-deletion-note))
+         (multiple-value-bind (,backing-array ,offset) (backing-array ,array)
+           (if (and (not ,transpose?)
+                    (not ,force-copy?)
+                    (shareable-array? ,backing-array ,internal-type))
+               (with-pinned-array (,pointer ,backing-array)
+                 (cffi:incf-pointer ,pointer
+                     (* ,offset (foreign-size ,internal-type)))
+                 (body ,pointer nil))
+               (with-work-area (,pointer ,internal-type
+                                         (array-total-size ,array))
+                 (if ,transpose?
+                     (transpose-matrix-to-memory ,array ,pointer ,internal-type)
+                     (copy-array-to-memory ,array ,pointer ,internal-type))
+                 (body ,pointer t))))))))
+
+(defmacro with-array-output (((pointer &optional (copied? (gensym "COPIED?")))
+                              array internal-type transpose?)
                              &body body)
-  "Ensure that ARRAY is mapped to a corresponding memory area for the duration of BODY (see below for details of semantics).  POINTER is bound to the start of the memory address.  The representation of values in the memory is determined by INTERNAL-TYPE.  When TRANSPOSE?, transpose the array before BODY (only works for matrices, otherwise signal an error).  TRANSPOSE? has to be fixed at compile-time.
+  "Ensure that ARRAY is mapped to a corresponding memory area for the duration of BODY (see below for details of semantics).  POINTER is bound to the start of the memory address.  The representation of values in the memory is determined by INTERNAL-TYPE.  When TRANSPOSE?, transpose the array after BODY (only works for matrices, otherwise signal an error). 
 
-The semantics of memory access is determined by OUTPUT.
+COPIED? is bound to indicate whether POINTER points to a copy or the actual array contents.
 
-  1. If OUTPUT is NIL, the memory area is NOT expected to be modified by BODY.
+The value of the expression is always the value of BODY."
+  (alexandria:with-gensyms (backing-array offset)
+    (once-only (array internal-type)
+      `(flet ((body (,pointer ,copied?)
+                (declare (ignorable ,copied?))
+                ,@body))
+         (declare (dynamic-extent #'body)
+                  #+sbcl (sb-ext:muffle-conditions sb-ext:code-deletion-note))
+         (multiple-value-bind (,backing-array ,offset) (backing-array ,array)
+           (if (and (null ,transpose?)
+                    (shareable-array? ,backing-array ,internal-type))
+               (with-pinned-array (,pointer ,backing-array)
+                 (cffi:incf-pointer ,pointer
+                     (* ,offset (foreign-size ,internal-type)))
+                 (body ,pointer nil))
+               (with-work-area (,pointer ,internal-type
+                                         (array-total-size ,array))
+                 (multiple-value-prog1 (body ,pointer t)
+                   (if ,transpose?
+                       (transpose-matrix-from-memory ,array ,pointer
+                                                     ,internal-type)
+                       (copy-array-from-memory ,array ,pointer
+                                               ,internal-type))))))))))
 
-  2. If OUTPUT is :COPY, the memory area may be modified by BODY.
-
-  3. If OUTPUT is anything else, the memory area may be modifed by BODY, and the result will be available after BODY is executed, assigned to the place referred to by OUTPUT, with the given OUTPUT-DIMENSIONS (which default to the dimensions of ARRAY when NIL).  When OUTPUT-TRANSPOSE?, a transposed result is saved.
-
-The value of the expression is always the value of body."
-  `(#+lla::cffi-pinning with-pinned-array-copy%
-    #+(and sbcl (not lla::cffi-pinning)) with-pinned-array-sbcl%
-    (,pointer ,array ,internal-type ,transpose?
-              ,output ,output-dimensions ,output-transpose?)
-    ,@body))
-
-(defmacro with-array-output ((pointer output internal-type dimensions
-                              transpose?)
-                             &body body)
-  "Allocate a memory area of the given INTERNAL-TYPE and DIMENSIONS, bind its address to POINTER, and copy the contents to OUTPUT after BODY.  When the implied total size is 0, the implementation is allowed to assign the null pointer to POINTER.  When TRANSPOSE?, matrices are transposed."
-  `(#+lla::cffi-pinning with-array-output-copy%
-    #+(and sbcl (not lla::cffi-pinning)) with-array-output-sbcl%
-    (,pointer ,output ,internal-type ,dimensions ,transpose?)
-    ,@body))
+(defmacro with-array-input-output (((pointer
+                                     &optional (copied? (gensym "COPIED?")))
+                                    input-array input-internal-type
+                                    input-transpose? input-force-copy?
+                                    output-array output-internal-type
+                                    output-transpose?)
+                                   &body body)
+  "Similar to WITH-ARRAY-INPUT, it also ensures that OUTPUT-ARRAY contains the contents the memory area pointed to by POINTER when BODY is finished. If  OUTPUT-ARRAY is NIL then it is equivalent to WITH-ARRAY-INPUT."
+  (once-only (input-array output-array)
+    `(with-array-input ((,pointer ,copied?) ,input-array
+                        ,input-internal-type ,input-transpose?
+                        ,input-force-copy?)
+       (multiple-value-prog1 (progn ,@body)
+         (locally
+             (declare
+              #+sbcl (sb-ext:muffle-conditions sb-ext:code-deletion-note))
+           (cond ((null ,output-array)
+                  ;; The output is unused.
+                  nil)
+                 ((and (eq ,input-array ,output-array)
+                       (not ,copied?))
+                  (when ,output-transpose?
+                    (transpose-matrix-from-memory ,output-array ,pointer
+                                                  ,output-internal-type)))
+                 (t
+                  (if ,output-transpose?
+                      (transpose-matrix-from-memory ,output-array ,pointer
+                                                    ,output-internal-type)
+                      (copy-array-from-memory ,output-array ,pointer
+                                              ,output-internal-type)))))))))
 
 (defmacro with-work-area ((pointer internal-type size) &body body)
   "Allocate a work area of SIZE and INTERNAL-TYPE, and bind the POINTER to its start during BODY."
@@ -41,142 +108,42 @@ The value of the expression is always the value of body."
   `(with-foreign-pointer (,pointer (* (foreign-size ,internal-type) ,size))
      ,@body))
 
-;;;; Pinning implemented by copying.
+;;;; Implementation
 ;;;
-;;; We effectively simulate pinning by copying the array to and from the memory area.
+;;; We copy the array to and from the memory area if necessary, either
+;;; because it must be transposed, copying is requested explicitly,
+;;; true pinning is not implemented or lla:cffi-pinning is enabled in
+;;; the configuration.
 
-(defmacro with-copied-elements% ((pointer array internal-type transpose?)
-                                 &body body)
-  "Allocate memory and copy elements of ARRAY to POINTER for the scope of
-BODY.  When TRANSPOSE?, matrices are transposed."
-  (check-type pointer symbol)
-  (check-type transpose? boolean)
-  (once-only (array internal-type)
-    (with-unique-names (length size)
-      `(let ((,length (array-total-size ,array))
-             (,size (foreign-size ,internal-type)))
-         (with-foreign-pointer (,pointer (* ,size ,length))
-           ,(if transpose?
-                `(transpose-matrix-to-memory ,array ,pointer ,internal-type)
-                `(copy-array-to-memory ,array ,pointer ,internal-type))
-           ,@body)))))
+(defun backing-array (array)
+  "Return the array in which the contents of ARRAY are stored. For simple arrays, this is always the array itself.  The second value is the displacement."
+  #+sbcl
+  (sb-c::with-array-data ((v array) (start) (end))
+    (declare (ignore end))
+    (values v start))
+  #-sbcl
+  (values array 0))
 
-(defmacro with-pinned-array-copy% ((pointer array internal-type transpose?
-                                    output output-dimensions
-                                    output-transpose?)
-                                   &body body)
-  "Implementation of with-pinned-array by copying."
-  ;; note: OUTPUT-DIMENSIONS used only once, and thus not wrapped in ONCE-ONLY
-  (check-type pointer symbol)
-  (check-type output-transpose? boolean)
-  (once-only (array internal-type)
-    `(with-copied-elements% (,pointer ,array ,internal-type ,transpose?)
-       (multiple-value-prog1
-           (progn ,@body)
-         ,@(unless (or (not output) (eq output :copy))
-             `((setf ,output
-                     ,(let ((output-dimensions
-                              (aif output-dimensions
-                                   it
-                                   `(array-dimensions ,array))))
-                        (if output-transpose?
-                            `(create-transposed-matrix-from-memory
-                              ,pointer ,internal-type ,output-dimensions)
-                            `(create-array-from-memory
-                              ,pointer ,internal-type
-                              ,output-dimensions))))))))))
+#+(and sbcl (not lla::cffi-pinning))
+(defun shareable-array? (array internal-type)
+  (and (equal (upgraded-array-element-type (lisp-type internal-type))
+              (array-element-type array))
+       (typep array 'simple-array)))
 
-(defmacro with-array-output-copy% ((pointer output internal-type dimensions
-                                    transpose?)
-                                   &body body)
-  "Implementation of WITH-ARRAY-OUTPUT by copying."
-  (check-type pointer symbol)
-  (once-only (internal-type dimensions)
-    `(with-foreign-pointer (,pointer
-                            (* (foreign-size ,internal-type)
-                               (reduce #'* (ensure-list ,dimensions))))
-       (multiple-value-prog1
-           (progn ,@body)
-         (setf ,output
-               ,(if transpose?
-                    `(create-transposed-matrix-from-memory
-                      ,pointer ,internal-type ,dimensions)
-                    `(create-array-from-memory ,pointer ,internal-type
-                                               ,dimensions)))))))
+#-(and sbcl (not lla::cffi-pinning))
+(defun shareable-array? (array internal-type)
+  (declare (ignore array internal-type))
+  nil)
 
+#+sbcl
+(defmacro with-pinned-array ((pointer array) &body body)
+  (once-only (array)
+    `(sb-sys:with-pinned-objects (,array)
+       (let ((,pointer (sb-sys:vector-sap
+                        (sb-ext:array-storage-vector ,array))))
+         ,@body))))
 
-
-;;; SBCL specific code
-
-;; #+sbcl
-;; (defun ensure-sharable-array (array internal-type copy?)
-;;   ""
-;;   (if (and (equal (lla-to-lisp-type internal-type) (array-element-type array))
-;;            (typep array 'simple-array)
-;;            (not copy?))
-;;       array
-;;       (convert-array* array internal-type)))
-
-;; #+sbcl
-;; (defmacro with-pinned-array-sbcl% (pointer array internal-type transpose? output
-;;                                    output-dimensions output-transpose?
-;;                                    &body body)
-;;   (let ((array-var (gensym))
-;;         (copy? (when output t)))
-;;     `(let ((,array-var (ensure-sharable-array ,array ,internal-type ,copy?)))
-;;        (sb-sys:with-pinned-objects (,array-var)
-;;          (let ((,pointer (sb-sys:vector-sap
-;;                           (sb-ext:array-storage-vector ,array-var))))
-;;            ,@body
-;;            ,@(when (and output (not (eq output :copy)))
-;;                `((setf ,output ,array-var))))))))
-
-
-
-
-
-;; #+sbcl
-;; (defmacro pinned-vector-wrapper-sbcl% ((vector pointer) &body body)
-;;   "Pin the vector and bind pointer to its data during body.  This is a
-;; utility function for implementations with pinning, and should not be
-;; used directly in other files, ie it is not part of the interface."
-;;   (check-type pointer symbol)
-;;   (once-only (vector)
-;;     `(sb-sys:with-pinned-objects (,vector)
-;;        (let ((,pointer (sb-sys:vector-sap ,vector)))
-;; 	 ,@body))))
-
-;; #+sbcl
-;; (defmacro with-pinned-vector-sbcl% ((vector pointer foreign-type &optional output)
-;;                                     &body body)
-;;   (once-only (foreign-type vector)
-;;     (if output
-;;         (let ((vector-copy (gensym* pointer '#:-copy)))
-;;           `(let ((,vector-copy (copy-vector ,vector ,foreign-type)))
-;;              (check-type ,foreign-type foreign-type)
-;;              (multiple-value-prog1
-;;                  (pinned-vector-wrapper-sbcl% (,vector-copy ,pointer)
-;;                    ,@body)
-;;                ,@(unless (eq output :copy)
-;;                    `((setf ,output ,vector-copy))))))
-;;         `(pinned-vector-wrapper-sbcl%
-;;              ((if (and (simple-array1? ,vector)
-;;                        (eq (array-foreign-type ,vector)
-;;                            ,foreign-type))
-;;                   ,vector
-;;                   (copy-vector ,vector ,foreign-type))
-;;               ,pointer)
-;;            ,@body))))
-
-;; #+sbcl
-;; (defmacro with-vector-output-sbcl% ((output pointer foreign-type length)
-;;                                     &body body)
-;;   (check-type pointer symbol)
-;;   (once-only (foreign-type length)
-;;     (let ((vector (gensym* pointer)))
-;;       `(let ((,vector (lla-array ,length ,foreign-type)))
-;;          (check-type ,foreign-type foreign-type)
-;;          (multiple-value-prog1
-;;              (pinned-vector-wrapper-sbcl% (,vector ,pointer)
-;;                ,@body)
-;;            (setf ,output ,vector))))))
+#-sbcl
+(defmacro with-pinned-array ((pointer array) &body body)
+  (declare (ignore pointer array body))
+  `(error "Pinning is not implemented on this platform."))

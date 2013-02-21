@@ -73,11 +73,28 @@ converted into lists).")
   "For parameters that have an output."
   (output nil))
 
+(defun quoted-variable (form)
+  (if (and (listp form)
+           (= 2 (length form))
+           (eq 'quote (first form))
+           (symbolp (second form)))
+      (second form)
+      nil))
+
+(defun evaluated-output-form (form)
+  (or (quoted-variable form) form))
+
+(defgeneric argument-initializer-form (argument parameters)
+  (:method (argument parameters)
+    (declare (ignore argument parameters))
+    nil))
+
 (defmethod wrap-argument ((argument fortran-output) (pass (eql 'bindings))
                           parameters body)
-  (let ((variable (fortran-output-output argument)))
-    (if (and variable (not (keywordp variable)))
-        `(let (,variable)
+  (let+ ((output-form (fortran-output-output argument))
+         (variable (quoted-variable output-form)))
+    (if variable
+        `(let ((,variable ,(argument-initializer-form argument parameters)))
            ,body)
         body)))
 
@@ -139,65 +156,116 @@ converted into lists).")
   (process-form '(&atom 1) env))
 
 
-;;; arrays
+;;; input arrays
 
-(defstruct (fortran-array (:include fortran-output))
+(defstruct (fortran-input-array (:include fortran-argument))
   "Arrays which are pinned."
-  value (type nil) (transpose? nil) (output-dimensions nil)
-  (output-transpose? nil))
+  input (input-type nil) (input-transpose? nil) (input-force-copy? nil))
 
-(defun parse-array-output-specification (specification)
-  "Parse an output specification (a list a single variable) and return it as values."
-  (if (eq specification :copy)
-      :copy
-      (let+ (((output &key dimensions transpose?)
-              (aif specification
-                   (ensure-list it)
-                   (list nil))))
-        (values output dimensions transpose?))))
+(defmacro &in-array (input &key type transpose? force-copy?)
+  (make-fortran-input-array :input input :input-type type
+                            :input-transpose? transpose?
+                            :input-force-copy? force-copy?))
 
-(defmacro &array (value &key type transpose? output)
-  "Fortran ARRAY.  When given, OUTPUT can be a specification of the form (OUTPUT &KEY DIMENSIONS TRANSPOSE?)."
-  (let+ (((&values o od ot) (parse-array-output-specification output)))
-    (make-fortran-array :value value :type type :transpose? transpose?
-                        :output o :output-dimensions od
-                        :output-transpose? ot)))
-
-(defmethod wrap-argument ((argument fortran-array) (pass (eql 'main))
+(defmethod wrap-argument ((argument fortran-input-array) (pass (eql 'main))
                           parameters body)
-  (let+ (((&structure-r/o fortran-array- pointer value type transpose? output
-                          output-dimensions output-transpose?) argument))
-    `(with-pinned-array (,pointer
-                         ,value
-                         ,(aif type
-                               it
-                               (getf parameters :default-type))
-                         ,transpose?
-                         ,output
-                         ,output-dimensions
-                         ,output-transpose?)
+  (let+ (((&structure-r/o fortran-input-array- pointer input input-type
+                          input-transpose? input-force-copy?) argument))
+    `(with-array-input ((,pointer)
+                        ,input
+                        ,(aif input-type
+                              it
+                              (getf parameters :default-type))
+                        ,input-transpose?
+                        ,input-force-copy?)
        ,body)))
 
 ;;; output arrays
 
 (defstruct (fortran-output-array (:include fortran-output))
-  "Output arrays."
-  dimensions (type nil) (transpose? nil))
+  "Arrays which are pinned."
+  (output-dimensions nil) (output-type nil) (output-transpose? nil))
 
-(defmacro &output (output dimensions &key type transpose?)
-  "A memory area of DIMENSIONS is allocated, and the contents are assigned to OUTPUT after the call.  When not given, TYPE is the call's default.  When TRANSPOSE?, the result is transposed."
-  (make-fortran-output-array :output output :dimensions dimensions
-                             :type type :transpose? transpose?))
+(defmethod argument-initializer-form ((argument fortran-output-array)
+                                      parameters)
+  (let+ (((&structure-r/o fortran-output-array- output-dimensions
+                          output-type) argument))
+    `(make-array ,output-dimensions
+                 :element-type (lisp-type
+                                ,(if output-type
+                                     output-type
+                                     (getf parameters :default-type))))))
+
+(defmacro &out-array (output &key dimensions type transpose?)
+  (make-fortran-output-array :output output :output-dimensions dimensions
+                             :output-type type
+                             :output-transpose? transpose?))
 
 (defmethod wrap-argument ((argument fortran-output-array) (pass (eql 'main))
                           parameters body)
-  (let+ (((&structure-r/o fortran-output-array- pointer output dimensions type
-                          transpose?) argument))
-    `(with-array-output (,pointer
-                         ,output
-                         ,(maybe-default-type type parameters)
-                         ,dimensions
-                         ,transpose?)
+  (let+ (((&structure-r/o fortran-output-array- pointer output
+                          output-type output-transpose?) argument))
+    `(with-array-output ((,pointer)
+                         ,(evaluated-output-form output)
+                         ,(aif output-type
+                               it
+                               (getf parameters :default-type))
+                         ,output-transpose?)
+       ,body)))
+
+;;; input/output arrays
+
+(defstruct (fortran-input-output-array (:include fortran-output-array))
+  ;; No multiple inheritence for structures, repeat the slots of
+  ;; FORTRAN-INPUT-ARRAY.
+  input (input-type nil) (input-transpose? nil) (input-force-copy? nil))
+
+(defmethod argument-initializer-form ((argument fortran-input-output-array)
+                                      parameters)
+  (let+ (((&structure-r/o fortran-input-output-array- input
+                          output-dimensions output-type) argument))
+    `(make-array ,(or output-dimensions `(array-dimensions ,input))
+                 :element-type (lisp-type
+                                ,(if output-type
+                                     output-type
+                                     (getf parameters :default-type))))))
+
+(defmacro &in/out-array ((&key input ((:type input-type))
+                          ((:transpose? input-transpose?))
+                          ((::force-copy? input-force-copy?) nil
+                           input-force-copy?-specified?))
+                         (&key (output input) ((:dimensions output-dimensions))
+                          ((:type output-type) input-type)
+                          ((:transpose? output-transpose?))))
+  (make-fortran-input-output-array
+   :input input :input-type input-type
+   :input-transpose? input-transpose?
+   :input-force-copy? (if input-force-copy?-specified?
+                          input-force-copy?
+                          (not (eq input output)))
+   :output output
+   :output-dimensions output-dimensions
+   :output-type output-type
+   :output-transpose? output-transpose?))
+
+(defmethod wrap-argument ((argument fortran-input-output-array)
+                          (pass (eql 'main)) parameters body)
+  (let+ (((&structure-r/o fortran-input-output-array- pointer
+                          input input-type input-transpose?
+                          input-force-copy?
+                          output output-type output-transpose?) argument))
+    `(with-array-input-output ((,pointer)
+                               ,input
+                               ,(aif input-type
+                                     it
+                                     (getf parameters :default-type))
+                               ,input-transpose?
+                               ,input-force-copy?
+                               ,(evaluated-output-form output)
+                               ,(aif output-type
+                                     it
+                                     (getf parameters :default-type))
+                               ,output-transpose?)
        ,body)))
 
 ;;; work arrays

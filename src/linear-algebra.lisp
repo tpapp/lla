@@ -48,8 +48,10 @@
     ;; here C=AB <=> C^T=B^T A^T, so in the argument list, A and B are
     ;; interchanged
     (blas-call ("gemm" common-type c)
-               #\N #\N (&integers b1 a0 b0) 1 (&array b) (&integer b1)
-               (&array a) (&integer a1) 0 (&output c c-dimensions) (&integer b1))))
+      #\N #\N (&integers b1 a0 b0) 1 (&in-array b) (&integer b1)
+      (&in-array a) (&integer a1) 0
+      (&out-array 'c :dimensions c-dimensions :type common-type)
+      (&integer b1))))
 
 ;;; !! this is how we could speed things up with compiler macros: have a
 ;;; !! compiler macro transform (MM (TRANSPOSE FOO) BAR) to (MM-TN FOO BAR),
@@ -66,12 +68,11 @@
               (values a1 a0)
               (values a0 a1)))
          (type (common-float-type a)))
-    (blas-call (("syrk" "herk") type
-                (hermitian-matrix c))
+    (blas-call (("syrk" "herk") type (hermitian-matrix c))
       #\U (&char (if transpose-left? #\N #\C))
       (&integers dim-c other-dim-a) 1
-      (&array a) (&integer a1) 0
-      (&output c (list dim-c dim-c))
+      (&in-array a) (&integer a1) 0
+      (&out-array 'c :dimensions (list dim-c dim-c) :type type)
       (&integer dim-c))))
 
 (defmethod mm ((a array) (b (eql t)))
@@ -226,8 +227,9 @@
     (lapack-call ("getrf" (common-float-type a)
                           (make-instance 'lu :lu lu :ipiv ipiv))
       (&integers a0 a1)
-      (&array a :transpose? t :output (lu :transpose? t))
-      (&integer a0) (&output ipiv (min a0 a1) :type +integer+)
+      (&in/out-array (:input a :transpose? t)
+          (:output 'lu :transpose? t))
+      (&integer a0) (&out-array 'ipiv :dimensions (min a0 a1) :type +integer+)
       &info)))
 
 ;;;; Hermitian factorization
@@ -242,8 +244,10 @@
     (lapack-call-w/query (("sytrf" "hetrf") (common-float-type a)
                           (make-instance 'hermitian-factorization
                                          :factor factor :ipiv ipiv))
-      #\U (&integers a0) (&array a :output factor) (&integer a0)
-      (&output ipiv a0 :type +integer+) (&work-query) (&info))))
+      #\U (&integers a0)
+      (&in/out-array (:input a) (:output 'factor))
+      (&integer a0)
+      (&out-array 'ipiv :dimensions a0 :type +integer+) (&work-query) (&info))))
 
 ;;;; solving linear equations
 
@@ -260,18 +264,23 @@
          ((&values b0 b1 &ign) (dimensions-as-matrix b :column)))
     (assert (= lu0 lu1 b0) () 'lla-incompatible-dimensions)
     (lapack-call ("getrs" (common-float-type lu b) x)
-      #\N (&integer lu0) (&integer b1) (&array lu :transpose? t)
-      (&integer lu0) (&array ipiv :type +integer+)
-      (&array b :transpose? t :output (x :transpose? t)) (&integer lu0)
-      &info)))
+      #\N (&integer lu0) (&integer b1)
+      (&in-array lu :transpose? t)
+      (&integer lu0) (&in-array ipiv :type +integer+)
+      (&in/out-array (:input b :transpose? t)
+          (:output 'x :transpose? t))
+      (&integer lu0) &info)))
 
 (defmethod solve ((a array) (b array))
   (let+ (((a0 a1) (array-dimensions a))
          ((&values b0 b1 &ign) (dimensions-as-matrix b :column)))
     (assert (= a0 a1 b0) () 'lla-incompatible-dimensions)
     (lapack-call ("gesv" (common-float-type a b) x)
-      (&integer a0) (&integer b1) (&array a :transpose? t) (&integer a0)
-      (&work a0 +integer+) (&array b :transpose? t :output (x :transpose? t))
+      (&integer a0) (&integer b1) (&in-array a :transpose? t)
+      (&integer a0)
+      (&work a0 +integer+)
+      (&in/out-array (:input b :transpose? t)
+          (:output 'x :transpose? t))
       (&integer a0) &info)))
 
 (defmethod solve ((cholesky cholesky) b)
@@ -280,8 +289,9 @@
          ((a0 a1) (array-dimensions a)))
     (assert (= a0 a1 b0) () 'lla-incompatible-dimensions)
     (lapack-call ("potrs" (common-float-type a b) x)
-      #\U (&integers a0 b1) (&array a) (&integer a0)
-      (&array b :transpose? t :output (x :transpose? t))
+      #\U (&integers a0 b1) (&in-array a) (&integer a0)
+      (&in/out-array (:input b :transpose? t)
+          (:output 'x :transpose? t))
       (&integer b0) &info)))
 
 (defmethod solve ((hermitian-matrix hermitian-matrix) b)
@@ -290,8 +300,11 @@
          ((a0 a1) (array-dimensions a)))
     (assert (= a0 a1 b0) () 'lla-incompatible-dimensions)
     (lapack-call ("posv" (common-float-type a b) x)
-      #\U (&integers a0 b1) (&array a :output :copy) (&integer a0)
-      (&array b :transpose? t :output (x :transpose? t))
+      #\U (&integers a0 b1)
+      (&in-array a :force-copy? t)
+      (&integer a0)
+      (&in/out-array (:input b :transpose? t)
+          (:output 'x :transpose? t))
       (&integer b0) &info)))
 
 (defmethod solve ((a hermitian-factorization) (b array))
@@ -300,10 +313,11 @@
          ((&values b0 b1) (dimensions-as-matrix b :column)))
     (assert (= a0 a1 b0) () 'lla-incompatible-dimensions)
     (lapack-call (("sytrs" "hetrs") (common-float-type factor b) x)
-      #\U (&integers a0 b1) (&array factor) (&integer a0)
-      (&array ipiv :type +integer+)
-      (&array b :transpose? t :output (x :transpose? t)) (&integer b0)
-      &info)))
+      #\U (&integers a0 b1) (&in-array factor) (&integer a0)
+      (&in-array ipiv :type +integer+)
+      (&in/out-array (:input b :transpose? t)
+          (:output 'x :transpose? t))
+      (&integer b0) &info)))
 
 (defmethod solve ((a hermitian-matrix) (b array))
   (solve (hermitian-factorization a) b))
@@ -315,7 +329,8 @@
     (assert (= a0 a1 b0) () 'lla-incompatible-dimensions)
     (blas-call ("trsm" (common-float-type a b) x)
       #\R (&char (if a-upper? #\L #\U)) #\N #\N (&integers b1 b0) 1
-      (&array a) (&integer a1) (&array b :output x) (&integer b1))))
+      (&in-array a) (&integer a1) (&in/out-array (:input b) (:output 'x))
+      (&integer b1))))
 
 (defmethod solve ((a lower-triangular-matrix) b)
   (trsm% (wrapped-matrix-elements a) nil b))
@@ -337,8 +352,10 @@
          ((lu0 lu1) (array-dimensions lu)))
     (assert (= lu0 lu1 (length ipiv)))
     (lapack-call-w/query ("getri" (common-float-type lu) inverse)
-      (&integer lu0) (&array lu :transpose? t :output (inverse :transpose? t))
-      (&integer lu0) (&array ipiv :type +integer+) (&work-query) &info)))
+      (&integer lu0)
+      (&in/out-array (:input lu :transpose? t)
+          (:output 'inverse :transpose? t))
+      (&integer lu0) (&in-array ipiv :type +integer+) (&work-query) &info)))
 
 (defmethod invert ((a hermitian-factorization) &key)
   (let+ (((&slots-r/o factor ipiv) a)
@@ -346,8 +363,10 @@
     (assert (= a0 a1))
     (lapack-call (("sytri" "hetri") (common-float-type factor)
                   (hermitian-matrix inverse))
-      #\U (&integer a0) (&array factor :output inverse) (&integer a0)
-      (&array ipiv :type +integer+) (&work a0) &info)))
+      #\U (&integer a0)
+      (&in/out-array (:input factor) (:output 'inverse))
+      (&integer a0)
+      (&in-array ipiv :type +integer+) (&work a0) &info)))
 
 (defmethod invert ((a hermitian-matrix) &key)
   (invert (hermitian-factorization a)))
@@ -360,7 +379,7 @@
       (&char (if upper? #\L #\U))
       (&char (if unit-diag? #\U #\N))
       (&integer a0)
-      (&array a :output inverse)
+      (&in/out-array (:input a) (:output 'inverse))
       (&integer a0)
       &info)))
 
@@ -378,7 +397,8 @@
     (assert (= a0 a1))
     (lapack-call ("potri" (common-float-type a)
                           (hermitian-matrix inverse))
-      #\U (&integer a0) (&array a :output inverse) (&integer a0) &info)))
+      #\U (&integer a0) (&in/out-array (:input a) (:output 'inverse))
+      (&integer a0) &info)))
 
 (defmethod invert ((diagonal diagonal-matrix) &key (tolerance 0))
   "For pseudoinverse, suppressing diagonal elements below TOLERANCE \(if given, otherwise / is just used without any checking."
@@ -522,30 +542,31 @@ omitting the first NRHS rows.  If MATRIX is a vector, just do this for the last 
     (assert (= y0 x0) () 'lla-incompatible-dimensions)
     (assert (plusp df) () 'not-enough-columns)
     (lapack-call-w/query
-     ("gels"
-      common-type
-      (values
-       (copy-array (aops:partition b-and-ss 0 x1))
-       (last-rows-ss b-and-ss x1 common-type)
-       df
-       (make-instance 'qr :qr qr)))
-     #\N (&integers x0 x1 y1)
-     (&array x :transpose? t
-               :output (qr :transpose? t))
-     (&integer x0)
-     (&array y  :transpose? t
-                :output (b-and-ss :transpose? t))
-     (&integer y0) (&work-query) &info)))
+        ("gels"
+         common-type
+         (values
+          (copy-array (aops:partition b-and-ss 0 x1))
+          (last-rows-ss b-and-ss x1 common-type)
+          df
+          (make-instance 'qr :qr qr)))
+      #\N (&integers x0 x1 y1)
+      (&in/out-array (:input x :transpose? t)
+          (:output 'qr :transpose? t))
+      (&integer x0)
+      (&in/out-array (:input y :transpose? t)
+          (:output 'b-and-ss :transpose? t))
+      (&integer y0) (&work-query) &info)))
 
 (defmethod qr ((a array))
   (let+ (((a0 a1) (array-dimensions a)))
     (lapack-call-w/query
         ("geqrf" (common-float-type a)
                  (make-instance 'qr :qr qr :tau tau))
-        (&integers a0 a1)
-        (&array a :transpose? t :output (qr :transpose? t))
-        (&integer a0) (&output tau (min a0 a1)) (&work-query)
-        &info)))
+      (&integers a0 a1)
+      (&in/out-array (:input a :transpose? t)
+          (:output 'qr :transpose? t))
+      (&integer a0) (&out-array 'tau :dimensions (min a0 a1)) (&work-query)
+      &info)))
 
 ;; (defun least-squares-svd-d (y x &key (rcond -1))
 ;;   (lb-call ((common-type (common-float-type x y))
@@ -637,7 +658,9 @@ omitting the first NRHS rows.  If MATRIX is a vector, just do this for the last 
     (assert (= a0 a1))
     (lapack-call ("potrf" (common-float-type a)
                           (make-cholesky (lower-triangular-matrix l)))
-                 #\U (&integer a0) (&array a :output l) (&integer a0) &info)))
+      #\U (&integer a0)
+      (&in/out-array (:input a) (:output 'l))
+      (&integer a0) &info)))
 
 (defmethod left-square-root ((hermitian-matrix hermitian-matrix))
   (left-square-root (cholesky hermitian-matrix)))
@@ -660,9 +683,10 @@ SPECTRAL-FACTORIZATION about ABSTOL."
       (if (complex? type)
           (error "needs to be written, report this as an issue")
           (lapack-call-w/query (("syevr" "heevr") type w)
-            #\N #\A #\U (&integer a0) (&array a :output :copy)
+            #\N #\A #\U (&integer a0)
+            (&in/out-array (:input a) ())
             (&integer a0) nil nil nil nil (&atom abstol :type real-type)
-            (&work 1 +integer+) (&output w a0 :type real-type)
+            (&work 1 +integer+) (&out-array 'w :dimensions a0 :type real-type)
             nil (&integer a0) (&work (* 2 (max 1 a0))) (&work-query)
             (&work-query +integer+) &info)))))
 
@@ -692,10 +716,10 @@ If high relative accuracy is important, set ABSTOL to DLAMCH( 'Safe minimum').  
           (lapack-call-w/query (("syevr" "heevr") type
                                 (make-spectral-factorization
                                  :z z :w (diagonal-matrix w)))
-            #\V #\A #\U (&integer a0) (&array a :output :copy)
+            #\V #\A #\U (&integer a0) (&in/out-array (:input a) ())
             (&integer a0) nil nil nil nil (&atom abstol :type real-type)
-            (&work 1 +integer+) (&output w a0 :type real-type)
-            (&output z (list a0 a1)) (&integer a0)
+            (&work 1 +integer+) (&out-array 'w :dimensions a0 :type real-type)
+            (&out-array 'z :dimensions (list a0 a1)) (&integer a0)
             (&work (* 2 (max 1 a0))) (&work-query) (&work-query +integer+)
             &info)))))
 
@@ -733,9 +757,11 @@ If high relative accuracy is important, set ABSTOL to DLAMCH( 'Safe minimum').  
                                         (make-svd :d (diagonal-matrix d)
                                                   :u (when vectors u)
                                                   :vt (when vectors vt)))
-            (&char jobz) (&integers a1 a0) (&array a :output :copy)
-            (&integer a1) (&output d min) (&output vt (list vt0 a1))
-            (&integer (max a1 1)) (&output u (list a0 u1))
+            (&char jobz) (&integers a1 a0)
+            (&in-array a :force-copy? t)
+            (&integer a1) (&out-array 'd :dimensions min)
+            (&out-array 'vt :dimensions (list vt0 a1))
+            (&integer (max a1 1)) (&out-array 'u :dimensions (list a0 u1))
             (&integer (max u1 1)) (&work-query) (&work (* 8 min) +integer+)
             &info)))))
 

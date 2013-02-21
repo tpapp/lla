@@ -50,7 +50,8 @@
   (with-foreign-temporary-buffer (pointer 100)
     (let+ (((&flet check-copy (array internal-type)
               (lla::copy-array-to-memory array pointer internal-type)
-              (assert-true (same-memory-contents2? pointer internal-type array))))
+              (assert-true (same-memory-contents2? pointer internal-type
+                                                   array))))
            ((&flet assert-same-copy (element-type internal-type)
               (check-copy (random-array element-type 5 7)
                           internal-type)))
@@ -186,7 +187,7 @@
                               &key (length 50))
   "Test array pinning (input only)."
   (let ((vector (random-array (lla::lisp-type source-type) length)))
-    (lla::with-pinned-array (pointer vector destination-type nil nil nil nil)
+    (lla::with-array-input ((pointer) vector destination-type nil nil)
       (assert-true (same-memory-contents2? pointer destination-type vector)))))
 
 (defun test-pinning-copy (source-type destination-type
@@ -195,15 +196,14 @@
   (let* ((vector (random-array (lla::lisp-type source-type) length))
          (copy (copy-seq vector))
          (copy-inc (map 'vector #'1+ copy)))
-    (lla::with-pinned-array (pointer vector destination-type nil
-                                     :copy nil nil)
+    (lla::with-array-input ((pointer) vector destination-type nil t)
       ;; check equality
-      (unless (same-memory-contents2? pointer destination-type copy)
-        (return-from test-pinning-copy nil))
+      (assert-true (same-memory-contents2? pointer destination-type copy))
       ;; increment memory area, check equality, and that original is intact
       (dotimes (i length)
         (incf (lla::foreign-aref pointer destination-type i) 1))
-      (assert-true (and (same-memory-contents2? pointer destination-type copy-inc)
+      (assert-true (and (same-memory-contents2? pointer destination-type
+                                                copy-inc)
                         (equalp vector copy))))))
 
 (defun test-pinning-output (source-type destination-type
@@ -213,11 +213,10 @@
          vector-inc
          (copy (copy-seq vector))
          (copy-inc (map 'vector #'1+ copy)))
-    (lla::with-pinned-array (pointer vector destination-type nil
-                                     vector-inc nil nil)
+    (lla::with-array-input-output ((pointer) vector destination-type nil t
+                                   vector-inc nil nil)
       ;; check equality
-      (unless (same-memory-contents2? pointer destination-type copy)
-        (return-from test-pinning-output nil))
+      (assert-true (same-memory-contents2? pointer destination-type copy))
       ;; increment memory area, check equality, and that original is intact
       (dotimes (i length)
         (incf (lla::foreign-aref pointer destination-type i) 1))
@@ -229,8 +228,9 @@
 
 (defun test-vector-output (internal-type &key (length 50))
   (let ((vector (random-array (lla::lisp-type internal-type) length))
-        output)
-    (lla::with-array-output (pointer output internal-type length nil)
+        (output (make-array length
+                            :element-type (lla::lisp-type internal-type))))
+    (lla::with-array-output ((pointer) output internal-type nil)
       (dotimes (index length)
         (setf (lla::foreign-aref pointer internal-type index)
               (aref vector index))))
