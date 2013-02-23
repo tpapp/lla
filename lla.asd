@@ -30,7 +30,8 @@
    (:file "pinned-array")
    (:file "factorizations")
    (:file "fortran-call")
-   (:file "linear-algebra")))
+   (:file "linear-algebra")
+   (:file "blas")))
 
 (defsystem lla-tests
   :description "Unit tests for LLA."
@@ -43,4 +44,5 @@
   :components
   ((:file "setup")
    (:file "pinned-array")
-   (:file "linear-algebra")))
+   (:file "linear-algebra")
+   (:file "blas")))

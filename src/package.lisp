@@ -64,4 +64,10 @@
    #:eigenvalues
    #:logdet
    #:det
-   #:tr))
+   #:tr)
+  (:export                              ; blas
+   #:*safe?*
+   #:gemm!
+   #:scal!
+   #:axpy!
+   #:copy!))
