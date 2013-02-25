@@ -35,7 +35,7 @@
 
 (defsystem lla-tests
   :description "Unit tests for LLA."
-  :author "Tamas K Papp <tkpapp@gmail.com"
+  :author "Tamas K Papp <tkpapp@gmail.com>"
   :license "Same as LLA--this is part of the LLA library."
   :depends-on (#:lla
                #:clunit)

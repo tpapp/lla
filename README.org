@@ -117,12 +117,14 @@ cd atlas-[fill in your version here]/
 fakeroot debian/rules custom
 #+END_EXAMPLE
 
+Then install the .deb files that were created.
+
 
 *** Selecting the right linear algebra library
 
 #+BEGIN_EXAMPLE
-update-alternatives --config libblas.so.3gf
-update-alternatives --config liblapack.so.3gf
+update-alternatives --config libblas.so.3
+update-alternatives --config liblapack.so.3
 #+END_EXAMPLE
 
 
