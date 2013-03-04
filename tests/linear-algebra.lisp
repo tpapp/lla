@@ -439,6 +439,12 @@
                                 (3 4))) 5d0)
   (assert-equality #'num= (tr (diagonal-mx 'lla-double 2 15)) 17d0))
 
+(deftest logdet (linear-algebra-suite)
+  (assert-equality #'num= (logdet (mx 'lla-double
+                                    (1 0)
+                                    (-1 (exp 1d0))))
+      1d0))
+
 ;; (deftest (linear-algebra-suite)
 ;;   rank
 ;;   (let ((*lift-equality-test* #'=))

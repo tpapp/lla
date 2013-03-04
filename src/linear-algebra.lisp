@@ -859,7 +859,7 @@ If high relative accuracy is important, set ABSTOL to DLAMCH( 'Safe minimum').  
 
 (defmethod logdet ((matrix array))
   (let* ((lu (lu matrix)))
-    (diagonal-log-sum% (lu lu) (permutations lu))))
+    (diagonal-log-sum% (lu-matrix lu) (permutations lu))))
 
 (defmethod logdet ((matrix lower-triangular-matrix))
   (diagonal-log-sum% (wrapped-matrix-elements matrix)))
