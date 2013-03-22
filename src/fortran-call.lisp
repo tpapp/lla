@@ -72,12 +72,12 @@
   (output nil))
 
 (defun quoted-variable (form)
-  (if (and (listp form)
-           (= 2 (length form))
-           (eq 'quote (first form))
-           (symbolp (second form)))
-      (second form)
-      nil))
+  "If FORM is (QUOTE VARIABLE), return VARIABLE, otherwise NIL."
+  (when (and (listp form)
+             (= 2 (length form))
+             (eq 'quote (first form))
+             (symbolp (second form)))
+    (second form)))
 
 (defun evaluated-output-form (form)
   (or (quoted-variable form) form))
