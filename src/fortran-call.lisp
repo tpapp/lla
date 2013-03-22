@@ -19,10 +19,9 @@
 ;;;; generic interface and helper functions
 
 (defgeneric process-form (form environment)
-  (:documentation "Return a list of argument specifications (atoms are
-converted into lists).")
+  (:documentation "Return a list of argument specifications (atoms are converted into lists).")
   (:method (form environment)
-    (macroexpand form environment )))
+    (macroexpand form environment)))
 
 (defun process-forms (forms environment)
   "Process forms and return a list of argument specifications.  A form may correspond to multiple arguments."
@@ -30,8 +29,7 @@ converted into lists).")
           :key (lambda (f) (ensure-list (process-form f environment)))))
 
 (defgeneric wrap-argument (argument pass parameters body)
-  (:documentation "Return BODY wrapped in an environment generated for
-  ARGUMENT in a given PASS.")
+  (:documentation "Return BODY wrapped in an environment generated for ARGUMENT in a given PASS.")
   (:method (argument pass parameters body)
     ;; default: just pass through body
     body))
@@ -163,7 +161,8 @@ converted into lists).")
   input (input-type nil) (input-transpose? nil) (input-force-copy? nil))
 
 (defmacro &in-array (input &key type transpose? force-copy?)
-  (make-fortran-input-array :input input :input-type type
+  (make-fortran-input-array :input input
+                            :input-type type
                             :input-transpose? transpose?
                             :input-force-copy? force-copy?))
 
@@ -197,7 +196,8 @@ converted into lists).")
                                      (getf parameters :default-type))))))
 
 (defmacro &out-array (output &key dimensions type transpose?)
-  (make-fortran-output-array :output output :output-dimensions dimensions
+  (make-fortran-output-array :output output
+                             :output-dimensions dimensions
                              :output-type type
                              :output-transpose? transpose?))
 
@@ -216,8 +216,7 @@ converted into lists).")
 ;;; input/output arrays
 
 (defstruct (fortran-input-output-array (:include fortran-output-array))
-  ;; No multiple inheritence for structures, repeat the slots of
-  ;; FORTRAN-INPUT-ARRAY.
+  ;; No multiple inheritence for structures, repeat the slots of FORTRAN-INPUT-ARRAY.
   input (input-type nil) (input-transpose? nil) (input-force-copy? nil))
 
 (defmethod argument-initializer-form ((argument fortran-input-output-array)
@@ -387,7 +386,7 @@ converted into lists).")
   (loop for arg in arguments appending `(:pointer ,(argument-pointer arg))))
 
 (defun blas-lapack-call-form (type-var name arguments)
-  "Return a form BLAS/LAPACK calls, conditioning on TYPE-VAR.  See BLAS-LAPACK-FUNCTION-NAME for the interpretation of "
+  "Return a form BLAS/LAPACK calls, conditioning on TYPE-VAR.  See BLAS-LAPACK-FUNCTION-NAME for the interpretation of FIXME"
   (let ((arguments (arguments-for-cffi arguments)))
     `(ecase ,type-var
        ,@(loop for type in +float-types+
