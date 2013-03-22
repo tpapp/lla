@@ -4,15 +4,15 @@
 
 ;;; These macros take care of array pinning and the conversion of constants to pointers to an allocated memory area with the value so that everything is set up to call Fortran/BLAS/LAPACK functions.
 ;;;
-;;; Since LAPACK functions are sometimes called two times (eg to query work area sizes), expansions take care in 'passes', such as
+;;; Since LAPACK functions are sometimes called two times (eg to query work area sizes), expansions take place in 'passes', such as
 ;;;
-;;;  - bindings: establishes the bindings (also empty variables)
+;;;  - BINDINGS: establishes the bindings (also empty variables)
 ;;;
-;;;  - main: for arguments that are the same regardless of what kind of call is made
+;;;  - MAIN: for arguments that are the same regardless of what kind of call is made
 ;;;
-;;;  - query: for querying work area sizes
+;;;  - QUERY: for querying work area sizes
 ;;;
-;;;  - call: the actual function call
+;;;  - CALL: the actual function call
 ;;;
 ;;; The DSL is implemented via macros which expand to structures, which are in then handed to WRAP-ARGUMENT for each pass.
 

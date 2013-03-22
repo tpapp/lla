@@ -43,7 +43,7 @@ The value of the expression is always the value of BODY."
 (defmacro with-array-output (((pointer &optional (copied? (gensym "COPIED?")))
                               array internal-type transpose?)
                              &body body)
-  "Ensure that ARRAY is mapped to a corresponding memory area for the duration of BODY (see below for details of semantics).  POINTER is bound to the start of the memory address.  The representation of values in the memory is determined by INTERNAL-TYPE.  When TRANSPOSE?, transpose the array after BODY (only works for matrices, otherwise signal an error). 
+  "Ensure that ARRAY is mapped to a corresponding memory area for the duration of BODY (see below for details of semantics).  POINTER is bound to the start of the memory address.  The representation of values in the memory is determined by INTERNAL-TYPE.  When TRANSPOSE?, transpose the array after BODY (only works for matrices, otherwise signal an error).
 
 COPIED? is bound to indicate whether POINTER points to a copy or the actual array contents.
 
@@ -110,10 +110,7 @@ The value of the expression is always the value of BODY."
 
 ;;;; Implementation
 ;;;
-;;; We copy the array to and from the memory area if necessary, either
-;;; because it must be transposed, copying is requested explicitly,
-;;; true pinning is not implemented or lla:cffi-pinning is enabled in
-;;; the configuration.
+;;; We copy the array to and from the memory area if necessary, either because it must be transposed, copying is requested explicitly, true pinning is not implemented or LLA:CFFI-PINNING is enabled in the configuration.
 
 (defun backing-array (array)
   "Return the array in which the contents of ARRAY are stored. For simple arrays, this is always the array itself.  The second value is the displacement."
