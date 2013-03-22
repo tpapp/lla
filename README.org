@@ -148,6 +148,8 @@ should work.
 
 LLA was inspired by packages written by AJ Rossini, Rif, Mark Hoemmen and others.  I have borrowed code (whenever allowed by their licenses) and ideas freely from all of them.
 
+Gábor Melis made substantial contributions to the library, especially the low-level pinning interface and the destructive BLAS routines.
+
 
 * Things to do (roughly in order of priority)
 
