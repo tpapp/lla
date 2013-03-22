@@ -31,7 +31,7 @@
   ((position :initarg :position :type fixnum
              :documentation "Position of the illegal argument"))
   (:documentation
-   "An argument to a LAPACK procedure had an illegal value.  Generally, this indicates a bug in LLA and should not happen."))
+   "An argument to a LAPACK procedure had an illegal value.  It is very likely that this indicates a bug in LLA and should not happen."))
 
 (define-condition lapack-failure (lapack-error)
   ((info :initarg :info :type fixnum
@@ -44,9 +44,7 @@
 
 ;;;; efficiency warnings
 ;;;
-;;; The framework for efficiency warnings has to be enabled before loading
-;;; (compiling) the library, using the configuration interface.  See the
-;;; documentation.
+;;; The framework for efficiency warnings has to be enabled before loading (compiling) the library, using the configuration interface.  See the documentation.
 
 (define-condition lla-efficiency-warning (warning)
   ())

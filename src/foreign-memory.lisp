@@ -4,12 +4,7 @@
 
 ;;;; Lambda forms for accessing foreign memory.
 ;;;
-;;; These are used to define the functions that access values in foreign
-;;; memory.  It would be really convenient to use CFFI:MEM-AREF directly, but
-;;; unfortunately C99 complex types are not (yet) supported (as of Oct 2011).
-;;; When they are available directly, we can eliminate these functions
-;;; completely.  In the meantime, the compiler should be able to reduce the
-;;; lambda forms, creating efficient code.
+;;; These are used to define the functions that access values in foreign memory.  It would be really convenient to use CFFI:MEM-AREF directly, but unfortunately C99 complex types are not (yet) supported (as of Oct 2011).  When they are available directly, we can eliminate these functions completely.  In the meantime, the compiler should be able to reduce the lambda forms, creating efficient code.
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (deftype maximum-array-size ()
@@ -117,14 +112,11 @@
 
 ;;;; Array copying functions
 ;;;
-;;; Macros below define optimized copying for certain pairs of LLA types and
-;;; Common Lisp array element types.  The functions below return the default
-;;; ones for LLA.
+;;; Macros below define optimized copying for certain pairs of LLA types and Common Lisp array element types.  The functions below return the default ones for LLA.
 
 ;;;; Helper macros and standard specifications lists
 ;;;
-;;; Note that when LLA copies from memory, it always aims for the same element
-;;; type, so the other pairs need not be defined.
+;;; Note that when LLA copies from memory, it always aims for the same element type, so the other pairs need not be defined.
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
 
@@ -139,8 +131,7 @@
        (t (error 'lla-internal-error :message "Unhandled case."))))
 
   (defun all-to-specifications% ()
-    "Return an optimization specification for all functions that copy to
-     foreign memory."
+    "Return an optimization specification for all functions that copy to foreign memory."
     '((#.+single+ lla-single *)
       (#.+double+ lla-single lla-double *)
       (#.+complex-single+ lla-single lla-double lla-complex-single *)
@@ -149,7 +140,8 @@
       (#.+integer+ lla-integer *)))
 
   (defun all-from-specifications% ()
-    "Return an optimization specification for all functions that copy from foreign memory."  '((#.+single+ lla-single *)
+    "Return an optimization specification for all functions that copy from foreign memory."
+    '((#.+single+ lla-single *)
       (#.+double+ lla-double *)
       (#.+complex-single+ lla-complex-single *)
       (#.+complex-double+ lla-complex-double *)
@@ -163,7 +155,7 @@
       `(lambda (,clause-internal-type ,clause-element-type)
          (let* ((,generic? (eq ,clause-element-type '*))
                 (,array-type `(,(if ,generic? 'array 'simple-array)
-                                ,,clause-element-type *)))
+                               ,,clause-element-type *)))
            `((and (typep ,',array ',,array-type)
                   (= ,',internal-type ,,clause-internal-type))
              (locally (declare ,@(unless ,generic?
