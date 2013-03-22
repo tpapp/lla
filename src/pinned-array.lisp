@@ -56,7 +56,7 @@ The value of the expression is always the value of BODY."
          (declare (dynamic-extent #'body)
                   #+sbcl (sb-ext:muffle-conditions sb-ext:code-deletion-note))
          (multiple-value-bind (,backing-array ,offset) (backing-array ,array)
-           (if (and (null ,transpose?)
+           (if (and (not ,transpose?)
                     (shareable-array? ,backing-array ,internal-type))
                (with-pinned-array (,pointer ,backing-array)
                  (cffi:incf-pointer ,pointer
