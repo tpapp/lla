@@ -19,7 +19,7 @@ LDA is the width of the matrix A (not of A'). If A is not transposed, then K <= 
 
 LDB is the width of the matrix B (not of B'). If B is not transposed, then N <= LDB, if it's transposed then K <= LDB.
 
-In the example below M=3, N=2, K=5, LDA=6, LDB=3, LDC=4. The cells marked with + do not feature in the calculation. 
+In the example below M=3, N=2, K=5, LDA=6, LDB=3, LDC=4. The cells marked with + do not feature in the calculation.
 
            N
           --+
@@ -89,7 +89,7 @@ M --A--+  -C++
                   n)
                  (t (min (floor (array-total-size x) incx)
                          (floor (array-total-size y) incy))))))
-    
+
     (blas-call ("axpy" common-type y)
       (&integer n) (&atom alpha)
       (&in/out-array (:input x) ()) (&integer incx)
