@@ -283,7 +283,6 @@
     `(with-work-area (,pointer ,(maybe-default-type type parameters) ,size)
        ,body)))
 
-
 (defstruct (lapack-info (:include fortran-argument))
   (variable (gensym))
   condition)
