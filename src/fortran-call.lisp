@@ -204,9 +204,7 @@
           argument))
     `(with-array-input ((,pointer)
                         ,input
-                        ,(aif input-type
-                              it
-                              (getf parameters :default-type))
+                        ,(maybe-default-type input-type parameters)
                         ,input-transpose?
                         ,input-force-copy?)
        ,body)))
@@ -291,15 +289,11 @@
                       output output-type output-transpose?) argument))
     `(with-array-input-output ((,pointer)
                                ,input
-                               ,(aif input-type
-                                     it
-                                     (getf parameters :default-type))
+                               ,(maybe-default-type input-type parameters)
                                ,input-transpose?
                                ,input-force-copy?
                                ,(output-array-form output)
-                               ,(aif output-type
-                                     it
-                                     (getf parameters :default-type))
+                               ,(maybe-default-type output-type parameters)
                                ,output-transpose?)
        ,body)))
 
