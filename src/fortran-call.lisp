@@ -42,7 +42,7 @@
       body))
 
 (defun maybe-default-type (type parameters)
-  "Return default type from parameters when TYPE is NIL."
+  "Return default type from PARAMETERS when TYPE is NIL."
   (aif type
        it
        (getf parameters :default-type)))
@@ -53,6 +53,7 @@
 
 (defclass fortran-argument ()
   ((pointer
+    :documentation "Pointer passed to Fortran."
     :initform (gensym)
     :initarg :pointer
     :reader argument-pointer))
@@ -63,15 +64,24 @@
   (mapcar #'argument-pointer arguments))
 
 (defclass fortran-argument/type (fortran-argument)
-  ((type :initarg :type :initform nil)))
+  ((type
+    :documentation "Determines (internal) type for array mapped to the pointer."
+    :initarg :type
+    :initform nil
+    :type internal-type))
+  (:documentation "For arguments which may have multiple types, mostly arrays or atoms (implemented as single-cell arrays)."))
 
 (defclass fortran-argument/size (fortran-argument)
-  ((size :initarg :size :initform nil)))
+  ((size
+    :documentation "Number of elements."
+    :initarg :size :initform nil))
+  (:documentation "Number of elements in array mapped to a pointer."))
 
 ;;; arguments with output
 
 (defclass fortran-argument/output (fortran-argument)
   ((output
+    :documentation "Lisp variable or initialization form mapped to an output."
     :initarg :output
     :initform nil))
   (:documentation "Class for arguments that return an output.  When FORTRAN-ARGUMENT/OUTPUT-INITIALIZER-FORM returns non-NIL, a local binding of OUTPUT to this form will be wrapped around the relevant BODY."))
@@ -90,11 +100,12 @@
   "If FORM is (&NEW VARIABLE), return VARIABLE, otherwise NIL."
   (when (and (listp form)
              (= 2 (length form))
-             (eq '&new (first form))
-             (symbolp (second form)))
-    (second form)))
+             (eq '&new (first form)))
+    (aprog1 (second form)
+      (assert (symbolp it) () "New variable ~A is not a symbol." it))))
 
-(defun evaluated-output-form (form)
+(defun output-array-form (form)
+  "Return a form that can be passed to WITH-OUTPUT-ARRAY (or similar) as an output.  The variable is extracted from &NEW forms, otherwise the form is passed as is."
   (or (fortran-argument/new-variable form) form))
 
 (defmethod wrap-argument ((argument fortran-argument/output) (pass (eql 'bindings))
@@ -234,7 +245,7 @@
                           parameters body)
   (let+ (((&slots-r/o pointer output output-type output-transpose?) argument))
     `(with-array-output ((,pointer)
-                         ,(evaluated-output-form output)
+                         ,(output-array-form output)
                          ,(maybe-default-type output-type parameters)
                          ,output-transpose?)
        ,body)))
@@ -285,7 +296,7 @@
                                      (getf parameters :default-type))
                                ,input-transpose?
                                ,input-force-copy?
-                               ,(evaluated-output-form output)
+                               ,(output-array-form output)
                                ,(aif output-type
                                      it
                                      (getf parameters :default-type))
