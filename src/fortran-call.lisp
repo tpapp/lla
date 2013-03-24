@@ -92,7 +92,7 @@
     nil))
 
 (defmacro &new (variable)
-  "Placeholder macro for newly allocated output variables."
+  "Placeholder macro for newly allocated output variables.  Using (&NEW VARIABLE) allocates a new array within the scope of the outer macro, and is usually used for output.  See &ARRAY-OUT and &ARRAY-IN/OUT."
   (declare (ignore variable))
   (error "This macro is not meant to be expanded, it is only provided for editor hints."))
 
