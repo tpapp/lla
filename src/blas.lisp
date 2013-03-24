@@ -63,9 +63,9 @@ M --A--+  -C++
       (&char (if transpose-b? #\C #\N))
       (&char (if transpose-a? #\C #\N))
       (&integers n m k) (&atom alpha)
-      (&in-array b) (&integer ldb)
-      (&in-array a) (&integer lda)
-      (&atom beta) (&in/out-array (:input c) ())
+      (&array-in b) (&integer ldb)
+      (&array-in a) (&integer lda)
+      (&atom beta) (&array-in/out (:input c) ())
       (&integer ldc))))
 
 (defun scal! (alpha x &key n (incx 1) (safe? *safe?*))
@@ -78,7 +78,7 @@ M --A--+  -C++
                  (t (floor (array-total-size x) incx)))))
     (blas-call ("scal" type x)
       (&integer n) (&atom alpha)
-      (&in/out-array (:input x) ()) (&integer incx))))
+      (&array-in/out (:input x) ()) (&integer incx))))
 
 (defun axpy! (alpha x y &key n (incx 1) (incy 1) (safe? *safe?*))
   (let ((common-type (common-float-type x y))
@@ -92,8 +92,8 @@ M --A--+  -C++
 
     (blas-call ("axpy" common-type y)
       (&integer n) (&atom alpha)
-      (&in/out-array (:input x) ()) (&integer incx)
-      (&in/out-array (:input y) ()) (&integer incy))))
+      (&array-in/out (:input x) ()) (&integer incx)
+      (&array-in/out (:input y) ()) (&integer incy))))
 
 (defun copy! (x y &key n (incx 1) (incy 1) (safe? *safe?*))
   (let ((type (common-float-type x y))
@@ -105,5 +105,5 @@ M --A--+  -C++
                  (t (min (floor (array-total-size x) incx)
                          (floor (array-total-size y) incy))))))
     (blas-call ("copy" type y)
-      (&integer n) (&in-array x) (&integer incx)
-      (&in/out-array (:input y) ()) (&integer incy))))
+      (&integer n) (&array-in x) (&integer incx)
+      (&array-in/out (:input y) ()) (&integer incy))))

@@ -192,7 +192,7 @@
     :initform nil))
   (:documentation "Arrays which are pinned."))
 
-(defmacro &in-array (input &key type transpose? force-copy?)
+(defmacro &array-in (input &key type transpose? force-copy?)
   (make-instance 'fortran-input-array :input input
                                       :input-type type
                                       :input-transpose? transpose?
@@ -225,7 +225,7 @@
     :initform nil))
   (:documentation "Output array."))
 
-(defmacro &out-array (output &key dimensions type transpose?)
+(defmacro &array-out (output &key dimensions type transpose?)
   (make-instance 'fortran-output-array :output output
                                        :output-dimensions dimensions
                                        :output-type type
@@ -254,7 +254,7 @@
   ()
   (:documentation "Input/output array."))
 
-(defmacro &in/out-array ((&key input
+(defmacro &array-in/out ((&key input
                                ((:type input-type))
                                ((:transpose? input-transpose?))
                                ((::force-copy? input-force-copy?) nil
