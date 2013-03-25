@@ -8,7 +8,7 @@
 
 (defsystem lla
   :description "Lisp Linear Algebra"
-  :version "0.1"
+  :version "0.2"
   :author "Tamas K Papp <tkpapp@gmail.com>"
   :license "Boost Software License - Version 1.0"
   :depends-on (#:anaphora
