@@ -2,7 +2,7 @@
 
 ;;;; Wrappers for BLAS linear algebra functions defined here.
 ;;;
-;;; Only a select few BLAS functions are implemented currently.
+;;; NOTE: This code is experimental.  Only a select few BLAS functions are implemented currently.
 
 (defun gemm! (alpha a b beta c &key transpose-a? transpose-b?
               m n k lda ldb ldc)
