@@ -9,7 +9,7 @@
 (defsystem lla
   :description "Lisp Linear Algebra"
   :version "0.2"
-  :author "Tamas K Papp <tkpapp@gmail.com>"
+  :author "Tamas K Papp <tkpapp@gmail.com>, Gábor Melis <mega@retes.hu>"
   :license "Boost Software License - Version 1.0"
   :depends-on (#:anaphora
                #:alexandria
@@ -35,7 +35,7 @@
 
 (defsystem lla-tests
   :description "Unit tests for LLA."
-  :author "Tamas K Papp <tkpapp@gmail.com>"
+  :author "Tamas K Papp <tkpapp@gmail.com>, Gábor Melis <mega@retes.hu>"
   :license "Same as LLA--this is part of the LLA library."
   :depends-on (#:lla
                #:clunit)
