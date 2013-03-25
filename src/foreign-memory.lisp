@@ -167,17 +167,18 @@
 
 (defun copy-array-to-memory (array pointer internal-type)
   "Copy the contents of ARRAY to the memory area of type INTERNAL-TYPE at POINTER."
-  (declare (type internal-type internal-type))
+  (declare (type internal-type internal-type)
+           #+sbcl (sb-ext:muffle-conditions sb-ext:compiler-note))
   (check-type array array)
   (let ((size (array-total-size array)))
     (expanding
-     (expand-specifications%
-      (array-clause% (array internal-type element-type%
-                            internal-type%)
-        `(loop for index below size do
-                  (,(value-to-memory% internal-type%) pointer index
-                   (row-major-aref array index))))
-      (all-to-specifications%))))
+      (expand-specifications%
+       (array-clause% (array internal-type element-type%
+                             internal-type%)
+         `(loop for index below size do
+                   (,(value-to-memory% internal-type%) pointer index
+                    (row-major-aref array index))))
+       (all-to-specifications%))))
   (values))
 
 (defun copy-array-from-memory (array pointer internal-type)
@@ -214,16 +215,17 @@
     (aops:array-matrix
      (let+ (((nrow ncol) (array-dimensions matrix))
             (index 0))
-       (declare (type fixnum index))
+       (declare (type fixnum index)
+                #+sbcl (sb-ext:muffle-conditions sb-ext:compiler-note))
        (expanding
          (expand-specifications%
           (array-clause% (matrix internal-type element-type%
                                  internal-type%)
             `(loop for col-index fixnum below ncol do
-              (loop for row-index fixnum below nrow do
-                (,(value-to-memory% internal-type%) pointer index
-                 (aref matrix row-index col-index))
-                (incf index))))
+                      (loop for row-index fixnum below nrow do
+                               (,(value-to-memory% internal-type%) pointer index
+                                (aref matrix row-index col-index))
+                               (incf index))))
           (all-to-specifications%))))))
   (values))
 
