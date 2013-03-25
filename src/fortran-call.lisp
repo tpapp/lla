@@ -1,25 +1,13 @@
 ;;; -*- Mode:Lisp; Syntax:ANSI-Common-Lisp; Coding:utf-8 -*-
 
 (in-package #:lla)
-
-;;; These macros take care of array pinning and the conversion of constants to pointers to an allocated memory area with the value so that everything is set up to call Fortran/BLAS/LAPACK functions.
-;;;
-;;; Since LAPACK functions are sometimes called two times (eg to query work area sizes), expansions take place in 'passes', such as
-;;;
-;;;  - BINDINGS: establishes the bindings (also empty variables)
-;;;
-;;;  - MAIN: for arguments that are the same regardless of what kind of call is made
-;;;
-;;;  - QUERY: for querying work area sizes
-;;;
-;;;  - CALL: the actual function call
-;;;
-;;; The DSL is implemented via macros which expand to structures, which are in then handed to WRAP-ARGUMENT for each pass.
-
+
 ;;;; generic interface and helper functions
 
 (defgeneric process-form (form environment)
-  (:documentation "Return a list of argument specifications (atoms are converted into lists).")
+  (:documentation "Return a list of argument specifications (atoms are converted into lists).
+
+The code in this file defines a DSL for calling BLAS and LAPACK procedures in FORTRAN, which expect pointers to memory locations.  The high-level macros BLAS-CALL and LAPACK-CALL take care of pinning arrays or allocating memory and copying array contents (when applicable), and use PROCESS-FORM to interpret their arguments, which correspond to one or more FORTRAN arguments.  These are then expanded into code using WRAP-ARGUMENT.")
   (:method (form environment)
     (macroexpand form environment)))
 
@@ -29,13 +17,27 @@
           :key (lambda (f) (ensure-list (process-form f environment)))))
 
 (defgeneric wrap-argument (argument pass parameters body)
-  (:documentation "Return BODY wrapped in an environment generated for ARGUMENT in a given PASS.")
+  (:documentation "Return BODY wrapped in an environment generated for ARGUMENT in a given PASS.
+
+The code for calling the function is built using nested calls of WRAP-ARGUMENT.  The setup is somewhat complicated because some functions require that they are called twice (eg in order to calculate work area size), and we don't necessarily want to allocate and free memory twice.  Because of this, expansions take place in 'passes'.
+
+Currently, the following passes are used:
+
+ - BINDINGS: establishes the bindings (also empty variables)
+
+ - MAIN: for arguments that are the same regardless of what kind of call is made
+
+ - QUERY: for querying work area sizes
+
+ - CALL: the actual function call
+
+PARAMETERS is used to specify information that is applicable for all arguments (eg a default array element type).")
   (:method (argument pass parameters body)
     ;; default: just pass through body
     body))
 
 (defun wrap-arguments (arguments pass parameters body)
-  "Wrap BODY in arguments.  Convenienve function used to implement the expansion."
+  "Wrap BODY in arguments.  Convenience function used to implement the expansion."
   (if arguments
       (wrap-argument (car arguments) pass parameters
                      (wrap-arguments (cdr arguments) pass parameters body))
@@ -46,14 +48,12 @@
   (aif type
        it
        (getf parameters :default-type)))
-
+
 ;;;; implementation of specific types
-
-;;; fortran-argument
 
 (defclass fortran-argument ()
   ((pointer
-    :documentation "Pointer passed to Fortran."
+    :documentation "Pointer passed to FORTRAN."
     :initform (gensym)
     :initarg :pointer
     :reader argument-pointer))
@@ -84,7 +84,7 @@
     :documentation "Lisp variable or initialization form mapped to an output."
     :initarg :output
     :initform nil))
-  (:documentation "Class for arguments that return an output.  When FORTRAN-ARGUMENT/OUTPUT-INITIALIZER-FORM returns non-NIL, a local binding of OUTPUT to this form will be wrapped around the relevant BODY."))
+  (:documentation "Class for arguments that return an output.  When FORTRAN-ARGUMENT/OUTPUT-INITIALIZER-FORM returns non-NIL, a local binding of OUTPUT to this form will be wrapped around the relevant BODY.  Also see &NEW."))
 
 (defgeneric fortran-argument/output-initializer-form (argument parameters)
   (:documentation "When applicable, return a form that is used to initialize the OUTPUT variable.  When NIL is returned, no binding is established.")
@@ -148,7 +148,7 @@
 
 (defclass fortran-atom (fortran-argument/output fortran-argument/type)
   ((value :initarg :value))
-  (:documentation "Atoms passed to FORTRAN."))
+  (:documentation "Atoms passed to FORTRAN.  Input/output (when OUTPUT is given)."))
 
 (defmethod wrap-argument ((argument fortran-atom) (pass (eql 'main))
                           parameters body)
@@ -166,7 +166,7 @@
   (process-form `(&atom ,value :type +integer+ :output ,output) env))
 
 (defmacro &integers (&rest values &environment env)
-  "Shorthand for integer atoms which are not modified."
+  "Shorthand for integer atoms (which are not modified).  Useful for combining arguments."
   (loop for value in values
         collect (process-form `(&integer ,value) env)))
 
@@ -183,6 +183,7 @@
     :initarg :input)
    (input-type
     :initarg :input-type
+    :type internal-type
     :initform nil)
    (input-transpose?
     :initarg :input-transpose?
@@ -190,9 +191,10 @@
    (input-force-copy?
     :initarg :input-force-copy?
     :initform nil))
-  (:documentation "Arrays which are pinned."))
+  (:documentation "Arrays which serve as inputs.  See WITH-ARRAY-INPUT for the semantics of the arguments."))
 
 (defmacro &array-in (input &key type transpose? force-copy?)
+  "Array which serves as an input.  See FORTRAN-INPUT-ARRAY."
   (make-instance 'fortran-input-array :input input
                                       :input-type type
                                       :input-transpose? transpose?
@@ -223,9 +225,10 @@
    (output-transpose?
     :initarg :output-transpose?
     :initform nil))
-  (:documentation "Output array."))
+  (:documentation "Output array.  See WITH-ARRAY-OUTPUT for the semantics of the arguments."))
 
 (defmacro &array-out (output &key dimensions type transpose?)
+  "Output array.  See FORTRAN-OUTPUT-ARRAY."
   (make-instance 'fortran-output-array :output output
                                        :output-dimensions dimensions
                                        :output-type type
@@ -252,7 +255,7 @@
 
 (defclass fortran-input-output-array (fortran-input-array fortran-output-array)
   ()
-  (:documentation "Input/output array."))
+  (:documentation "Input/output array.  See WITH-ARRAY-INPUT-OUTPUT for the semantics of the arguments."))
 
 (defmacro &array-in/out ((&key input
                                ((:type input-type))
@@ -263,6 +266,7 @@
                                ((:dimensions output-dimensions))
                                ((:type output-type) input-type)
                                ((:transpose? output-transpose?))))
+  "Input/output array.  See FORTRAN-INPUT-OUTPUT-ARRAY."
   (make-instance 'fortran-input-output-array
                  :input input
                  :input-type input-type
@@ -320,7 +324,8 @@
     :initarg :variable
     :initform (gensym))
    (condition
-    :initarg :condition)))
+    :initarg :condition))
+  (:documentation "Information from a LAPACK call.  See the LAPACK manual for error codes."))
 
 (defmacro &info (&optional (condition ''lapack-failure))
   "Argument for checking whether the call was executed without an error.  Automatically takes care of raising the appropriate condition if it wasn't.  CONDITION specifies the condition to raise in case of positive error codes."
@@ -329,6 +334,7 @@
 (define-symbol-macro &info (&info))
 
 (defun lapack-info-wrap-argument (argument body)
+  "Generate a wrapper for a LAPACK INFO argument, also checking the result and raising a condition if applicable.  Useful for WRAP-ARGUMENT."
   (let+ (((&slots-r/o pointer variable condition) argument))
     `(let (,variable)
        (with-fortran-atom (,pointer 0 +integer+ ,variable)
@@ -423,17 +429,11 @@
                   ,(blas-lapack-function-name type name)
                   ,@arguments
                   :void))))))
-
+
 ;;;; Main interface
-;;;
-;;; Common conventions:
-;;;
-;;;  1. NAME is either a string or a list of two strings (real/complex)
-;;;
-;;;  2. VALUE is the form returned after the call
 
 (defmacro blas-call ((name type value) &body forms &environment env)
-  "BLAS call."
+  "BLAS call.  NAME is either a string or a list of two strings (real/complex).  TYPE (internal-type) selects the function to call.  VALUE is the form returned after the call."
   (let* ((type-var (gensym "TYPE"))
          (arguments (process-forms forms env))
          (parameters `(:default-type ,type-var)))
@@ -452,7 +452,7 @@
               1)))
 
 (defmacro lapack-call ((name type value) &body forms &environment env)
-  "LAPACK call, takes an &info argument."
+  "LAPACK call, takes an &info argument.  NAME is either a string or a list of two strings (real/complex).  TYPE (internal-type) selects the function to call.  VALUE is the form returned after the call."
   (let* ((type-var (gensym "TYPE"))
          (arguments (process-forms forms env))
          (parameters `(:default-type ,type-var)))
@@ -485,7 +485,7 @@
                  ,(wrap-arguments arguments 'query parameters call-form)
                  ,(wrap-arguments arguments 'call parameters call-form)))
             ,value)))))
-
+
 ;;;; floating point traps
 ;;;
 ;;; Apparently, the only trap that we need to mask is division by zero, and that only for a few operations.  Non-numerical floating points values are used internally (eg in SVD calculations), but only reals are returned.
