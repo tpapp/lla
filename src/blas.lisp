@@ -2,15 +2,10 @@
 
 ;;;; Wrappers for BLAS linear algebra functions defined here.
 ;;;
-;;; Only a select few BLAS functions are implemented currently. All
-;;; functions take a SAFE? argument that defaults to *SAFE?* (T by
-;;; default). With SAFE? true, arguments are checked to catch errors
-;;; that BLAS would also catch and kill the lisp.
-
-(defvar *safe?* t)
+;;; Only a select few BLAS functions are implemented currently.
 
 (defun gemm! (alpha a b beta c &key transpose-a? transpose-b?
-              m n k lda ldb ldc (safe? *safe?*))
+              m n k lda ldb ldc)
   "Basically C = ALPHA * A' * B' + BETA * C. A' is A or its transpose depending on TRANSPOSE-A?. B' is B or its transpose depending on TRANSPOSE-B?. Returns C.
 
 A' is an MxK matrix. B' is a KxN matrix. C is an MxN matrix.
@@ -42,21 +37,20 @@ M --A--+  -C++
          (lda (or lda (array-dimension a 1)))
          (ldb (or ldb (array-dimension b 1)))
          (ldc (or ldc (array-dimension c 1))))
-    (when safe?
-      (cond (transpose-a?
-             (assert (<= m lda))
-             (assert (<= (* lda k) (array-total-size a))))
-            (t
-             (assert (<= k lda))
-             (assert (<= (* m lda) (array-total-size a)))))
-      (cond (transpose-b?
-             (assert (<= k ldb))
-             (assert (<= (* ldb n) (array-total-size b))))
-            (t
-             (assert (<= n ldb))
-             (assert (<= (* k ldb) (array-total-size b)))))
-      (assert (<= n ldc))
-      (assert (<= (* m ldc) (array-total-size c))))
+    (cond (transpose-a?
+           (assert (<= m lda))
+           (assert (<= (* lda k) (array-total-size a))))
+          (t
+           (assert (<= k lda))
+           (assert (<= (* m lda) (array-total-size a)))))
+    (cond (transpose-b?
+           (assert (<= k ldb))
+           (assert (<= (* ldb n) (array-total-size b))))
+          (t
+           (assert (<= n ldb))
+           (assert (<= (* k ldb) (array-total-size b)))))
+    (assert (<= n ldc))
+    (assert (<= (* m ldc) (array-total-size c)))
     ;; here C=AB <=> C^T=B^T A^T, so in the argument list, A and B are
     ;; interchanged
     (blas-call ("gemm" common-type c)
@@ -68,24 +62,22 @@ M --A--+  -C++
       (&atom beta) (&array-in/out (:input c) ())
       (&integer ldc))))
 
-(defun scal! (alpha x &key n (incx 1) (safe? *safe?*))
+(defun scal! (alpha x &key n (incx 1))
   "X = alpha * X."
   (let ((type (array-float-type x))
         (n (cond (n
-                  (when safe?
-                    (assert (<= (* n incx) (array-total-size x))))
+                  (assert (<= (* n incx) (array-total-size x)))
                   n)
                  (t (floor (array-total-size x) incx)))))
     (blas-call ("scal" type x)
       (&integer n) (&atom alpha)
       (&array-in/out (:input x) ()) (&integer incx))))
 
-(defun axpy! (alpha x y &key n (incx 1) (incy 1) (safe? *safe?*))
+(defun axpy! (alpha x y &key n (incx 1) (incy 1))
   (let ((common-type (common-float-type x y))
         (n (cond (n
-                  (when safe?
-                    (assert (<= (* n incx) (array-total-size x)))
-                    (assert (<= (* n incy) (array-total-size y))))
+                  (assert (<= (* n incx) (array-total-size x)))
+                  (assert (<= (* n incy) (array-total-size y)))
                   n)
                  (t (min (floor (array-total-size x) incx)
                          (floor (array-total-size y) incy))))))
@@ -95,12 +87,11 @@ M --A--+  -C++
       (&array-in/out (:input x) ()) (&integer incx)
       (&array-in/out (:input y) ()) (&integer incy))))
 
-(defun copy! (x y &key n (incx 1) (incy 1) (safe? *safe?*))
+(defun copy! (x y &key n (incx 1) (incy 1))
   (let ((type (common-float-type x y))
         (n (cond (n
-                  (when safe?
-                    (assert (<= (* n incx) (array-total-size x)))
-                    (assert (<= (* n incy) (array-total-size y))))
+                  (assert (<= (* n incx) (array-total-size x)))
+                  (assert (<= (* n incy) (array-total-size y)))
                   n)
                  (t (min (floor (array-total-size x) incx)
                          (floor (array-total-size y) incy))))))

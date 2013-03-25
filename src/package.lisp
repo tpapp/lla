@@ -66,7 +66,6 @@
    #:det
    #:tr)
   (:export                              ; blas
-   #:*safe?*
    #:gemm!
    #:scal!
    #:axpy!
