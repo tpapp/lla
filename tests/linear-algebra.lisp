@@ -103,6 +103,9 @@
     ;; (assert-equality #'num= (solve a-lu b-matrix) x-matrix)
     ))
 
+(deftest lu-singular (linear-algebra-suite)
+  (assert-true (lu #2A((0.5 0.5) (0.5 0.5)))))
+
 (deftest mm-hermitian (linear-algebra-suite)
   (let* ((a (mx 'lla-double
               (1 2)

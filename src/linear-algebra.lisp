@@ -231,7 +231,7 @@
           (:input a :transpose? t)
           (:output (&new lu) :transpose? t))
       (&integer a0) (&array-out (&new ipiv) :dimensions (min a0 a1) :type +integer+)
-      &info)))
+      (&info :condition nil))))
 
 ;;;; Hermitian factorization
 
