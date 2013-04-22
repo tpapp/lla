@@ -320,16 +320,16 @@ PARAMETERS is used to specify information that is applicable for all arguments (
 ;;; call info
 
 (defclass lapack-info (fortran-argument)
-  ((variable
-    :initarg :variable
-    :initform (gensym))
-   (condition
-    :initarg :condition))
+  ((condition
+    :initarg :condition)
+   (variable
+    :initarg :variable))
   (:documentation "Information from a LAPACK call.  See the LAPACK manual for error codes."))
 
-(defmacro &info (&optional (condition ''lapack-failure))
-  "Argument for checking whether the call was executed without an error.  Automatically takes care of raising the appropriate condition if it wasn't.  CONDITION specifies the condition to raise in case of positive error codes."
-  (make-instance 'lapack-info :condition condition))
+(defmacro &info (&key (condition 'lapack-failure)
+                      (variable (gensym)))
+  "Argument for checking whether the call was executed without an error.  Automatically takes care of raising the appropriate condition if it wasn't.  CONDITION specifies the condition to raise in case of positive error codes, use NIL to ignore these.  VARIABLE can be used to specify "
+  (make-instance 'lapack-info :condition condition :variable variable))
 
 (define-symbol-macro &info (&info))
 
@@ -343,7 +343,8 @@ PARAMETERS is used to specify information that is applicable for all arguments (
          ((minusp ,variable)
           (error 'lapack-invalid-argument :position (- ,variable)))
          ((plusp ,variable)
-          (error ',condition :info ,variable))))))
+          ,(when condition
+             `(error ',condition :info ,variable)))))))
 
 (defmethod wrap-argument ((argument lapack-info) (pass (eql 'call)) parameters body)
   (lapack-info-wrap-argument argument body))
