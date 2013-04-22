@@ -38,6 +38,7 @@
    #:lu-u
    #:lu-l
    #:ipiv
+   #:ipiv-inverse
    #:qr
    #:qr-r
    #:matrix-square-root

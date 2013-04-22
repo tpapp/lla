@@ -110,8 +110,9 @@
   (loop for n from 2 to 10
         do (loop repeat 100
                  do (let+ ((a (aops:generate (lambda () (random 10d0)) `(,n ,n)))
-                           ((&accessors-r/o lu-l lu-u ipiv) (lu a)))
-                      (assert-equality #'num= (slice a ipiv t) (mm lu-l lu-u))))))
+                           ((&accessors-r/o lu-l lu-u ipiv ipiv-inverse) (lu a)))
+                      (assert-equality #'num= (slice a ipiv t) (mm lu-l lu-u))
+                      (assert-equality #'num= a (slice (mm lu-l lu-u) ipiv-inverse t))))))
 
 (deftest mm-hermitian (linear-algebra-suite)
   (let* ((a (mx 'lla-double
