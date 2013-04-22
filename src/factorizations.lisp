@@ -14,7 +14,13 @@
 
 (defun ipiv (object)
   "Pivot indices, counting from 0.  Row I was interchanged with row index at position I."
-  (map '(simple-array fixnum (*)) #'1- (ipiv-internal object)))
+  (let* ((ipiv-internal (ipiv-internal object))
+         (length (length ipiv-internal)))
+    (aprog1 (ivec length)
+      (loop for index below length
+            do (let ((pivot-index (1- (aref ipiv-internal index))))
+                 (unless (= index pivot-index)
+                   (rotatef (aref it index) (aref it pivot-index))))))))
 
 ;;;; LU factorization
 

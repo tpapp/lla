@@ -106,6 +106,13 @@
 (deftest lu-singular (linear-algebra-suite)
   (assert-true (lu #2A((0.5 0.5) (0.5 0.5)))))
 
+(deftest lu-random-test (linear-algebra-suite)
+  (loop for n from 2 to 10
+        do (loop repeat 100
+                 do (let+ ((a (aops:generate (lambda () (random 10d0)) `(,n ,n)))
+                           ((&accessors-r/o lu-l lu-u ipiv) (lu a)))
+                      (assert-equality #'num= (slice a ipiv t) (mm lu-l lu-u))))))
+
 (deftest mm-hermitian (linear-algebra-suite)
   (let* ((a (mx 'lla-double
               (1 2)
