@@ -35,6 +35,8 @@
    #:lla-efficiency-warning-array-conversion)
   (:export                              ; factorizations
    #:lu
+   #:lu-u
+   #:lu-l
    #:ipiv
    #:qr
    #:qr-r
