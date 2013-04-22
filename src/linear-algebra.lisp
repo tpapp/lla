@@ -225,12 +225,12 @@
 (defmethod lu ((a array))
   (let+ (((a0 a1) (array-dimensions a)))
     (lapack-call ("getrf" (common-float-type a)
-                          (make-instance 'lu :lu lu :ipiv ipiv))
+                          (make-instance 'lu :lu lu :ipiv-internal ipiv-internal))
       (&integers a0 a1)
       (&array-in/out
           (:input a :transpose? t)
           (:output (&new lu) :transpose? t))
-      (&integer a0) (&array-out (&new ipiv) :dimensions (min a0 a1) :type +integer+)
+      (&integer a0) (&array-out (&new ipiv-internal) :dimensions (min a0 a1) :type +integer+)
       (&info :condition nil))))
 
 ;;;; Hermitian factorization
@@ -244,12 +244,12 @@
     (assert (= a0 a1) () 'lla-incompatible-dimensions)
     (lapack-call-w/query (("sytrf" "hetrf") (common-float-type a)
                           (make-instance 'hermitian-factorization
-                                         :factor factor :ipiv ipiv))
+                                         :factor factor :ipiv-internal ipiv-internal))
       #\U
       (&integers a0)
       (&array-in/out (:input a) (:output (&new factor)))
       (&integer a0)
-      (&array-out (&new ipiv) :dimensions a0 :type +integer+)
+      (&array-out (&new ipiv-internal) :dimensions a0 :type +integer+)
       (&work-query) (&info))))
 
 ;;;; solving linear equations
@@ -262,14 +262,14 @@
   (solve a (aops:as-array b)))
 
 (defmethod solve ((lu lu) (b array))
-  (let+ (((&slots lu ipiv) lu)
+  (let+ (((&slots lu ipiv-internal) lu)
          ((lu0 lu1) (array-dimensions lu))
          ((&values b0 b1 &ign) (dimensions-as-matrix b :column)))
     (assert (= lu0 lu1 b0) () 'lla-incompatible-dimensions)
     (lapack-call ("getrs" (common-float-type lu b) x)
       #\N (&integer lu0) (&integer b1)
       (&array-in lu :transpose? t)
-      (&integer lu0) (&array-in ipiv :type +integer+)
+      (&integer lu0) (&array-in ipiv-internal :type +integer+)
       (&array-in/out
           (:input b :transpose? t)
           (:output (&new x) :transpose? t))
@@ -315,13 +315,13 @@
       (&integer b0) &info)))
 
 (defmethod solve ((a hermitian-factorization) (b array))
-  (let+ (((&slots-r/o factor ipiv) a)
+  (let+ (((&slots-r/o factor ipiv-internal) a)
          ((a0 a1) (array-dimensions factor))
          ((&values b0 b1) (dimensions-as-matrix b :column)))
     (assert (= a0 a1 b0) () 'lla-incompatible-dimensions)
     (lapack-call (("sytrs" "hetrs") (common-float-type factor b) x)
       #\U (&integers a0 b1) (&array-in factor) (&integer a0)
-      (&array-in ipiv :type +integer+)
+      (&array-in ipiv-internal :type +integer+)
       (&array-in/out
           (:input b :transpose? t)
           (:output (&new x) :transpose? t))
@@ -356,17 +356,17 @@
   (invert (lu a)))
 
 (defmethod invert ((lu lu) &key)
-  (let+ (((&slots-r/o lu ipiv) lu)
+  (let+ (((&slots-r/o lu ipiv-internal) lu)
          ((lu0 lu1) (array-dimensions lu)))
-    (assert (= lu0 lu1 (length ipiv)))
+    (assert (= lu0 lu1 (length ipiv-internal)))
     (lapack-call-w/query ("getri" (common-float-type lu) inverse)
       (&integer lu0)
       (&array-in/out (:input lu :transpose? t)
           (:output (&new inverse) :transpose? t))
-      (&integer lu0) (&array-in ipiv :type +integer+) (&work-query) &info)))
+      (&integer lu0) (&array-in ipiv-internal :type +integer+) (&work-query) &info)))
 
 (defmethod invert ((a hermitian-factorization) &key)
-  (let+ (((&slots-r/o factor ipiv) a)
+  (let+ (((&slots-r/o factor ipiv-internal) a)
          ((a0 a1) (array-dimensions factor)))
     (assert (= a0 a1))
     (lapack-call (("sytri" "hetri") (common-float-type factor)
@@ -374,7 +374,7 @@
       #\U (&integer a0)
       (&array-in/out (:input factor) (:output (&new inverse)))
       (&integer a0)
-      (&array-in ipiv :type +integer+) (&work a0) &info)))
+      (&array-in ipiv-internal :type +integer+) (&work a0) &info)))
 
 (defmethod invert ((a hermitian-matrix) &key)
   (invert (hermitian-factorization a)))

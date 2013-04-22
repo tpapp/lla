@@ -2,22 +2,28 @@
 
 (in-package #:lla)
 
-(defgeneric ipiv (object)
-  (:documentation "Return the pivot indexes of OBJECT.
+;;; pivoting mixin
 
-May only be meaningful with other information.  May use the format of LAPACK, counting from 1.  Not exported, as external use is discouraged."))
+(defclass ipiv-mixin ()
+  ((ipiv-internal
+    :documentation "pivot indices in LAPACK's representation, counting from 1"
+    :type vector
+    :initarg :ipiv-internal
+    :reader ipiv-internal))
+  (:documentation "Mixin class for objects with pivoting."))
+
+(defun ipiv (object)
+  "Pivot indices, counting from 0.  Row I was interchanged with row index at position I."
+  (map '(simple-array fixnum (*)) #'1- (ipiv-internal object)))
 
 ;;;; LU factorization
 
-(defclass lu ()
-  ((lu :type matrix
-       :initarg :lu
-       :reader lu-matrix
-       :documentation "matrix storing the transpose of the LU factorization.")
-   (ipiv :type vector
-         :initarg :ipiv
-         :reader ipiv
-	 :documentation "pivot indices"))
+(defclass lu (ipiv-mixin)
+  ((lu
+    :documentation "matrix storing the transpose of the LU factorization."
+    :type matrix
+    :initarg :lu
+    :reader lu-matrix))
   (:documentation "LU factorization of a matrix with pivoting."))
 
 (defun lu-u (lu)
@@ -38,7 +44,7 @@ May only be meaningful with other information.  May use the format of LAPACK, co
     (format stream "~2& L=~A~2& U=~A~2&  pivot indices=~A"
             (lu-l lu)
             (lu-u lu)
-            (ipiv lu))))
+            (ipiv-internal lu))))
 
 ;;;; QR factorization
 
@@ -111,25 +117,23 @@ Efficiency note: decompositions should store the left square root X, and compute
 (defgeneric permutations (object)
   (:documentation "Return the number of permutations in object (which is usually a matrix factorization, or a pivot index."))
 
-(defun count-permutations% (ipiv)
+(defun count-permutations% (ipiv-internal)
   "Count the permutations in a pivoting vector."
   (loop
     for index from 1               ; LAPACK counts from 1
-    for i across ipiv
+    for i across ipiv-internal
     counting (/= index i)))
 
 (defmethod permutations ((lu lu))
-  (count-permutations% (ipiv lu)))
+  (count-permutations% (ipiv-internal lu)))
 
 ;;;; hermitian factorization
 
-(defclass hermitian-factorization ()
+(defclass hermitian-factorization (ipiv-mixin)
   ((factor :type matrix :initarg :factor :reader factor
            :documentation "see documentation of *SYTRF and *HETRF, storage is
            in the half specified by HERMITIAN-ORIENTATION and otherwise
-           treated as opaque.")
-   (ipiv :type vector :initarg :ipiv :reader ipiv :documentation "pivot
-   indices"))
+           treated as opaque."))
   (:documentation "Factorization for an indefinite hermitian matrix with
   pivoting."))
 
