@@ -88,8 +88,7 @@ Example:
   "Return the R part of a QR factorization."
   (let+ (((&slots-r/o qr) qr)
          ((aops:&dims nrow ncol) qr))
-    (assert (>= nrow ncol))
-    (upper-triangular-matrix (aops:partition qr 0 ncol))))
+    (upper-triangular-matrix (copy-array (aops:partition qr 0 (min nrow ncol))))))
 
 ;;;; generic interface for square root-like factorizations
 
