@@ -419,21 +419,29 @@ PARAMETERS is used to specify information that is applicable for all arguments (
   "Return a list that can be use in a CFFI call."
   (loop for arg in arguments appending `(:pointer ,(argument-pointer arg))))
 
-(defun blas-lapack-call-form (type-var name arguments)
+(defun blas-return-types (return-types)
+  (if (listp return-types)
+      return-types
+      (loop repeat (length +float-types+)
+            collect return-types)))
+
+(defun blas-lapack-call-form (type-var name arguments &optional (return-types :void))
   "Return a form BLAS/LAPACK calls, conditioning on TYPE-VAR.  See BLAS-LAPACK-FUNCTION-NAME for the interpretation of FIXME"
   (let ((arguments (arguments-for-cffi arguments)))
     `(ecase ,type-var
        ,@(loop for type in +float-types+
+               for return-type in (blas-return-types return-types)
                collect
                `(,type
                  (cffi:foreign-funcall
                   ,(blas-lapack-function-name type name)
                   ,@arguments
-                  :void))))))
+                  ,return-type))))))
 
 ;;;; Main interface
 
-(defmacro blas-call ((name type value) &body forms &environment env)
+(defmacro blas-call ((name type &optional value (return-types :void)) &body forms
+                     &environment env)
   "BLAS call.  NAME is either a string or a list of two strings (real/complex).  TYPE (internal-type) selects the function to call.  VALUE is the form returned after the call."
   (let* ((type-var (gensym "TYPE"))
          (arguments (process-forms forms env))
@@ -443,8 +451,10 @@ PARAMETERS is used to specify information that is applicable for all arguments (
          arguments 'bindings parameters
          `(progn
             ,(wrap-arguments arguments 'main parameters
-                             (blas-lapack-call-form type-var name arguments))
-            ,value)))))
+                             (blas-lapack-call-form type-var name arguments
+                                                    return-types))
+            ,@(when value
+                `(,value)))))))
 
 (defun assert-single-lapack-info (arguments)
   "Assert that there is at most one LAPACK-INFO in ARGUMENTS."

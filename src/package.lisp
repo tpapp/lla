@@ -72,4 +72,7 @@
    #:gemm!
    #:scal!
    #:axpy!
-   #:copy!))
+   #:copy!
+   #:dot
+   #:asum
+   #:nrm2))
