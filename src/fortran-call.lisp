@@ -68,7 +68,7 @@ PARAMETERS is used to specify information that is applicable for all arguments (
     :documentation "Determines (internal) type for array mapped to the pointer."
     :initarg :type
     :initform nil
-    :type internal-type))
+    :type t))
   (:documentation "For arguments which may have multiple types, mostly arrays or atoms (implemented as single-cell arrays)."))
 
 (defclass fortran-argument/size (fortran-argument)
@@ -183,7 +183,7 @@ PARAMETERS is used to specify information that is applicable for all arguments (
     :initarg :input)
    (input-type
     :initarg :input-type
-    :type internal-type
+    :type t
     :initform nil)
    (input-transpose?
     :initarg :input-transpose?
