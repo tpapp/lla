@@ -11,6 +11,7 @@
         #:let-plus
         #:lla)
   (:shadowing-import-from #:alexandria #:mean #:variance #:median)
+  (:shadowing-import-from #:lla #:invert) ; also in CL-SLICE
   (:export #:run))
 
 (in-package :lla-tests)

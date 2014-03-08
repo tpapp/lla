@@ -6,6 +6,7 @@
         #:cl-num-utils
         #:cl-slice
         #:let-plus)
+  (:shadow #:invert)                     ; also in CL-SLICE
   (:shadowing-import-from #:cl-num-utils ; also in ALEXANDRIA
                           #:mean #:variance #:median)
   ;; no exports from:
