@@ -548,7 +548,7 @@ omitting the first NRHS rows.  If MATRIX is a vector, just do this for the last 
          (df (- x0 x1))
          (common-type (common-float-type y x)))
     (assert (= y0 x0) () 'lla-incompatible-dimensions)
-    (assert (plusp df) () 'not-enough-columns)
+    (assert (<= 0 df) () 'lla-incompatible-dimensions) ; NOTE maybe a separate condition?
     (lapack-call-w/query
         ("gels"
          common-type

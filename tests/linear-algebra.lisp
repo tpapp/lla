@@ -337,7 +337,14 @@
     ;; (assert-equality #'num= variance (clo 'lla-double :hermitian
     ;;                            0.04035491 * :/
     ;;                            -0.03885797 0.03810950))
-    ))
+    ;; degenerate case: least squares with square matrix
+    (let* ((x (mx 'lla-double
+                (1 2)
+                (3 4)))
+           (b (vec 'lla-double
+                   5 6))
+           (y (mm x b)))
+      (assert-equality #'num= b (least-squares y x)))))
 
 ;; ;; (deftest (linear-algebra-suite)
 ;; ;;   constrained-least-squares
