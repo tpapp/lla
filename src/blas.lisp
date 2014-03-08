@@ -98,3 +98,39 @@ M --A--+  -C++
     (blas-call ("copy" type y)
       (&integer n) (&array-in x) (&integer incx)
       (&array-in/out (:input y) ()) (&integer incy))))
+
+(defun dot (x y &key n (incx 1) (incy 1))
+  (let ((common-type (common-float-type x y))
+        (n (cond (n
+                  (assert (<= (* n incx) (array-total-size x)))
+                  (assert (<= (* n incy) (array-total-size y)))
+                  n)
+                 (t (min (floor (array-total-size x) incx)
+                         (floor (array-total-size y) incy))))))
+
+    ;; no zdot, cdot
+    (blas-call ("dot" common-type nil (:float :double))
+      (&integer n)
+      (&array-in/out (:input x) ()) (&integer incx)
+      (&array-in/out (:input y) ()) (&integer incy))))
+
+(defun asum (x &key n (incx 1))
+  "Return the L1 norm of X."
+  (let ((common-type (common-float-type x))
+        (n (cond (n
+                  (assert (<= (* n incx) (array-total-size x)))
+                  n)
+                 (t (floor (array-total-size x) incx)))))
+    (blas-call ("asum" common-type nil (:float :double :float :double))
+      (&integer n) (&array-in x) (&integer incx))))
+
+(defun nrm2 (x &key n (incx 1))
+  "Return the L2 norm of X."
+  (let ((type (array-float-type x))
+        (n (cond (n
+                  (assert (<= (* n incx) (array-total-size x)))
+                  n)
+                 (t (floor (array-total-size x) incx)))))
+    (blas-call ("nrm2" type nil (:float :double :float :double))
+      (&integer n) (&array-in x) (&integer incx))))
+
