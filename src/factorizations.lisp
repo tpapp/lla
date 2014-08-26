@@ -47,7 +47,6 @@ Example:
 (defclass lu (ipiv-mixin)
   ((lu
     :documentation "matrix storing the transpose of the LU factorization."
-    :type matrix
     :initarg :lu
     :reader lu-matrix))
   (:documentation "LU factorization of a matrix with pivoting.  (SLICE A IPIV) is (MM L U), when IPIV is used to obtain the permutation."))
@@ -75,8 +74,7 @@ Example:
 ;;;; QR factorization
 
 (defclass qr ()
-  ((qr :type matrix
-       :initarg :qr
+  ((qr :initarg :qr
        :reader qr
        :documentation "matrix storing the QR factorization.")
    (tau :accessor tau
@@ -155,7 +153,7 @@ Efficiency note: decompositions should store the left square root X, and compute
 ;;;; hermitian factorization
 
 (defclass hermitian-factorization (ipiv-mixin)
-  ((factor :type matrix :initarg :factor :reader factor
+  ((factor :initarg :factor :reader factor
            :documentation "see documentation of *SYTRF and *HETRF, storage is
            in the half specified by HERMITIAN-ORIENTATION and otherwise
            treated as opaque."))
