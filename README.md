@@ -1,6 +1,10 @@
 # Lisp Linear Algebra — a linear algebra library for Common Lisp
 
-[![Project Status: Unsupported – The project has reached a stable, usable state but the author(s) have ceased all work on it. A new maintainer may be desired.](http://www.repostatus.org/badges/latest/unsupported.svg)](http://www.repostatus.org/#unsupported) This library is [**unsupported**](https://tpapp.github.io/post/orphaned-lisp-libraries/).
+[![Project Status: Unsupported – The project has reached a stable, usable state but the author(s) have ceased all work on it. A new maintainer may be desired.](http://www.repostatus.org/badges/latest/unsupported.svg)](http://www.repostatus.org/#unsupported)
+
+This library is [**unsupported**](https://tpapp.github.io/post/orphaned-lisp-libraries/) by me. A fork is maintained at https://github.com/Lisp-Stat/lla.
+
+## About
 
 LLA is a high-level Common Lisp library built on on [BLAS](http://www.netlib.org/blas/) and [LAPACK](http://www.netlib.org/lapack/), but providing a much more abstract interface with the purpose of freeing the user from low-level concerns and reducing the number of bugs in numerical code.
 
